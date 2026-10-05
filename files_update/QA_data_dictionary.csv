@@ -1,0 +1,228 @@
+﻿File,Column,Meaning,Primary_Key,References,Nullable
+HR_employees.csv,Employee_ID,Employee id,Yes,,No
+HR_employees.csv,Employee_Name,Synthetic display name. Employee_ID remains the stable key from the supplied source.,No,,No
+HR_employees.csv,Department,Department,No,,No
+HR_employees.csv,Team_Display_Name,Synthetic readable team name used by operational records.,No,,No
+HR_employees.csv,Job_Title,Job title,No,,No
+HR_employees.csv,Job_Level,Job level,No,,No
+HR_employees.csv,Employment_Type,Employment type,No,,No
+HR_employees.csv,Hire_Date,Hire date,No,,No
+HR_employees.csv,Termination_Date,Termination date,No,,Yes
+HR_employees.csv,As_Of_Date,"Synthetic current roster reference date, 2026-09-30; does not update the historical source metrics.",No,,No
+HR_employees.csv,Coverage_Start_Date,"Start of the synthetic longitudinal reporting window, 2024-10-01.",No,,No
+HR_employees.csv,Coverage_End_Date,"End of the synthetic longitudinal reporting window, 2026-09-30.",No,,No
+HR_employees.csv,Pilot_Manager_ID,"Synthetic, team-aligned manager assignment used by the operational simulation. The source Manager_ID is retained in QA_corrected_source.csv.",No,HR_managers.csv.Manager_ID,No
+HR_employees.csv,Pilot_Manager_Name,"Synthetic display name of the pilot manager, keyed by Pilot_Manager_ID.",No,,No
+HR_employees.csv,Pilot_Roster_Status,Whether source employment dates overlap the simulation window; not a verified real employment status.,No,,No
+HR_employees.csv,Data_Origin,Source versus synthetic provenance; source date and tenure repairs are separately logged.,No,,No
+HR_managers.csv,Manager_ID,Manager id,Yes,,No
+HR_managers.csv,Manager_Name,Manager name,No,,No
+HR_managers.csv,Primary_Department,Primary department,No,,No
+HR_managers.csv,Primary_Team,Primary team,No,,No
+HR_managers.csv,Employees_In_Original_Source,Number of source rows carrying this manager ID; source manager assignments are not the pilot structure.,No,,No
+HR_managers.csv,Pilot_Assigned_Employees,Employees assigned to this manager in the synthetic pilot structure.,No,,No
+HR_managers.csv,Role,Role,No,,No
+HR_managers.csv,Contact_Email,Contact email,No,,No
+HR_managers.csv,Decision_Authority,Decision authority,No,,No
+HR_managers.csv,As_Of_Date,"Synthetic current roster reference date, 2026-09-30; does not update the historical source metrics.",No,,No
+HR_managers.csv,Coverage_Start_Date,"Start of the synthetic longitudinal reporting window, 2024-10-01.",No,,No
+HR_managers.csv,Coverage_End_Date,"End of the synthetic longitudinal reporting window, 2026-09-30.",No,,No
+HR_managers.csv,Data_Origin,Source versus synthetic provenance; source date and tenure repairs are separately logged.,No,,No
+HR_survey_summary.csv,Survey_ID,Survey id,Yes,,No
+HR_survey_summary.csv,Survey_Date,Survey date,No,,No
+HR_survey_summary.csv,Department,Department,No,,No
+HR_survey_summary.csv,Team,Team,No,,No
+HR_survey_summary.csv,Dimension,Dimension,No,,No
+HR_survey_summary.csv,Question,Question,No,,No
+HR_survey_summary.csv,Eligible_Employees,Eligible employees,No,,No
+HR_survey_summary.csv,Responses,Responses,No,,No
+HR_survey_summary.csv,Scale_Min,Minimum valid question rating. eNPS uses 0; all other dimensions use 1.,No,,No
+HR_survey_summary.csv,Scale_Max,Maximum valid question rating. eNPS uses 10; all other dimensions use 5.,No,,No
+HR_survey_summary.csv,Favorable_Responses,Number of 1-5 ratings that are 4 or 5. Blank for eNPS; not the positive-comment count.,No,,Yes
+HR_survey_summary.csv,Favorable_Percent,100 * Favorable_Responses / Responses for 1-5 questions; blank for eNPS.,No,,Yes
+HR_survey_summary.csv,Mean_Score,"Mean of all anonymous ratings for the team/date/question, including ratings without written comments.",No,,No
+HR_survey_summary.csv,Promoters,eNPS response count with rating 9 or 10. Blank for other dimensions.,No,,Yes
+HR_survey_summary.csv,Passives,eNPS response count with rating 7 or 8. Blank for other dimensions.,No,,Yes
+HR_survey_summary.csv,Detractors,eNPS response count with rating 0 through 6. Blank for other dimensions.,No,,Yes
+HR_survey_summary.csv,eNPS_Score,100 * (Promoters - Detractors) / Responses; range -100 to 100. Blank for 1-5 dimensions.,No,,Yes
+HR_survey_summary.csv,Data_Origin,Source versus synthetic provenance; source date and tenure repairs are separately logged.,No,,No
+HR_survey_comments.csv,Comment_ID,Comment id,Yes,,No
+HR_survey_comments.csv,Survey_ID,Survey id,No,HR_survey_summary.csv.Survey_ID,No
+HR_survey_comments.csv,Survey_Date,Survey date,No,,No
+HR_survey_comments.csv,Department,Department,No,,No
+HR_survey_comments.csv,Team,Team,No,,No
+HR_survey_comments.csv,Anonymous_Response_Token,Row-level token for open text; it cannot be joined to Employee_ID or linked across surveys.,No,,No
+HR_survey_comments.csv,Dimension,Dimension,No,,No
+HR_survey_comments.csv,Response_Score,"Anonymous rating accompanying this comment. Use the linked survey scale: 1-5, or 0-10 for eNPS. No respondent identity is stored.",No,,No
+HR_survey_comments.csv,Open_Text_Question,Open text question,No,,No
+HR_survey_comments.csv,Response_Text,"Invented open-text employee comment, stored without a named respondent.",No,,No
+HR_survey_comments.csv,Data_Origin,Source versus synthetic provenance; source date and tenure repairs are separately logged.,No,,No
+HR_program_participation.csv,Participation_ID,Participation id,Yes,,No
+HR_program_participation.csv,Offering_ID,Edition of a learning program or quarterly benefit reporting allocation; shared across eligible employees. Not an extra catalog table.,No,,No
+HR_program_participation.csv,Program_ID,Stable program identifier across all repeated offerings; Program_Name gives the readable label.,No,,No
+HR_program_participation.csv,Employee_ID,Employee id,No,HR_employees.csv.Employee_ID,No
+HR_program_participation.csv,Employee_Name,Synthetic display name. Employee_ID remains the stable key from the supplied source.,No,,No
+HR_program_participation.csv,Department,Department,No,,No
+HR_program_participation.csv,Team,Team,No,,No
+HR_program_participation.csv,Program_Type,Program type,No,,No
+HR_program_participation.csv,Program_Name,Program name,No,,No
+HR_program_participation.csv,Program_Objective,Program objective,No,,No
+HR_program_participation.csv,Offering_Audience,All employees or Two teams. Eligibility applies while employed; participation is voluntary.,No,,No
+HR_program_participation.csv,Target_Team_1,First targeted team for a two-team learning edition; blank for a general offering.,No,,Yes
+HR_program_participation.csv,Target_Team_2,Second targeted team for a two-team learning edition; blank for a general offering.,No,,Yes
+HR_program_participation.csv,Reporting_Period,Reporting period,No,,No
+HR_program_participation.csv,Period_Start_Date,"Beginning of the covered capacity week, learning cycle or benefit reporting quarter.",No,,No
+HR_program_participation.csv,Period_End_Date,"End of the covered capacity week, two-month learning cycle or benefit reporting quarter.",No,,No
+HR_program_participation.csv,Offered_Date,Offered date,No,,No
+HR_program_participation.csv,Session_Date,Scheduled workshop or training start. Blank for continuously available benefits.,No,,Yes
+HR_program_participation.csv,Eligibility_Status,Eligible for the stated offering audience and employed on the offer date; no inference from an absent row.,No,,No
+HR_program_participation.csv,Participation_Status,"Not enrolled; Enrolled, not started; In progress; Completed for learning, or Used for benefits.",No,,No
+HR_program_participation.csv,Enrollment_Date,Enrollment date,No,,Yes
+HR_program_participation.csv,First_Use_Date,First use date,No,,Yes
+HR_program_participation.csv,Completion_Date,Workshop or training completion date; blank for benefits and unfinished learning.,No,,Yes
+HR_program_participation.csv,Use_Count,Number of program uses or sessions during the reporting period; zero if not started.,No,,No
+HR_program_participation.csv,Participation_Hours,Recorded learning hours for workshops/training; blank for benefits and unstarted learning.,No,,Yes
+HR_program_participation.csv,Applied_At_Work,Yes or No after completed learning or benefit use; Not assessed if participation is incomplete.,No,,No
+HR_program_participation.csv,Application_Date,Application date,No,,Yes
+HR_program_participation.csv,Self_Reported_Use_Evidence,Invented participant description of practical use; attendance alone does not establish application or impact.,No,,Yes
+HR_program_participation.csv,Usefulness_Score,Optional synthetic participant rating from 1 (not useful) to 5 (very useful); blank if not started.,No,,Yes
+HR_program_participation.csv,Access_Or_Use_Barrier,Access or use barrier,No,,No
+HR_program_participation.csv,Evidence_Source,Evidence source,No,,No
+HR_program_participation.csv,Data_Origin,Source versus synthetic provenance; source date and tenure repairs are separately logged.,No,,No
+HR_recognition_feedback.csv,Interaction_ID,Interaction id,Yes,,No
+HR_recognition_feedback.csv,Interaction_Type,Interaction type,No,,No
+HR_recognition_feedback.csv,Contribution_ID,Contribution id,No,OP_contributions.csv.Contribution_ID,No
+HR_recognition_feedback.csv,Work_Request_ID,Work request id,No,OP_work_requests.csv.Work_Request_ID,No
+HR_recognition_feedback.csv,Employee_ID,Employee id,No,HR_employees.csv.Employee_ID,No
+HR_recognition_feedback.csv,Employee_Name,Synthetic display name. Employee_ID remains the stable key from the supplied source.,No,,No
+HR_recognition_feedback.csv,Author_Manager_ID,Author manager id,No,HR_managers.csv.Manager_ID,No
+HR_recognition_feedback.csv,Author_Name,Author name,No,,No
+HR_recognition_feedback.csv,Author_Team,Author team,No,,No
+HR_recognition_feedback.csv,Recipient_Manager_ID,Recipient manager id,No,HR_managers.csv.Manager_ID,No
+HR_recognition_feedback.csv,Recipient_Manager_Name,Recipient manager name,No,,No
+HR_recognition_feedback.csv,Interaction_Date,Interaction date,No,,No
+HR_recognition_feedback.csv,Channel,Channel,No,,No
+HR_recognition_feedback.csv,Message,Invented partner feedback or recognition message using readable names and project context.,No,,No
+HR_recognition_feedback.csv,Shared_With_Home_Manager,Shared with home manager,No,,No
+HR_recognition_feedback.csv,Record_Coverage,Record coverage,No,,No
+HR_recognition_feedback.csv,Data_Origin,Source versus synthetic provenance; source date and tenure repairs are separately logged.,No,,No
+OP_projects.csv,Project_ID,Project id,Yes,,No
+OP_projects.csv,Project_Name,Readable project label repeated where needed to make the row intelligible without decoding Project_ID.,No,,No
+OP_projects.csv,Sponsoring_Department,Sponsoring department,No,,No
+OP_projects.csv,Sponsoring_Team,Sponsoring team,No,,No
+OP_projects.csv,Business_Objective,Business objective,No,,No
+OP_projects.csv,Project_Start_Date,Project start date,No,,No
+OP_projects.csv,Target_End_Date,Target end date,No,,No
+OP_projects.csv,Project_Owner_Manager_ID,Project owner manager id,No,HR_managers.csv.Manager_ID,No
+OP_projects.csv,Project_Owner_Name,Project owner name,No,,No
+OP_projects.csv,Data_Origin,Source versus synthetic provenance; source date and tenure repairs are separately logged.,No,,No
+OP_work_requests.csv,Work_Request_ID,Work request id,Yes,,No
+OP_work_requests.csv,Project_ID,Project id,No,OP_projects.csv.Project_ID,No
+OP_work_requests.csv,Project_Name,Readable project label repeated where needed to make the row intelligible without decoding Project_ID.,No,,No
+OP_work_requests.csv,Requested_By_Manager_ID,Requested by manager id,No,HR_managers.csv.Manager_ID,No
+OP_work_requests.csv,Requested_By_Name,Requested by name,No,,No
+OP_work_requests.csv,Requesting_Team,Requesting team,No,,No
+OP_work_requests.csv,Assigned_Employee_ID,Assigned employee id,No,HR_employees.csv.Employee_ID,No
+OP_work_requests.csv,Assigned_Employee_Name,Assigned employee name,No,,No
+OP_work_requests.csv,Assigned_Employee_Team,Assigned employee team,No,,No
+OP_work_requests.csv,Request_Date,Request date,No,,No
+OP_work_requests.csv,Week_Start,Week start,No,,No
+OP_work_requests.csv,Original_Due_Date,First requested deadline. Compare to Current_Due_Date after documented decisions.,No,,No
+OP_work_requests.csv,Current_Due_Date,"Latest approved deadline in this generated data, including any move-deadline decision.",No,,No
+OP_work_requests.csv,Original_Priority,Original priority,No,,No
+OP_work_requests.csv,Current_Priority,Current priority,No,,No
+OP_work_requests.csv,Original_Estimated_Hours,Original estimated hours,No,,No
+OP_work_requests.csv,Current_Estimated_Hours,Current estimated hours,No,,No
+OP_work_requests.csv,Actual_Hours,Hours the assigned employee spent on the deliverable; support hours from another person are not included.,No,,No
+OP_work_requests.csv,Rework_Hours,Additional hours beyond Actual_Hours when a request required repeat effort.,No,,No
+OP_work_requests.csv,Status,Status,No,,No
+OP_work_requests.csv,Work_Title,"Readable assigned deliverable; Work_Request_ID is a join key, not part of the title.",No,,No
+OP_work_requests.csv,Work_Description,Work description,No,,No
+OP_work_requests.csv,Expected_Deliverable,Expected deliverable,No,,No
+OP_work_requests.csv,Completion_Date,Synthetic date on which the assigned deliverable was accepted.,No,,No
+OP_work_requests.csv,Dependency_Description,Dependency description,No,,Yes
+OP_work_requests.csv,Data_Origin,Source versus synthetic provenance; source date and tenure repairs are separately logged.,No,,No
+OP_capacity.csv,Capacity_ID,Capacity id,Yes,,No
+OP_capacity.csv,Employee_ID,Employee id,No,HR_employees.csv.Employee_ID,No
+OP_capacity.csv,Employee_Name,Synthetic display name. Employee_ID remains the stable key from the supplied source.,No,,No
+OP_capacity.csv,Employee_Team,Employee team,No,,No
+OP_capacity.csv,Week_Start,Week start,No,,No
+OP_capacity.csv,Period_Start_Date,"Beginning of the covered capacity week, learning cycle or benefit reporting quarter.",No,,No
+OP_capacity.csv,Period_End_Date,"End of the covered capacity week, two-month learning cycle or benefit reporting quarter.",No,,No
+OP_capacity.csv,Scheduled_Hours,Scheduled hours,No,,No
+OP_capacity.csv,Leave_Hours,Leave hours,No,,Yes
+OP_capacity.csv,Routine_Hours,Routine hours,No,,Yes
+OP_capacity.csv,Available_Project_Hours,Scheduled minus leave minus routine hours. Blank when allocation is missing; blank is not zero.,No,,Yes
+OP_capacity.csv,Availability_Status,Availability status,No,,No
+OP_capacity.csv,Data_Origin,Source versus synthetic provenance; source date and tenure repairs are separately logged.,No,,No
+OP_priority_decisions.csv,Decision_ID,Decision id,Yes,,No
+OP_priority_decisions.csv,Work_Request_ID,Work request id,No,OP_work_requests.csv.Work_Request_ID,No
+OP_priority_decisions.csv,Related_Work_Request_ID,Related work request id,No,OP_work_requests.csv.Work_Request_ID,No
+OP_priority_decisions.csv,Decision_Date,Decision date,No,,No
+OP_priority_decisions.csv,Decision_Maker_ID,Decision maker id,No,HR_managers.csv.Manager_ID,No
+OP_priority_decisions.csv,Decision_Maker_Name,Decision maker name,No,,No
+OP_priority_decisions.csv,Decision_Type,Decision type,No,,No
+OP_priority_decisions.csv,Previous_Due_Date,Previous due date,No,,No
+OP_priority_decisions.csv,Revised_Due_Date,Revised due date,No,,No
+OP_priority_decisions.csv,Previous_Priority,Previous priority,No,,No
+OP_priority_decisions.csv,Revised_Priority,Revised priority,No,,No
+OP_priority_decisions.csv,Previous_Estimated_Hours,Previous estimated hours,No,,No
+OP_priority_decisions.csv,Revised_Estimated_Hours,Revised estimated hours,No,,No
+OP_priority_decisions.csv,Decision_Explanation,Decision explanation,No,,No
+OP_priority_decisions.csv,Tradeoff,Tradeoff,No,,No
+OP_priority_decisions.csv,Status_After_Decision,Resolution state; a changed priority alone may leave a capacity conflict unresolved.,No,,No
+OP_priority_decisions.csv,Data_Origin,Source versus synthetic provenance; source date and tenure repairs are separately logged.,No,,No
+OP_contributions.csv,Contribution_ID,Contribution id,Yes,,No
+OP_contributions.csv,Work_Request_ID,Work request id,No,OP_work_requests.csv.Work_Request_ID,No
+OP_contributions.csv,Project_Name,Readable project label repeated where needed to make the row intelligible without decoding Project_ID.,No,,No
+OP_contributions.csv,Employee_ID,Employee id,No,HR_employees.csv.Employee_ID,No
+OP_contributions.csv,Employee_Name,Synthetic display name. Employee_ID remains the stable key from the supplied source.,No,,No
+OP_contributions.csv,Home_Team,Home team,No,,No
+OP_contributions.csv,Beneficiary_Team,Beneficiary team,No,,No
+OP_contributions.csv,Contribution_Date,Contribution date,No,,No
+OP_contributions.csv,Contribution_Summary,Contribution summary,No,,No
+OP_contributions.csv,Business_Outcome,Business outcome,No,,No
+OP_contributions.csv,Evidence_Description,Evidence description,No,,No
+OP_contributions.csv,Data_Origin,Source versus synthetic provenance; source date and tenure repairs are separately logged.,No,,No
+QA_hr_metrics_history.csv,Employee_ID,Employee id,Composite part,HR_employees.csv.Employee_ID,No
+QA_hr_metrics_history.csv,Snapshot_Date,"Quarter-end observation, or termination date if the person left during the quarter.",No,,No
+QA_hr_metrics_history.csv,Hire_Date,Hire date,No,,No
+QA_hr_metrics_history.csv,Termination_Date,Termination date,No,,Yes
+QA_hr_metrics_history.csv,Age,Age,No,,No
+QA_hr_metrics_history.csv,Gender,Gender,No,,No
+QA_hr_metrics_history.csv,Country,Country,No,,No
+QA_hr_metrics_history.csv,Education_Level,Education level,No,,No
+QA_hr_metrics_history.csv,Tenure_Years,Tenure years,No,,No
+QA_hr_metrics_history.csv,Department,Department,No,,No
+QA_hr_metrics_history.csv,Team,Team,No,,No
+QA_hr_metrics_history.csv,Job_Title,Job title,No,,No
+QA_hr_metrics_history.csv,Job_Level,Job level,No,,No
+QA_hr_metrics_history.csv,Manager_ID,Manager id,No,,No
+QA_hr_metrics_history.csv,Employment_Type,Employment type,No,,No
+QA_hr_metrics_history.csv,Work_Mode,Work mode,No,,No
+QA_hr_metrics_history.csv,Annual_Salary,"Synthetic annual salary in Currency, with possible annual revisions; backend aggregate use only.",No,,No
+QA_hr_metrics_history.csv,Currency,Currency,No,,No
+QA_hr_metrics_history.csv,Bonus_Last_Year,Bonus last year,No,,No
+QA_hr_metrics_history.csv,Annual_Performance_Score,Annual performance score,No,,No
+QA_hr_metrics_history.csv,Last_360_Feedback_Score,Last 360 feedback score,No,,No
+QA_hr_metrics_history.csv,Engagement_Score,"Invented individual HR indicator on 0-100, not an identifiable anonymous survey answer.",No,,No
+QA_hr_metrics_history.csv,Satisfaction_Score,Invented individual HR indicator on 0-100; separate from 1-5 survey ratings.,No,,No
+QA_hr_metrics_history.csv,Absence_Days_Last_Year,Absence days last year,No,,No
+QA_hr_metrics_history.csv,Burnout_Risk,Burnout risk,No,,No
+QA_hr_metrics_history.csv,Training_Hours_Last_Year,Recorded learning hours during up to the previous 365 observed days; see coverage fields.,No,,No
+QA_hr_metrics_history.csv,Promotion_Events_Last_3Y,Promotion events last 3y,No,,No
+QA_hr_metrics_history.csv,Salary_Increase_Percentage_Last_3Y,Salary increase percentage last 3y,No,,No
+QA_hr_metrics_history.csv,Potential_Score,Potential score,No,,No
+QA_hr_metrics_history.csv,Internal_Mobility_Events,Internal mobility events,No,,No
+QA_hr_metrics_history.csv,Overtime_Hours_Last_Year,Overtime hours last year,No,,No
+QA_hr_metrics_history.csv,Attrition_Flag,Attrition flag,No,,No
+QA_hr_metrics_history.csv,Attrition_Type,Attrition type,No,,Yes
+QA_hr_metrics_history.csv,Reason_For_Leaving,Reason for leaving,No,,Yes
+QA_hr_metrics_history.csv,High_Performer_Flag,High performer flag,No,,No
+QA_hr_metrics_history.csv,Critical_Role_Flag,Critical role flag,No,,No
+QA_hr_metrics_history.csv,Employee_Satisfaction_With_Manager,Employee satisfaction with manager,No,,No
+QA_hr_metrics_history.csv,Reporting_Period,Calendar quarter of this synthetic HR observation. Together with Employee_ID forms the primary key.,Composite part,,No
+QA_hr_metrics_history.csv,Observation_Status,Employed at quarter end or terminated during quarter.,No,,No
+QA_hr_metrics_history.csv,Data_Origin,"New synthetic quarterly HR scenario; source values seed generation, not verified longitudinal facts.",No,,No
+QA_hr_metrics_history.csv,Training_Observation_Days,"Available observation days within the rolling year, capped at 365.",No,,No
+QA_hr_metrics_history.csv,Training_Hours_Coverage_Status,Full 365-day observation or partial observation since reporting-window start.,No,,No

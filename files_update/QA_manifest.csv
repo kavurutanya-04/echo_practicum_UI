@@ -1,0 +1,20 @@
+﻿File,Rows,Primary_Key,Owning_Team,Provenance,Load_Into_Prototype,Purpose
+HR_employees.csv,2500,Employee_ID,HR,Corrected source plus synthetic name/status,Yes,Application data
+HR_managers.csv,60,Manager_ID,HR,Source manager IDs plus synthetic details,Yes,Application data
+HR_survey_summary.csv,2304,Survey_ID,HR,Synthetic,Yes,Application data
+HR_survey_comments.csv,29666,Comment_ID,HR,Synthetic,Yes,Application data
+HR_program_participation.csv,77431,Participation_ID,HR,Synthetic,Yes,Application data
+HR_recognition_feedback.csv,42542,Interaction_ID,HR,Synthetic,Yes,Application data
+OP_projects.csv,768,Project_ID,OP,Synthetic,Yes,Application data
+OP_work_requests.csv,159779,Work_Request_ID,OP,Synthetic,Yes,Application data
+OP_capacity.csv,199545,Capacity_ID,OP,Synthetic,Yes,Application data
+OP_priority_decisions.csv,38411,Decision_ID,OP,Synthetic,Yes,Application data
+OP_contributions.csv,77333,Contribution_ID,OP,Synthetic,Yes,Application data
+QA_original_source.csv,2500,,QA,Audit or documentation,No,Original reference only; contains known source inconsistencies
+QA_corrected_source.csv,2500,,QA,Audit or documentation,No,Complete corrected 37-column source for controlled aggregate HR calculations
+QA_source_corrections.csv,3024,,QA,Audit or documentation,No,Before/after log for corrections
+QA_data_dictionary.csv,227,,QA,Audit or documentation,No,Column definitions and references
+QA_comment_generation.csv,29666,,QA,Audit or documentation,No,Synthetic sentiment and length reference; exclude from model input
+QA_temporal_coverage.csv,11,,QA,Audit or documentation,No,Two-year coverage and observation frequency by application file
+QA_hr_metrics_history.csv,15257,Employee_ID + Reporting_Period,QA,Synthetic HR scenario,No,Private quarterly HR metrics for trusted aggregate calculations; never raw model input
+QA_validation.csv,122,,QA,Audit or documentation,No,Executed consistency and temporal checks

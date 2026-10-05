@@ -1,0 +1,35 @@
+# Share only the application, approved synthetic datasets and setup documentation.
+/*
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/Agent_Echo/
+!/files_update/
+
+/Agent_Echo/*
+!/Agent_Echo/agents/
+!/Agent_Echo/tests/
+!/Agent_Echo/*.py
+!/Agent_Echo/*.md
+!/Agent_Echo/requirements.txt
+!/Agent_Echo/connections.json
+!/Agent_Echo/.gitignore
+!/Agent_Echo/.env.example
+/Agent_Echo/reports/
+/Agent_Echo/data/
+
+/files_update/*
+!/files_update/HR_*.csv
+!/files_update/OP_*.csv
+!/files_update/QA_manifest.csv
+!/files_update/QA_data_dictionary.csv
+!/files_update/README.md
+
+# Never publish local secrets, environments or generated Python files.
+**/.env
+**/.env.*
+!**/.env.example
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/venv/

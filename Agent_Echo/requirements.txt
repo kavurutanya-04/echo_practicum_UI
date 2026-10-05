@@ -1,0 +1,2 @@
+# Needed only for live model calls. Database tools and offline tests use the standard library.
+openai>=1.100.0

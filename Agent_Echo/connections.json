@@ -1,0 +1,38 @@
+{
+  "default_profile": "gw_azure",
+  "agents": {
+    "Original": null,
+    "Cherry": null,
+    "Vanilla": null,
+    "ZeroSugar": null
+  },
+  "retrieval": {"mode": "lexical", "embedding_profile": "gw_embeddings"},
+  "profiles": {
+    "gw_azure": {
+      "provider": "azure", "api": "responses", "azure_api": "legacy",
+      "model_env": "AZURE_OPENAI_DEPLOYMENT", "endpoint_env": "AZURE_OPENAI_ENDPOINT",
+      "key_env": "GW_AZURE_OPENAI_KEY", "api_version_env": "AZURE_OPENAI_API_VERSION"
+    },
+    "google_test": {
+      "provider": "google", "api": "chat",
+      "model_env": "GOOGLE_MODEL", "key_env": "GOOGLE_API_KEY"
+    },
+    "personal_openai": {
+      "provider": "openai", "api": "responses",
+      "model_env": "OPENAI_MODEL", "key_env": "OPENAI_API_KEY"
+    },
+    "gw_embeddings": {
+      "provider": "azure", "api": "embeddings", "azure_api": "legacy",
+      "model_env": "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "endpoint_env": "AZURE_OPENAI_ENDPOINT",
+      "key_env": "GW_AZURE_OPENAI_KEY", "api_version_env": "AZURE_OPENAI_API_VERSION"
+    },
+    "google_embeddings": {
+      "provider": "google", "api": "embeddings",
+      "model_env": "GOOGLE_EMBEDDING_MODEL", "key_env": "GOOGLE_API_KEY"
+    },
+    "openai_embeddings": {
+      "provider": "openai", "api": "embeddings",
+      "model_env": "OPENAI_EMBEDDING_MODEL", "key_env": "OPENAI_API_KEY"
+    }
+  }
+}
