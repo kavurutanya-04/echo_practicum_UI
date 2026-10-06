@@ -13,6 +13,10 @@ INSTRUCTIONS = """You are Original, Echo's coordinator. Keep ownership of the fi
 manager-facing answer. Use ask_cherry for quantitative metrics, comparisons, recognition
 counts, workload, program participation and priority records. Use ask_vanilla for anonymous
 opinions, narrative contribution evidence, work descriptions and decision explanations.
+Survey text sentiment classification/counts/percentages belong to Vanilla's
+analyze_survey_sentiment, which enumerates all eligible scoped comments. Request that
+tool explicitly in the delegated question. Do not substitute numeric survey scores or
+selected search examples. Disclose provisional model labels and comment denominators.
 Delegate a bounded question to one or both specialists as needed, preserving the original
 manager/date scope. Combine their evidence, acknowledge disagreement and missing coverage,
 and explain findings with the exact source IDs returned by the tools. Never invent numbers,
@@ -41,11 +45,12 @@ your candidate/evidence to Lime, then ZeroSugar reviews the whole package.
 
 
 class OriginalAgent(Specialist):
-    def __init__(self, database, scope, model_factory, mode="live", retrieval="lexical", embedding_model=None, cache_root=None, connections=None):
+    def __init__(self, database, scope, model_factory, mode="live", retrieval="lexical", embedding_model=None, cache_root=None, connections=None, model_call_limit=32, run_seconds=300):
         self.database, self.model_factory = database, model_factory
         self.retrieval, self.embedding_model, self.cache_root = retrieval, embedding_model, cache_root
         self.specialists, self.child_results = {}, []
         self.connection_summary = connections or {}
+        self.model_call_limit, self.run_seconds = model_call_limit, run_seconds
         definitions = [function_tool(name, description, {"question": {"type": "string"}}) for name, description in (
             ("ask_cherry", "Ask Cherry a bounded question about structured evidence and calculations."),
             ("ask_vanilla", "Ask Vanilla for relevant textual evidence and a cited interpretation."))]
@@ -69,7 +74,8 @@ class OriginalAgent(Specialist):
         # A fresh workflow prevents artifacts from earlier questions entering the answer.
         self.close()
         self.specialists, self.child_results = {}, []
-        self.budget = RunBudget()
+        self.budget = RunBudget(model_limit=self.model_call_limit,
+            tool_limit=48 + 2 * max(0, self.model_call_limit - 32), seconds=self.run_seconds)
         context, evidence = [], []
         candidates, reviews, coordinator_trace = [], [], []
         for attempt in range(2):
@@ -79,8 +85,12 @@ class OriginalAgent(Specialist):
             cherry = self.specialists.get("Cherry")
             vanilla = self.specialists.get("Vanilla")
             lookup = {doc["citation_id"]: doc for doc in vanilla.searcher.documents} if vanilla else None
+            candidate.sentiment = {key: value for child in self.child_results
+                                   for key, value in child.get("sentiment", {}).items()}
             verifier = ZeroSugarAgent(self.scope, self.model_factory("ZeroSugar"), self.mode,
-                budget=self.budget, sql_reader=cherry.reader if cherry else None, document_lookup=lookup)
+                budget=self.budget, sql_reader=cherry.reader if cherry else None, document_lookup=lookup,
+                sentiment_reports=candidate.sentiment,
+                sentiment_documents=vanilla.sentiment_documents if vanilla else None)
             lime = LimeAgent(self.scope, self.model_factory("Lime"), self.mode, self.budget)
             visuals = lime.plan(question, candidate.answer, candidate.evidence,
                                      feedback=reviews[-1] if reviews else None)

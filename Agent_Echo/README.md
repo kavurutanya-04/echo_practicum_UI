@@ -6,7 +6,7 @@ Echo's Python code, prompts, configuration and project documentation are in Engl
 | --- | --- | --- |
 | **Original** | Coordinate questions, delegate to specialists and combine evidence | Cherry/Vanilla tools; no direct SQL or file access |
 | **Cherry** | Generate SQL from a question and explain numeric results | Restricted structured-data copy and read-only SQL |
-| **Vanilla** | Retrieve textual evidence and explain themes with citations | Scoped surveys, feedback, contributions, work descriptions and priority explanations |
+| **Vanilla** | Retrieve cited themes and systematically classify scoped survey sentiment | Scoped surveys, feedback, contributions, work descriptions and priority explanations |
 | **Lime** | Independently choose indicator charts and export accepted local SVG/CSV files | Supplied SQL evidence only; no database access or generated code |
 | **ZeroSugar** | Review the candidate against evidence and request corrections | Evidence checks, structured seven-dimension model review; no unrestricted database access |
 
@@ -42,6 +42,18 @@ python .\run_agent.py cherry --manager M14 --demo --output .\reports\cherry_offl
 python .\run_agent.py vanilla --manager M14 --demo --output .\reports\vanilla_offline_demo.json
 python .\run_agent.py zerosugar --manager M14 --demo --input .\reports\cherry_offline_demo.json --output .\reports\zerosugar_offline_demo.json
 ```
+
+## Systematic survey sentiment
+
+Vanilla's `analyze_survey_sentiment` classifies every eligible comment in the requested scope/dimension, not the top search hits. It uses the configured model for positive/negative/neutral/mixed/indeterminate labels; code computes percentages with all comments as the denominator and suppresses groups below five comments. Saved JSON includes labels, source IDs, supporting excerpts and source hashes. ZeroSugar rechecks coverage/provenance/aggregation. Labels are provisional pending human evaluation; no live classification has been run while API setup is deferred.
+
+After configuring the API, run a bounded real evaluation:
+
+```powershell
+python .\evaluate_live.py --case survey_sentiment --profile google_test
+```
+
+For a larger corpus, `run_agent.py` accepts an explicit `--model-call-limit` (default 32, maximum 256) and `--run-seconds` (default 300, maximum 3600). Classification batches contain 20 comments; the tool checks required calls before starting and never publishes partial percentages. Lime continues to accept only Cherry's SQL evidence, so sentiment summaries are currently text/tables in the JSON artifact. Full contracts and limitations are in [AGENT_ROLES.md](AGENT_ROLES.md).
 
 ## One connection layer, selectable profiles per agent
 
@@ -143,7 +155,7 @@ Cherry's temporary tables are `employees`, `survey_summary`, `program_summary`, 
 python -m unittest discover -s tests -v
 ```
 
-All **51 offline tests pass** as of 2026-10-06, including numeric reconciliation, scope controls, provider/message contracts, semantic vector/cache behavior, altered evidence, mandatory review, bounded revision/withholding, source database integrity, exact chart rows/missing values, invalid chart rejection, retrieval context reaching generation and missing-API failures. Mocks do not establish live provider compatibility, chart-choice quality or answer accuracy.
+All **61 offline tests pass** as of 2026-10-06, including numeric reconciliation, scope controls, provider/message contracts, semantic vector/cache behavior, altered evidence, mandatory review, bounded revision/withholding, source database integrity, exact chart rows/missing values, invalid chart rejection, retrieval context reaching generation, missing-API failures and complete sentiment coverage/provenance/aggregation. Mocks do not establish live provider compatibility, chart-choice quality, sentiment accuracy or answer accuracy.
 
 [REFERENCE_VALIDATION.md](REFERENCE_VALIDATION.md) records the exact classroom materials reviewed, differences, fixes and remaining live validation. `tests/evaluation_cases.json` contains fixed live questions and independent review criteria; it is excluded from agent retrieval. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) preserves classroom attribution.
 

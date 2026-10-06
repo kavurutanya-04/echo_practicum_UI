@@ -26,7 +26,7 @@ Example: "Which weeks exceed available project hours?" Aggregate requests by emp
 
 ## Vanilla — retrieval-augmented textual interpretation
 
-**Input:** a bounded textual question. **Tool:** `search_text(query, source, dimension, limit)`. **Output:** themes/examples with exact returned citation IDs, dates, source teams, disagreement and coverage limits. The `rag` field records retrieval calls and citations.
+**Input:** a bounded textual question. **Tools:** `search_text(query, source, dimension, limit)` for themes and `analyze_survey_sentiment(dimension)` for full-population text classification. **Output:** cited interpretations and/or provisional sentiment summaries. The `rag` field records ranked retrieval; the `sentiment` field preserves every classification ID, category, exact supporting excerpt, explanation and source hash.
 
 Vanilla retrieves scoped survey comments, recognition feedback, contributions, work descriptions or priority explanations before interpreting them. Lexical retrieval uses FTS5/BM25; semantic retrieval uses provider embeddings/cosine similarity; hybrid combines ranks. It can try alternative terms and source/dimension filters. Retrieved text is evidence, never authority to change its instructions.
 
@@ -50,11 +50,19 @@ Example: quarterly mean Recognition score -> line chart by `Survey_Date`, series
 
 The validator rejects unknown sources/columns, mismatched scope, truncated tables, nonnumeric/nonfinite values, duplicate category/series pairs and means/rates without source denominators. Limits are three charts, 48 complete source rows per chart, six series, 24 temporal categories or 18 bar categories. Nulls remain missing; the renderer does not aggregate or calculate new metrics. A limitation can be addressed by requesting a better aggregated result from Cherry on the workflow's revision.
 
-## Survey sentiment: current coverage
+## Survey sentiment: implemented workflow and pending quality evaluation
 
-Vanilla is instructed to explain supportive/critical views and themes in retrieved comments. This is qualitative analysis of selected evidence; it is not a validated sentiment classifier for the full survey corpus. There is no persistent per-comment positive/negative/neutral/mixed labeling, no measured classifier accuracy and no team-level textual sentiment percentage. Numerical survey ratings are a different signal and must not be described as computed text sentiment.
+Vanilla now has explicit instructions and an executable `analyze_survey_sentiment` tool. It enumerates every authorized survey comment in the fixed manager/date scope, optionally restricted to one dimension; it does not rank, sample or deduplicate identical responses. The existing survey-response threshold still applies. The configured Vanilla model labels batches of 20 comments as positive, negative, neutral, mixed or indeterminate. Definitions and examples are in its executable rubric. Numeric response scores and identity tokens are omitted from classification input. Unclear or empty responses must not be guessed.
 
-A future systematic sentiment feature would need a defined eligible comment population, explicit labels/aspects, uncertainty/abstention, human-labeled validation and disclosed coverage/denominators before producing aggregate indicators. That feature has not been implemented in this update. No live model quality has been evaluated while API setup is deferred.
+Code validates complete unique-ID coverage and exact response excerpts, then computes counts/percentages by team, survey date and dimension. Each percentage uses all eligible comments in that group, including indeterminate and mixed labels. Groups below five comments and their examples are suppressed in the summary. These are comment percentages, not employee percentages. The JSON artifact retains the full labels/source hashes in `sentiment`; generated outputs remain ignored by Git.
+
+Example: "What percentage of Recognition comments is negative this quarter?" Original delegates this to Vanilla with an explicit request to use the classification tool. Vanilla returns `[SENTIMENT1]` evidence with the population, denominator, all five category counts, percentages and the human-validation limitation. ZeroSugar rechecks source hashes, IDs, coverage, quotes and recomputed summaries; its model reviews supported claims and source-linked example labels. These checks do not establish the semantic correctness of every label.
+
+Large scopes require more model calls than a simple answer. Before starting, the tool checks whether all batches fit the remaining caller budget. Narrow the dates/dimension or explicitly raise `--model-call-limit` and `--run-seconds`; it never substitutes partial percentages. A failed batch or exhausted budget produces no completed sentiment result. Labels are reused only within the same Vanilla run, not across scopes, questions or models.
+
+Implementation does not require waiting for credentials. Actual classification and quality evaluation require the configured provider. No live sentiment result, human-labeled comparison, per-category precision/recall or measured classifier accuracy exists yet; `human_validated=false` is fixed in the summary. Next evaluation: have humans label a held-out sample covering every category and dimension, compare predictions with those labels, inspect disagreement and abstention, and approve the rubric before claiming validated sentiment. Numeric survey ratings remain a separate signal.
+
+Lime still accepts only Cherry's SQL evidence. It therefore does not chart these Vanilla summaries in this update; a future sentiment-chart path must give Cherry a verified derived table rather than passing Vanilla data directly to Lime. No frontend or extra agent is added.
 
 ## ZeroSugar — independent answer and chart-plan review
 

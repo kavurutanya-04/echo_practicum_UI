@@ -27,6 +27,7 @@ class AgentResult:
     visualization: dict = field(default_factory=dict)
     rag: dict = field(default_factory=dict)
     execution: dict = field(default_factory=dict)
+    sentiment: dict = field(default_factory=dict)
 
 
 class RunBudget:

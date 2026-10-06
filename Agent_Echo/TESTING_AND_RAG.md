@@ -94,7 +94,13 @@ Inspect a saved Original artifact:
 4. Match answer claims to the passages themselves and independently check relevance/entailment. Citation existence alone is insufficient.
 5. Confirm live mode and successful generation API calls. An offline fixture can demonstrate that context reaches a simulated call, but is not proof of live grounded reasoning.
 
-RAG is not necessarily used on every Original run: a purely numerical question can use Cherry alone. An empty search is recorded with no returned IDs and `context_supplied_to_generator=false`; do not describe that as a grounded textual answer. SQL evidence is structured grounding, distinct from Vanilla's textual RAG.
+RAG is not necessarily used on every Original run: a purely numerical question can use Cherry alone. An empty search is recorded with no returned IDs and `context_supplied_to_generator=false`; do not describe that as a grounded textual answer. SQL evidence is structured grounding, distinct from Vanilla's textual RAG. Systematic sentiment classification enumerates the full eligible population rather than ranking passages; it is recorded separately in `sentiment`, not misrepresented as ranked textual RAG.
+
+## Sentiment implementation versus model quality
+
+The `survey_sentiment` live case asks Original for Recognition sentiment percentages in one quarter. Confirm that Vanilla actually calls `analyze_survey_sentiment`, covers all eligible IDs, preserves per-comment labels/excerpts/source hashes, includes mixed/indeterminate in the denominator and discloses `human_validated=false`. ZeroSugar must recompute the summary and reject altered counts or source provenance. Source lookup and aggregation validation cannot establish the semantic accuracy of every model label.
+
+Offline sentiment tests use prescribed labels solely to check those contracts, batch completeness, failures, privacy fields and arithmetic. They do not classify the actual survey corpus or evaluate intelligence. Human quality evaluation must use independently annotated held-out comments across categories/dimensions, per-category precision/recall, a confusion matrix and inspection of ambiguous/mixed cases. No measured quality result is available while the API remains unconfigured.
 
 ## Fixed live evaluation cases
 

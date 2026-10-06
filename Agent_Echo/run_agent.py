@@ -12,6 +12,7 @@ from agents import AccessScope, CherryAgent, VanillaAgent, OriginalAgent, ZeroSu
 from agents.preflight import check_connections
 from agents.connections import DEFAULT_CONFIG, ModelRegistry
 from agents.model import ConfigurationError, ScriptedDemoModel
+from agents.runtime import RunBudget
 
 HERE = Path(__file__).resolve().parent
 NAMES = {"cherry": "Cherry", "vanilla": "Vanilla", "original": "Original", "zerosugar": "ZeroSugar", "lime": "Lime", "visualizer": "Lime"}
@@ -34,7 +35,13 @@ def main(argv=None):
     parser.add_argument("--retrieval", choices=("lexical", "semantic", "hybrid"))
     parser.add_argument("--embedding-profile", help="Named embedding profile for semantic/hybrid retrieval.")
     parser.add_argument("--output", type=Path, help="Optional JSON evidence, trace and verification artifact.")
+    parser.add_argument("--model-call-limit", type=int, default=32, help="Original/Vanilla model-call cap, 8-256; raise explicitly for a large sentiment corpus.")
+    parser.add_argument("--run-seconds", type=int, default=300, help="Original/Vanilla elapsed-time cap, 30-3600 seconds.")
     args = parser.parse_args(argv)
+    if not 8 <= args.model_call_limit <= 256 or not 30 <= args.run_seconds <= 3600:
+        parser.error("Model-call limit must be 8-256 and run seconds 30-3600.")
+    if (args.model_call_limit != 32 or args.run_seconds != 300) and args.agent not in {"original", "vanilla"}:
+        parser.error("Budget overrides are supported for Original and Vanilla.")
     if args.agent == "visualizer":
         args.agent = "lime"
     if args.show_connections and args.check_connection:
@@ -77,11 +84,14 @@ def main(argv=None):
         options = {"retrieval": retrieval, "embedding_model": embedding_model, "cache_root": HERE / "data" / "rag_cache"}
         connections = {} if args.demo else registry.describe()
         if args.agent == "original":
-            agent = OriginalAgent(HERE / "data" / "echo.db", scope, factory, mode, connections=connections, **options)
+            agent = OriginalAgent(HERE / "data" / "echo.db", scope, factory, mode, connections=connections,
+                model_call_limit=args.model_call_limit, run_seconds=args.run_seconds, **options)
         elif args.agent == "cherry":
             agent = CherryAgent(HERE / "data" / "echo.db", scope, factory("Cherry"), mode)
         elif args.agent == "vanilla":
-            agent = VanillaAgent(HERE / "data" / "echo.db", scope, factory("Vanilla"), mode, **options)
+            agent = VanillaAgent(HERE / "data" / "echo.db", scope, factory("Vanilla"), mode,
+                budget=RunBudget(model_limit=args.model_call_limit, tool_limit=48 + 2 * max(0, args.model_call_limit - 32),
+                                 seconds=args.run_seconds), **options)
         elif args.agent == "zerosugar":
             agent = ZeroSugarAgent(scope, factory("ZeroSugar"), mode, database=HERE / "data" / "echo.db")
         else:

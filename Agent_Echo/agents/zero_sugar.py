@@ -21,6 +21,11 @@ Check that cited passages entail the claim, not merely that an ID exists. Identi
 or contradictory evidence. Do not accept sentiment prevalence from top-k passages,
 anonymous respondent identification, invented facts, or causal impact claims from synthetic data.
 Missing recognition notes do not prove that no recognition happened. Manager scope is fixed.
+SENTIMENT evidence is a full-population classification for the declared dimension/scope,
+with code-computed counts. Check comment denominators, uncertainty, suppressed groups and
+source-linked example labels. Human validation is pending: reject claims of validated
+classifier accuracy or employee prevalence. Source/aggregation checks cannot prove every
+model label is semantically correct; disclose this limitation.
 Findings and actions support human review, not pay, promotion, discipline or termination.
 Accept only if material claims are supported, all requested parts are addressed or their
 missing evidence is explained, and deterministic checks have no issues. Otherwise request
@@ -51,11 +56,13 @@ class VerificationResult:
 class ZeroSugarAgent:
     name = "ZeroSugar"
 
-    def __init__(self, scope, model, mode="live", budget=None, sql_reader=None, document_lookup=None, database=None):
+    def __init__(self, scope, model, mode="live", budget=None, sql_reader=None, document_lookup=None, database=None, sentiment_reports=None, sentiment_documents=None):
         self.scope, self.model, self.mode = scope, model, mode
         self.budget = budget
         self.sql_reader, self.document_lookup = sql_reader, document_lookup
         self.database, self.owned_reader = database, None
+        self.sentiment_reports = sentiment_reports or {}
+        self.sentiment_documents = sentiment_documents
         rating = {"type": "object", "properties": {
             "score": {"type": "integer", "minimum": 1, "maximum": 3},
             "rationale": {"type": "string"}}, "required": ["score", "rationale"], "additionalProperties": False}
@@ -87,6 +94,20 @@ class ZeroSugarAgent:
                 issues.append("Text evidence has no trusted source lookup.")
             if "scope" in item and item["scope"] != self.scope.__dict__:
                 issues.append("Evidence scope differs from the authorized caller scope.")
+            if item.get("kind") == "survey_sentiment" or str(item.get("citation_id", "")).startswith("SENTIMENT"):
+                try:
+                    import hashlib
+                    from .vanilla import sentiment_summary
+                    report = self.sentiment_reports[item["citation_id"]]
+                    if self.sentiment_documents is None or report["scope"] != self.scope.__dict__ or report["mode"] != self.mode:
+                        raise ValueError("No matching trusted sentiment scope/mode/source.")
+                    eligible = [doc for doc in self.sentiment_documents if report["dimension"] is None or
+                                doc["dimension"].casefold() == report["dimension"].casefold()]
+                    hashes = {doc["citation_id"]: hashlib.sha256(doc["response_text"].encode("utf-8")).hexdigest() for doc in eligible}
+                    if report["source_hashes"] != hashes or sentiment_summary(report, self.sentiment_documents) != item:
+                        raise ValueError("Sentiment evidence differs from source-linked labels/aggregation.")
+                except (KeyError, TypeError, ValueError, AttributeError):
+                    issues.append("Sentiment evidence failed source, coverage or aggregation verification.")
             if "date" in item and not self.scope.start_date <= item["date"] <= self.scope.end_date:
                 issues.append("Evidence date is outside the authorized period.")
             if item.get("anonymous") and any(key in item for key in ("Employee_ID", "Anonymous_Response_Token", "Employee_Name")):
@@ -165,6 +186,8 @@ class ZeroSugarAgent:
                 self.owned_reader = SQLReader(backend.structured_tables(), self.scope)
                 self.sql_reader = self.owned_reader
                 self.document_lookup = {doc["citation_id"]: doc for doc in backend.text_documents()}
+                self.sentiment_documents = backend.sentiment_documents()
+                self.sentiment_reports = artifact.get("sentiment", {})
             finally:
                 backend.close()
         review = self.review(artifact["question"], artifact["answer"], artifact["evidence"], artifact.get("visualization") or None)

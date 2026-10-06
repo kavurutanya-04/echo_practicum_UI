@@ -134,6 +134,15 @@ class ScopedData:
         tables["program_summary"] = ([col[0] for col in cursor.description], cursor.fetchall())
         return tables
 
+    def sentiment_documents(self):
+        """Full authorized responses without tokens, employee identity or numeric ratings."""
+        _, rows = self.survey_rows(comments=True)
+        return [{"citation_id": "survey:" + row["Comment_ID"], "source": "HR_survey_comments",
+            "record_id": row["Comment_ID"], "team": row["Team"], "date": row["Survey_Date"],
+            "dimension": row["Dimension"], "anonymous": True,
+            "question": row["Open_Text_Question"] or "", "response_text": row["Response_Text"] or ""}
+            for row in rows]
+
     def text_documents(self):
         """Every passage keeps its record ID, source, team, date and anonymity."""
         _, rows = self.survey_rows(comments=True)
