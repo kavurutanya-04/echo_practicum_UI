@@ -64,7 +64,9 @@ class SemanticTextSearch(TextSearch):
         if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 12:
             raise ValueError("Search limit must be between 1 and 12.")
         if not query.strip() or not self.documents:
-            return {"passages": [], "note": "No searchable query or scoped documents."}
+            return {"passages": [], "scope": self.scope.__dict__, "retrieval": self.mode,
+                    "metadata": {"query": query, "returned_count": 0, "corpus_records": len(self.documents)},
+                    "note": "No searchable query or scoped documents."}
         self.budget.consume("embedding")
         generated = self.embedding_model.embed([query])
         if len(generated) != 1:
@@ -102,4 +104,8 @@ class SemanticTextSearch(TextSearch):
                 break
         return {"passages": hits, "scope": self.scope.__dict__,
                 "retrieval": self.mode + " local retrieval with provider embeddings and cosine similarity",
+                "metadata": {"query": query, "source_filter": source, "dimension_filter": dimension,
+                    "requested_limit": limit, "corpus_records": len(self.documents), "returned_count": len(hits),
+                    "embedding_identity": self.embedding_model.identity,
+                    "ranking": "reciprocal rank fusion (k=60)" if self.mode == "hybrid" else "cosine similarity"},
                 "note": "Similarity is a retrieval score, not confidence or prevalence. Passages are selected examples."}

@@ -4,6 +4,7 @@
     "Original": null,
     "Cherry": null,
     "Vanilla": null,
+    "Lime": null,
     "ZeroSugar": null
   },
   "retrieval": {"mode": "lexical", "embedding_profile": "gw_embeddings"},

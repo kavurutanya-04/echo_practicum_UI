@@ -28,6 +28,7 @@ class ResponsesModel:
 
     def __init__(self, client, model):
         self.client, self.model = client, model
+        self.request_count, self.successful_requests = 0, 0
 
     @classmethod
     def from_environment(cls):
@@ -41,6 +42,7 @@ class ResponsesModel:
         return registry.get("Cherry")
 
     def respond(self, instructions, history, tools, require_tool=False):
+        self.request_count += 1
         try:
             response = self.client.responses.create(
                 model=self.model, instructions=instructions, input=history, tools=tools,
@@ -52,6 +54,7 @@ class ResponsesModel:
             raise RuntimeError("Model request failed. Check the configured deployment, access and API support.") from None
         if response.status != "completed":
             raise RuntimeError("Model response did not complete; no answer was accepted.")
+        self.successful_requests += 1
         calls = [ToolCall(item.call_id, item.name, item.arguments)
                  for item in response.output if item.type == "function_call"]
         return ModelTurn(response.output_text, calls,
@@ -63,8 +66,10 @@ class ChatModel:
 
     def __init__(self, client, model):
         self.client, self.model = client, model
+        self.request_count, self.successful_requests = 0, 0
 
     def respond(self, instructions, history, tools, require_tool=False):
+        self.request_count += 1
         messages = [{"role": "system", "content": instructions}]
         for item in history:
             if item.get("type") == "chat_message":
@@ -87,6 +92,7 @@ class ChatModel:
             raise RuntimeError("Google model request failed. Check model access and tool support.") from None
         if not response.choices or response.choices[0].finish_reason not in {"stop", "tool_calls"}:
             raise RuntimeError("Model response did not complete; no answer was accepted.")
+        self.successful_requests += 1
         message = response.choices[0].message
         raw = message.model_dump(exclude_none=True)
         raw = {key: value for key, value in raw.items() if key in {"role", "content", "tool_calls"}}
@@ -104,6 +110,21 @@ class ScriptedDemoModel:
 
     def respond(self, instructions, history, tools, require_tool=False):
         self.step += 1
+        if self.agent_name == "Lime":
+            payload = json.loads(history[0]["content"])
+            sources = [item for item in payload["evidence"] if item.get("sql") and item.get("rows")
+                       and not item.get("truncated")]
+            eligible = next((item for item in sources if all("Survey_Date" in row and "Mean_Score" in row
+                and "Team" in row for row in item["rows"])), None)
+            charts = [] if eligible is None else [{"source_id": eligible["citation_id"], "kind": "line",
+                "x": "Survey_Date", "y": "Mean_Score", "series": "Team",
+                "title": "Recognition survey trend (synthetic data)", "x_label": "Survey date",
+                "y_label": "Mean recognition score", "unit": "Score (1-5)", "denominator": "Responses"}]
+            plan = {"charts": charts, "reason": "Scripted chart choice; this checks evidence-bound rendering, not model judgment."
+                if charts else "No eligible numeric table in the scripted fixture."}
+            call = ToolCall("demo-visuals", "submit_visuals", json.dumps(plan))
+            return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id,
+                "name": call.name, "arguments": call.arguments}])
         if self.agent_name == "ZeroSugar":
             report = {"decision": "accept", "ratings": {name: {"score": 3, "rationale": "Scripted fixture score; no LLM judgment was performed."}
                 for name in ("Accuracy", "Relevance", "Completeness", "Clarity", "Instruction Following", "Usefulness", "Safety / Appropriateness")},

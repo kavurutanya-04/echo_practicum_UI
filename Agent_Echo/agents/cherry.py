@@ -24,6 +24,21 @@ When a result is truncated, aggregate or narrow the query before making totals c
 Missing data or missing recognition notes do not prove zero activity. Describe limitations.
 Raw comments are handled by Vanilla; do not infer sentiment themes from numeric scores.
 If a question is outside this data's scope, explain the missing evidence.
+Worked patterns (use describe_schema to confirm exact columns first):
+- "How many accepted cross-team contributions have no recorded manager recognition?"
+  Count distinct Contribution_ID and use NOT EXISTS against recognition_feedback for
+  the appropriate interaction type. Return total eligible contributions and missing-note
+  count together; never join multiple feedback rows then count the expanded result.
+- "Plot Recognition by quarter": select Team, Survey_Date, Responses, Mean_Score and
+  Favorable_Percent from survey_summary for Dimension='Recognition'; order by date/team.
+  Return numeric rows with units/denominators so Lime can chart them independently.
+- "Which weeks exceed capacity?": pre-aggregate work_requests by assigned employee and
+  Week_Start, then join capacity at that same grain. Separate routine and project hours.
+- "Which benefit is least used?": use program_summary; explain eligible employee versus
+  employee/offering record denominators. Do not expose individual participation history.
+- "What caused low engagement?": describe associations and missing evidence, not causation.
+Return the metric, period, population, exact numeric result, [SQLn] reference and limits.
+Do not render charts or choose presentation layouts; those belong to Lime.
 """
 
 

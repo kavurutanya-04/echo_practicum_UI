@@ -1,6 +1,8 @@
 # Echo practicum prototype
 
-Echo combines four agents: Original (coordination), Cherry (Text-to-SQL), Vanilla (text retrieval), and ZeroSugar (evidence verification). All employee data is synthetic. The prototype supports human review; it does not make personnel decisions.
+Echo combines five agents: Original (coordination/synthesis), Cherry (Text-to-SQL), Vanilla (textual RAG), Lime (indicator charts), and ZeroSugar (answer/evidence/chart-plan review). All employee data is synthetic. The prototype supports human review; it does not make personnel decisions. It currently runs in a terminal and exports local files.
+
+Agent responsibilities and examples are in [Agent_Echo/AGENT_ROLES.md](Agent_Echo/AGENT_ROLES.md). [Agent_Echo/TESTING_AND_RAG.md](Agent_Echo/TESTING_AND_RAG.md) distinguishes offline engineering checks from real model evaluation, explains secure API setup and shows how to inspect retrieval traces. No API configuration means no real LLM evaluation; demo responses and judge scores are explicitly scripted.
 
 ## Repository contents
 

@@ -6,16 +6,18 @@ import json
 from pathlib import Path
 import sqlite3
 import sys
+import uuid
 
-from agents import AccessScope, CherryAgent, VanillaAgent, OriginalAgent, ZeroSugarAgent
+from agents import AccessScope, CherryAgent, VanillaAgent, OriginalAgent, ZeroSugarAgent, LimeAgent
+from agents.preflight import check_connections
 from agents.connections import DEFAULT_CONFIG, ModelRegistry
 from agents.model import ConfigurationError, ScriptedDemoModel
 
 HERE = Path(__file__).resolve().parent
-NAMES = {"cherry": "Cherry", "vanilla": "Vanilla", "original": "Original", "zerosugar": "ZeroSugar"}
+NAMES = {"cherry": "Cherry", "vanilla": "Vanilla", "original": "Original", "zerosugar": "ZeroSugar", "lime": "Lime", "visualizer": "Lime"}
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("agent", nargs="?", choices=tuple(NAMES))
     parser.add_argument("--manager", help="Demo manager scope; this is not authentication.")
@@ -27,27 +29,46 @@ def main():
     parser.add_argument("--connections", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--profile", help="Force one named model profile for every role in this run.")
     parser.add_argument("--show-connections", action="store_true", help="Show profile names and variable names, never credentials.")
+    parser.add_argument("--check-connection", action="store_true", help="Make a real minimal tool call per selected profile; requires credentials.")
+    parser.add_argument("--charts-dir", type=Path, help="Local SVG/CSV/metadata output directory for accepted charts.")
     parser.add_argument("--retrieval", choices=("lexical", "semantic", "hybrid"))
     parser.add_argument("--embedding-profile", help="Named embedding profile for semantic/hybrid retrieval.")
     parser.add_argument("--output", type=Path, help="Optional JSON evidence, trace and verification artifact.")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.agent == "visualizer":
+        args.agent = "lime"
+    if args.show_connections and args.check_connection:
+        parser.error("Choose --show-connections or --check-connection, not both.")
     registry, agent = None, None
     try:
         registry = ModelRegistry(args.connections, args.profile)
         if args.show_connections:
             print(json.dumps(registry.describe(), indent=2))
             return 0
+        if args.check_connection:
+            if args.demo:
+                parser.error("--check-connection makes real API calls and cannot be combined with --demo.")
+            roles = [NAMES[args.agent]] if args.agent else tuple(dict.fromkeys(NAMES.values()))
+            print(json.dumps(check_connections(registry, roles), indent=2))
+            return 0
         if not args.agent or not args.manager:
             parser.error("An agent and --manager are required.")
-        if args.agent == "zerosugar" and not args.input:
-            parser.error("ZeroSugar requires --input with a saved evidence artifact.")
-        if args.agent != "zerosugar" and not args.demo and not args.question:
+        if args.agent in {"zerosugar", "lime"} and not args.input:
+            parser.error("ZeroSugar/Lime require --input with a saved evidence artifact.")
+        if args.agent not in {"zerosugar", "lime"} and not args.demo and not args.question:
             parser.error("--question is required in live mode.")
-        artifact = json.loads(args.input.read_text(encoding="utf-8-sig")) if args.agent == "zerosugar" else None
+        artifact = json.loads(args.input.read_text(encoding="utf-8-sig")) if args.agent in {"zerosugar", "lime"} else None
+        if artifact is not None and (not isinstance(artifact, dict) or
+            not {"scope", "question", "answer", "evidence"}.issubset(artifact) or
+            not isinstance(artifact["scope"], dict) or not isinstance(artifact["question"], str) or
+            not isinstance(artifact["answer"], str) or not isinstance(artifact["evidence"], list)):
+            raise ValueError("Input must be an Echo JSON artifact with scope, question, answer and evidence.")
         previous_scope = artifact.get("scope", {}) if artifact else {}
         scope = AccessScope(args.manager, args.start or previous_scope.get("start_date", "2024-10-01"),
                             args.end or previous_scope.get("end_date", "2026-09-30"))
         mode = "offline-scripted-demo" if args.demo else "live"
+        print("MODE: OFFLINE SCRIPTED FIXTURE - 0 generation API calls; not a model evaluation."
+              if args.demo else "MODE: LIVE - configured model API calls required; no offline fallback.")
         factory = (lambda name: ScriptedDemoModel(name)) if args.demo else registry.get
         retrieval = args.retrieval or ("lexical" if args.demo else registry.config["retrieval"]["mode"])
         if args.demo and retrieval != "lexical":
@@ -61,9 +82,28 @@ def main():
             agent = CherryAgent(HERE / "data" / "echo.db", scope, factory("Cherry"), mode)
         elif args.agent == "vanilla":
             agent = VanillaAgent(HERE / "data" / "echo.db", scope, factory("Vanilla"), mode, **options)
-        else:
+        elif args.agent == "zerosugar":
             agent = ZeroSugarAgent(scope, factory("ZeroSugar"), mode, database=HERE / "data" / "echo.db")
-        if artifact:
+        else:
+            if artifact["scope"] != scope.__dict__:
+                raise ValueError("Input artifact scope differs from the requested scope.")
+            if artifact.get("agent") != "Original":
+                raise ValueError("Standalone Lime requires an Original workflow artifact.")
+            if artifact.get("verification", {}).get("decision") != "accept":
+                raise ValueError("Standalone Lime requires an accepted Original artifact; use Original to review specialist evidence first.")
+            if not args.demo and artifact.get("mode") != "live":
+                raise ValueError("A scripted demo artifact cannot be used as a live analytic result.")
+            lime = LimeAgent(scope, factory("Lime"), mode)
+            plan = lime.plan(artifact["question"], artifact["answer"], artifact["evidence"])
+            artifact["visualization"] = asdict(plan)
+            agent = ZeroSugarAgent(scope, factory("ZeroSugar"), mode, database=HERE / "data" / "echo.db")
+        if artifact and args.agent == "lime":
+            result = agent.run(artifact)
+            result.agent = "Lime"
+            result.answer = artifact["answer"] if result.verification["decision"] == "accept" else "No verified visualization was produced; examine the review issues."
+            result.visualization = artifact["visualization"] if result.verification["decision"] == "accept" else {
+                "charts": [], "reason": "Chart plan was rejected; no files exported."}
+        elif artifact:
             result = agent.run(artifact)
         else:
             examples = {"cherry": "Show quarterly recognition survey metrics.",
@@ -71,7 +111,19 @@ def main():
                         "original": "Review recognition using quarterly metrics and anonymous comments."}
             result = agent.run(examples[args.agent] if args.demo else args.question)
         result.connections = connections
+        result.execution = {"generation_api_calls": 0, "successful_generation_api_calls": 0,
+                            "note": "Scripted fixtures, not provider responses."} if args.demo else registry.execution_summary()
+        if result.visualization and result.verification.get("decision") == "accept":
+            directory = args.charts_dir or HERE / "reports" / "visuals" / uuid.uuid4().hex[:12]
+            result.visualization["files"] = LimeAgent.export(result.visualization, result.evidence, scope, directory)
         print(result.answer)
+        print("Successful generation API calls: " + str(result.execution["successful_generation_api_calls"]))
+        if result.rag:
+            print("RAG trace: retrieval calls, returned source IDs and generation mode are stored in the JSON artifact.")
+        if result.visualization:
+            print("Lime: " + result.visualization["reason"])
+            for files in result.visualization.get("files", []):
+                print("Chart: " + files["svg"])
         if result.verification:
             print("Verification: " + result.verification["decision"] + (" (scripted fixture, not LLM judgment)" if args.demo else ""))
         if args.output:

@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 from .model import ConfigurationError, ResponsesModel, ChatModel
 
-AGENTS = ("Original", "Cherry", "Vanilla", "ZeroSugar")
+AGENTS = ("Original", "Cherry", "Vanilla", "Lime", "ZeroSugar")
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "connections.json"
 GOOGLE_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
@@ -36,6 +36,13 @@ class ModelRegistry:
         # No key values or key-presence checks are read by this method.
         return {agent: {"profile": name, **self.config["profiles"][name]}
                 for agent in AGENTS for name in [self.profile_for(agent)]}
+
+    def execution_summary(self):
+        """Actual adapter activity, without credentials or request content."""
+        return {"generation_api_calls": sum(model.request_count for model in self.models.values()),
+                "successful_generation_api_calls": sum(model.successful_requests for model in self.models.values()),
+                "profiles_used": {name: {"model": model.model, "api_calls": model.request_count,
+                    "successful_api_calls": model.successful_requests} for name, model in self.models.items()}}
 
     def _client(self, name):
         if name in self.clients:

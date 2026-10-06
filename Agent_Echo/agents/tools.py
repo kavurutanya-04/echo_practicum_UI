@@ -84,7 +84,7 @@ class SQLReader:
         finally:
             self.connection.set_progress_handler(None, 0)
         self.counter += 1
-        return {"citation_id": f"SQL{self.counter}", "sql": sql,
+        return {"citation_id": f"SQL{self.counter}", "producer": "Cherry", "sql": sql,
                 "rows": rows[:100], "truncated": len(rows) > 100,
                 "scope": self.scope.__dict__}
 
@@ -119,13 +119,15 @@ class TextSearch:
             raise ValueError("Source is unavailable in this scope.")
         tokens = re.findall(r"[A-Za-z0-9]+", query)[:20]
         if not tokens:
-            return {"passages": [], "note": "No searchable terms were provided."}
+            return {"passages": [], "scope": self.scope.__dict__, "retrieval": "local lexical FTS5/BM25",
+                    "metadata": {"query": query, "corpus_records": len(self.documents), "returned_count": 0},
+                    "note": "No searchable terms were provided."}
         match = " OR ".join('"' + token + '"' for token in tokens)
         # Authorization was applied before indexing. Additional filters are applied before top-k.
         cursor = self.connection.execute(
-            "SELECT rowid FROM passages WHERE passages MATCH ? ORDER BY bm25(passages), rowid", (match,))
+            "SELECT rowid, bm25(passages) FROM passages WHERE passages MATCH ? ORDER BY bm25(passages), rowid", (match,))
         hits, seen = [], set()
-        for (rowid,) in cursor:
+        for rowid, score in cursor:
             document = self.documents[rowid - 1]
             if source and document["source"] != source:
                 continue
@@ -138,11 +140,14 @@ class TextSearch:
             hit = dict(document)
             hit["text"] = hit["text"][:1600]
             hit["text_truncated"] = len(document["text"]) > 1600
+            hit["bm25_score"] = score
             hits.append(hit)
             if len(hits) == limit:
                 break
         return {"passages": hits, "scope": self.scope.__dict__,
                 "retrieval": "local lexical FTS5/BM25",
+                "metadata": {"query": query, "source_filter": source, "dimension_filter": dimension,
+                    "requested_limit": limit, "corpus_records": len(self.documents), "returned_count": len(hits)},
                 "note": "Ranked passages are examples, not a representative sample or prevalence estimate."}
 
     def close(self):

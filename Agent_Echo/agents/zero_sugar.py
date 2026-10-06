@@ -26,6 +26,15 @@ Accept only if material claims are supported, all requested parts are addressed 
 missing evidence is explained, and deterministic checks have no issues. Otherwise request
 revision. If you cannot assess a claim, explain the uncertainty and request revision.
 Use submit_review to return your structured verdict; do not rewrite the candidate yourself.
+Review the Lime plan too: its indicator must address the question and match the
+answer; check title, axes, units, series and denominators against the SQL rows. Review
+claims inside its reason. The chart must not turn ranked text into percentages, conceal
+missing values, confuse counts/percentages, imply causal impact or expose anonymous identities.
+Examples: reject a claimed 20% improvement when the source only contains selected comments;
+reject a recognition count with a different scope or a mean mislabeled as a percent;
+accept an honest no-chart explanation when no numeric evidence exists. Request evidence
+or correction when a requested chart can be supported but the candidate omits it.
+SVG layout is checked separately; structured review does not give you visual perception.
 """
 
 
@@ -58,7 +67,7 @@ class ZeroSugarAgent:
             "uncertainty": {"type": "string"},
         })]
 
-    def audit(self, answer, evidence):
+    def audit(self, answer, evidence, visualization=None):
         issues = []
         known = {item.get("citation_id") for item in evidence}
         cited = set(re.findall(r"\[([A-Za-z0-9_:-]+)\]", answer))
@@ -93,6 +102,12 @@ class ZeroSugarAgent:
                 original = self.document_lookup.get(item["citation_id"])
                 if original is None or any(item.get(key) != original.get(key) for key in ("source", "record_id", "team", "date", "anonymous")) or item["text"] != original["text"][:1600]:
                     issues.append("Text evidence differs from its scoped source record.")
+        if visualization is not None:
+            from .lime import validate_visuals
+            try:
+                validate_visuals({key: visualization[key] for key in ("charts", "reason")}, evidence, self.scope)
+            except (ValueError, TypeError, KeyError) as error:
+                issues.append("Invalid visualization: " + str(error))
         return list(dict.fromkeys(issues))
 
     @staticmethod
@@ -112,10 +127,10 @@ class ZeroSugarAgent:
             raise ValueError("Review issues must be a list of strings.")
         return report
 
-    def review(self, question, answer, evidence):
-        checks = self.audit(answer, evidence)
+    def review(self, question, answer, evidence, visualization=None):
+        checks = self.audit(answer, evidence, visualization)
         payload = json.dumps({"question": question, "candidate_answer": answer,
-            "evidence": evidence, "deterministic_issues": checks}, ensure_ascii=False)
+            "evidence": evidence, "visualization": visualization, "deterministic_issues": checks}, ensure_ascii=False)
         if len(payload) > 150_000:
             raise ValueError("Review evidence is too large; narrow the question or query results.")
         history = [{"role": "user", "content": payload}]
@@ -152,7 +167,7 @@ class ZeroSugarAgent:
                 self.document_lookup = {doc["citation_id"]: doc for doc in backend.text_documents()}
             finally:
                 backend.close()
-        review = self.review(artifact["question"], artifact["answer"], artifact["evidence"])
+        review = self.review(artifact["question"], artifact["answer"], artifact["evidence"], artifact.get("visualization") or None)
         return AgentResult(self.name, artifact["question"], "Review decision: " + review.decision,
                            self.scope.__dict__, artifact["evidence"], mode=self.mode, verification=asdict(review))
 

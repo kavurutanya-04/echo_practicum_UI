@@ -1,6 +1,6 @@
 # Validation against classroom references
 
-Reviewed on 2026-10-05. This is a source-code and offline integration review, not a claim of successful access to GW, Google or OpenAI.
+Updated on 2026-10-06 after re-reading the classroom Text-to-SQL, RAG, benchmark and judge notebooks and the shared agent transcripts. This is a source-code and offline integration review, not a claim of successful access to GW, Google or OpenAI.
 
 ## Findings and resulting implementation
 
@@ -26,9 +26,20 @@ Selection precedence is: CLI `--profile` for all roles in that run; then role-sp
 
 ## Evidence from local tests
 
-The 41 offline tests pass. They cover source reconciliation, read-only SQL controls, manager/date isolation, anonymous provenance, retrieval filters/deduplication, provider configuration and tool-message contracts, embedding/cache math, altered evidence, review schema validation, compulsory verification, revision/withholding and shared budgets. The source database hash is unchanged after the workflow checks.
+The 51 offline tests pass. They cover source reconciliation, read-only SQL controls, manager/date isolation, anonymous provenance, retrieval filters/deduplication, provider configuration and tool-message contracts, embedding/cache math, altered evidence, review schema validation, compulsory verification, revision/withholding, shared budgets, missing live configuration, evidence-bound chart export and retrieval context supplied to subsequent generation. The source database hash is unchanged after the workflow checks.
 
-The four-role offline demonstration produces `reports/original_offline_demo.json`, including child results, original source evidence and a verification record. Every offline answer and rubric score is explicitly marked as scripted. Such scores are fixtures, not model performance measurements.
+The five-role offline demonstration produces a JSON artifact, local SVG/CSV chart exports, child results, source evidence, RAG traces and verification records. Every offline answer, chart-selection decision and rubric score is explicitly marked as scripted. Such scores are fixtures, not model performance measurements. The 2026-10-06 check is under ignored `reports/review_20261006`.
+
+## Resulting changes from the 2026-10-06 review
+
+Lime is the canonical name of the fifth agent (formerly Visualizer). Data passed to it is now limited to SQL evidence labeled as produced by Cherry. The code, role profiles, examples and diagram use Lime consistently. Live reasoning evaluation is the next acceptance milestone; API configuration is deferred, so engineering tests are not represented as proof of agent intelligence. Survey text analysis currently interprets retrieved examples; a systematic validated sentiment classifier has not been implemented.
+
+- Executable instructions now include role-specific worked examples, input/output expectations and prohibited behaviors. [AGENT_ROLES.md](AGENT_ROLES.md) provides the complete role contracts.
+- The shared 8-minute agent example explicitly separates specialists and validators with concrete outputs. Echo adds Lime as a fifth model role, invoked automatically after each candidate. It chooses relevant indicators/type/axes/units from existing SQL rows; it does not run unrestricted generated code.
+- Concrete rendering is `LimeAgent.export` using `chart_export.py`, producing SVG, CSV and source metadata after ZeroSugar accepts. ZeroSugar reviews numeric references and chart semantics, while visual layout inspection remains separate. No frontend/dashboard was built.
+- The classroom benchmark actually calls a provider. Accordingly, `evaluate_live.py` has no demo mode and keeps expected criteria outside agent input; missing credentials produce a failed evaluation record. `--check-connection` is an actual minimal function-call probe, not just a configuration printout.
+- The classroom RAG notebook performs retrieval -> source context -> cited generation. `inspect_rag.py` makes the retrieval step inspectable; saved runs expose queries/filters, method, scores, source IDs, context delivery and citations. A test inspects the next generation-call history to confirm that retrieved text reached it. Semantic embedding/relevance quality is still untested against a real provider.
+- [TESTING_AND_RAG.md](TESTING_AND_RAG.md) distinguishes offline checks, retrieval-only diagnostics and real API-backed evaluation. Profile/model request counts are recorded without credentials.
 
 ## Remaining live validation
 
@@ -45,5 +56,7 @@ Authentication and production deployment remain separate work. CLI manager selec
 - [OpenAI: coordinator with agents as tools](https://developers.openai.com/api/docs/guides/agents/orchestration)
 - [Microsoft: Azure OpenAI Responses API](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/responses)
 - [Google: OpenAI-compatible API, function calling and embeddings](https://ai.google.dev/gemini-api/docs/openai)
+- [OpenAI: function calling, schemas and tool-result context](https://developers.openai.com/api/docs/guides/function-calling), checked 2026-10-06
+- [Anthropic: building effective agents](https://www.anthropic.com/engineering/building-effective-agents), reviewed in the architecture discussion; specialist boundaries and verification complement the classroom examples.
 
 Classroom source files remain unchanged. License attribution for educational adaptations is in `THIRD_PARTY_NOTICES.md`.

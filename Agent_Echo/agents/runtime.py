@@ -24,6 +24,9 @@ class AgentResult:
     verification: dict = field(default_factory=dict)
     delegations: list = field(default_factory=list)
     connections: dict = field(default_factory=dict)
+    visualization: dict = field(default_factory=dict)
+    rag: dict = field(default_factory=dict)
+    execution: dict = field(default_factory=dict)
 
 
 class RunBudget:

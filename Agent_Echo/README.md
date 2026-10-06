@@ -1,4 +1,4 @@
-# Echo: four agents with interchangeable model connections
+# Echo: five agents with interchangeable model connections
 
 Echo's Python code, prompts, configuration and project documentation are in English. Its existing SQLite database contains eleven application tables and 630,339 synthetic rows; it does not need another CSV import.
 
@@ -7,9 +7,23 @@ Echo's Python code, prompts, configuration and project documentation are in Engl
 | **Original** | Coordinate questions, delegate to specialists and combine evidence | Cherry/Vanilla tools; no direct SQL or file access |
 | **Cherry** | Generate SQL from a question and explain numeric results | Restricted structured-data copy and read-only SQL |
 | **Vanilla** | Retrieve textual evidence and explain themes with citations | Scoped surveys, feedback, contributions, work descriptions and priority explanations |
+| **Lime** | Independently choose indicator charts and export accepted local SVG/CSV files | Supplied SQL evidence only; no database access or generated code |
 | **ZeroSugar** | Review the candidate against evidence and request corrections | Evidence checks, structured seven-dimension model review; no unrestricted database access |
 
-The agent names follow the project's iconic Coca-Cola lineup: Original, Cherry, Vanilla, and Zero Sugar (written as ZeroSugar in code). Engagement, recognition and priority conflicts are analysis topics across these roles.
+Original, Cherry, Vanilla and ZeroSugar retain their existing names; Lime is the fifth role. Engagement, recognition and priority conflicts are analysis topics across these roles. Detailed responsibilities, outputs, tools and worked examples are in [AGENT_ROLES.md](AGENT_ROLES.md).
+
+## Start with the correct kind of test
+
+The next product milestone is **live evaluation of the agents' reasoning**, not another scripted demo. Python runs Echo locally in both modes: with a configured API it calls a real model; `--demo` substitutes programmed responses. Local execution does not mean that inference is offline. API setup remains deferred at the user's request; no live quality result is available yet.
+
+**Without configured API credentials, you cannot test a real model's reasoning.** Offline tests/demo validate engineering with scripted/mocked responses. Live mode requires a real provider and fails rather than silently simulating an answer. [TESTING_AND_RAG.md](TESTING_AND_RAG.md) explains secure configuration, a real connection probe, retrieval inspection and fixed live evaluations.
+
+```powershell
+python .\run_agent.py --show-connections
+python .\run_agent.py --check-connection --profile google_test
+```
+
+The first command shows assignments only; it does not test connectivity. The second makes an actual minimal API call and requires the variables below. It never uses a fixture or supplies employee data.
 
 ## Run the full workflow now, without credentials
 
@@ -19,7 +33,7 @@ Open a terminal inside `Final_Project/Agent_Echo`, using Python 3.11 or newer:
 python .\run_agent.py original --manager M14 --demo --output .\reports\original_offline_demo.json
 ```
 
-This executes the real scoped SQL tools and local text retrieval. Model choices, final wording and judge scores are scripted fixtures. It verifies integration, not LLM reasoning or answer quality. It does not read credentials or connect to a provider. `--question` is ignored in demo mode.
+This executes the real scoped SQL tools, local text retrieval and evidence-bound SVG export. Model choices, final wording, chart selection and judge scores are scripted fixtures. It verifies integration, not LLM reasoning or answer quality. It does not read credentials or connect to a provider. `--question` is ignored in demo mode. The console and artifact explicitly report zero generation API calls.
 
 The artifact stores the question, manager/date scope, specialist delegations, evidence, tool trace and verification history. The terminal explicitly labels offline verification as a fixture. Individual agent examples remain available:
 
@@ -31,7 +45,7 @@ python .\run_agent.py zerosugar --manager M14 --demo --input .\reports\cherry_of
 
 ## One connection layer, selectable profiles per agent
 
-`connections.json` lists profiles and each agent's optional profile assignment. It contains environment-variable names, never keys. All four roles inherit `gw_azure` by default. Roles using the same profile share one stateless client/adapter; their instructions and histories stay separate. You need one credential per provider/account, not four credentials for four agents.
+`connections.json` lists profiles and each agent's optional profile assignment. It contains environment-variable names, never keys. All five roles inherit `gw_azure` by default. Roles using the same profile share one stateless client/adapter; their instructions and histories stay separate. One credential can serve all five agents on the same account/profile.
 
 | Profile | Provider/API | Required environment variables |
 | --- | --- | --- |
@@ -49,7 +63,7 @@ python .\run_agent.py --show-connections
 python .\run_agent.py --show-connections --profile google_test
 ```
 
-Selection precedence: `--profile` forces every model role in that run; otherwise a role-specific environment override wins over its JSON assignment, followed by `ECHO_DEFAULT_PROFILE`, then the JSON default. For a mixed-provider run, set `ECHO_CHERRY_PROFILE`, `ECHO_VANILLA_PROFILE`, `ECHO_ORIGINAL_PROFILE`, or `ECHO_ZEROSUGAR_PROFILE`, or edit the corresponding non-secret JSON assignment.
+Selection precedence: `--profile` forces every model role in that run; otherwise a role-specific environment override wins over its JSON assignment, followed by `ECHO_DEFAULT_PROFILE`, then the JSON default. For a mixed-provider run, set `ECHO_CHERRY_PROFILE`, `ECHO_VANILLA_PROFILE`, `ECHO_ORIGINAL_PROFILE`, `ECHO_LIME_PROFILE`, or `ECHO_ZEROSUGAR_PROFILE`, or edit the corresponding non-secret JSON assignment.
 
 Each selected model must support function calling. Deployment/model names are chosen from the account's actual access; they are not hardcoded. The professor's AzureOpenAI/Responses API version is retained by default. An Azure profile can set `azure_api` to `v1` to use the current Microsoft v1 client pattern when the assigned resource supports it. Credentials are never printed or written into artifacts. There is no automatic provider fallback.
 
@@ -99,7 +113,15 @@ Retrieved passages are examples, not a representative sentiment sample. Similari
 
 ## Coordination and verification
 
-Original uses specialists as tools, following the classroom root/agent-tool pattern. The candidate always passes through ZeroSugar in the coordinator workflow. ZeroSugar checks citation IDs, dates/scope, anonymous fields, SQL replay and source-text correspondence, then asks its configured model to judge Accuracy, Relevance, Completeness, Clarity, Instruction Following, Usefulness, and Safety / Appropriateness on a 1-3 scale.
+Lime is the dedicated visualization role, named consistently with the project's Coca-Cola flavors. Its model receives only Cherry-produced SQL evidence as data, plus the question/candidate answer for context. Query results now identify `producer=Cherry`; other agents' numeric data, raw passages and retrieval scores are excluded. The former `visualizer` CLI name remains an alias for `lime`. Re-run Original for an older saved artifact lacking producer metadata before re-planning its charts.
+
+Original uses Cherry/Vanilla as tools, following the classroom root/agent-tool pattern. Every candidate then goes to the separately prompted Lime, which chooses relevant indicator charts or explains why none is supported. Original does not decide chart type or rendering. ZeroSugar reviews both the candidate and chart plan. It checks citation IDs, dates/scope, anonymous fields, SQL replay, source-text correspondence and chart references/columns, then asks its configured model to judge Accuracy, Relevance, Completeness, Clarity, Instruction Following, Usefulness, and Safety / Appropriateness on a 1-3 scale.
+
+Only accepted plans are exported by `LimeAgent.export` / `agents/chart_export.py` as local SVG graphics, exact selected CSV columns and JSON provenance. Bars compare categories; lines show dates/quarters; nulls remain missing. No model-generated numbers, arbitrary code or web frontend are involved. SVG graphics are local output artifacts, not a dashboard. ZeroSugar reviews structured specs/data, not rendered pixels; human layout inspection remains separate.
+
+To re-plan charts for an accepted saved Original result, use `python .\run_agent.py lime --manager M14 --input .\reports\live_review.json --profile google_test --output .\reports\visual_review.json`. The new plan is reviewed against the scoped source before export. Live mode refuses scripted artifacts. Use `--demo` only for an explicitly labeled fixture artifact. `--charts-dir` optionally selects the local export directory.
+
+Vanilla records retrieval method, query/filter metadata, returned source IDs and cited IDs in `rag`. Source passages reach the next generation call as function-tool results. Original records these traces under `rag.specialist_runs`. This establishes the retrieval/context path, not claim correctness; live grounded reasoning still needs API calls and independent review. `inspect_rag.py` inspects retrieval alone; `evaluate_live.py` runs fixed live cases without giving expected criteria to agents.
 
 Deterministic issues force revision even if the model accepts. The coordinator gets one revision opportunity. A twice-rejected draft is retained in the local trace but withheld from the user-facing answer. Global limits cover model calls, tools, embeddings and elapsed time, with additional per-agent and SQL limits. These are bounded execution controls, not a guarantee of claim correctness. Human review remains necessary.
 
@@ -121,11 +143,11 @@ Cherry's temporary tables are `employees`, `survey_summary`, `program_summary`, 
 python -m unittest discover -s tests -v
 ```
 
-All **41 offline tests pass**, including numeric reconciliation, scope controls, provider/message contracts, semantic vector/cache behavior, altered evidence, mandatory review, bounded revision/withholding and source database integrity. Mocks do not establish live provider compatibility or answer accuracy.
+All **51 offline tests pass** as of 2026-10-06, including numeric reconciliation, scope controls, provider/message contracts, semantic vector/cache behavior, altered evidence, mandatory review, bounded revision/withholding, source database integrity, exact chart rows/missing values, invalid chart rejection, retrieval context reaching generation and missing-API failures. Mocks do not establish live provider compatibility, chart-choice quality or answer accuracy.
 
 [REFERENCE_VALIDATION.md](REFERENCE_VALIDATION.md) records the exact classroom materials reviewed, differences, fixes and remaining live validation. `tests/evaluation_cases.json` contains fixed live questions and independent review criteria; it is excluded from agent retrieval. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) preserves classroom attribution.
 
-`agents/original.py`, `cherry.py`, `vanilla.py`, and `zero_sugar.py` define the four roles. Shared runtime/connections, scoped tools and semantic retrieval are supporting infrastructure. `run_agent.py` is the terminal entry point. No Google ADK installation is required for this provider-independent implementation.
+`agents/original.py`, `cherry.py`, `vanilla.py`, `lime.py` and `zero_sugar.py` define the five roles. Shared runtime/connections, scoped tools, semantic retrieval and the SVG exporter are supporting infrastructure. `run_agent.py` is the terminal entry point. No Google ADK or plotting-package installation is required for this provider-independent implementation.
 
 ## Existing data utilities
 
