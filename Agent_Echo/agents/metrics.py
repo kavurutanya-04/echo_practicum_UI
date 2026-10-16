@@ -13,6 +13,7 @@ class MetricCatalog:
     def run(self, metric, dimension=None):
         if metric not in METRICS:
             raise ValueError("Unknown metric. Use cross_team_contributions or survey_trend.")
+        version = 1
         if metric == "cross_team_contributions":
             if isinstance(dimension, str) and dimension.strip().casefold() in {"none", "null", "n/a", ""}:
                 dimension = None
@@ -42,14 +43,17 @@ class MetricCatalog:
         else:
             if not isinstance(dimension, str) or not 1 <= len(dimension.strip()) <= 100:
                 raise ValueError("survey_trend requires one exact survey dimension.")
+            version = 2
+            dimension = dimension.strip()
             sql = """SELECT Team, Survey_Date, Responses, Mean_Score, Favorable_Percent
-                FROM survey_summary WHERE Dimension = ? ORDER BY Survey_Date, Team"""
+                FROM survey_summary WHERE Dimension = ? COLLATE NOCASE ORDER BY Survey_Date, Team"""
             parameters = [dimension]
             definition = ("Recorded team/date survey aggregates for the exact dimension, preserving Responses "
-                          "as denominator. Rows are not employee-level sentiment labels or causal effects.")
+                          "as denominator. Dimension matching ignores letter case and surrounding input whitespace, "
+                          "without fuzzy or partial matching. Rows are not employee-level sentiment labels or causal effects.")
         result = self.reader.execute(sql, parameters)
-        result.update(metric_id=metric, metric_version=1, metric_arguments={"dimension": dimension},
+        result.update(metric_id=metric, metric_version=version, metric_arguments={"dimension": dimension},
                       metric_definition=definition)
-        record("metric_replayed" if self.actor == "ZeroSugar" else "metric_executed", agent=self.actor, metric_id=metric, metric_version=1,
+        record("metric_replayed" if self.actor == "ZeroSugar" else "metric_executed", agent=self.actor, metric_id=metric, metric_version=version,
                rows=len(result["rows"]), truncated=result["truncated"])
         return result

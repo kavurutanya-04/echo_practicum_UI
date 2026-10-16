@@ -156,6 +156,19 @@ class TrialProviderTests(unittest.TestCase):
             registry = ModelRegistry(force_profile="nvidia_test")
             self.assertEqual(registry._key("NVIDIA_API_KEY"), "offline-env-key")
 
+    def test_incomplete_response_reports_only_a_safe_finish_reason(self):
+        for reason, expected in (("malformed_function_call", "malformed_function_call"),
+                                 ("offline-private-provider-detail", "unknown")):
+            response = SimpleNamespace(choices=[SimpleNamespace(finish_reason=reason)])
+            client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **kwargs: response)))
+            model = ChatModel(client, "offline-model")
+            with self.subTest(reason=reason), patch("agents.model.record") as logged:
+                with self.assertRaisesRegex(RuntimeError, "finish reason: " + expected) as raised:
+                    model.respond("Use evidence.", [], [])
+                self.assertNotIn("offline-private-provider-detail", str(raised.exception))
+                logged.assert_called_once_with("model_response_rejected", adapter="chat", finish_reason=expected)
+                self.assertEqual(model.successful_requests, 0)
+
     def test_missing_trial_key_does_not_use_another_providers_key(self):
         with patch.dict(os.environ, {"OPENAI_API_KEY": "offline-other-key"}, clear=True):
             for profile in ("nvidia_test", "nvidia_glm_test", "opencode_test"):

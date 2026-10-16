@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 import json
 import os
+from .execution_log import record
 
 
 class ConfigurationError(RuntimeError):
@@ -128,12 +129,17 @@ class ChatModel:
             response = self.client.chat.completions.create(**options)
         except Exception as error:
             raise request_failure(error) from None
-        if response.choices and response.choices[0].finish_reason == "length":
+        finish_reason = response.choices[0].finish_reason if response.choices else "no_choices"
+        if finish_reason not in {"stop", "tool_calls"}:
+            safe_reason = finish_reason if finish_reason in {
+                "length", "content_filter", "function_call", "malformed_function_call", "no_choices"} else "unknown"
+            record("model_response_rejected", adapter="chat", finish_reason=safe_reason)
+        if finish_reason == "length":
             raise RuntimeError("Model output token budget exhausted before completion. Reasoning may consume "
                                "the output budget before visible text or tool calls; check max_output_tokens. "
                                "No answer was accepted.")
-        if not response.choices or response.choices[0].finish_reason not in {"stop", "tool_calls"}:
-            raise RuntimeError("Model response did not complete; no answer was accepted.")
+        if finish_reason not in {"stop", "tool_calls"}:
+            raise RuntimeError(f"Model response did not complete (finish reason: {safe_reason}); no answer was accepted.")
         self.successful_requests += 1
         message = response.choices[0].message
         raw = message.model_dump(exclude_none=True)

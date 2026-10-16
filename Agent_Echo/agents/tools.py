@@ -20,6 +20,9 @@ class SQLReader:
         self.schema = {}
         self.scope = scope
         self.counter = 0
+        survey_columns, survey_rows = tables.get("survey_summary", ([], []))
+        self.survey_dimensions = sorted({row[survey_columns.index("Dimension")] for row in survey_rows
+            if row[survey_columns.index("Dimension")] is not None}) if "Dimension" in survey_columns else []
         for name, (columns, rows) in tables.items():
             # Preserve numeric storage for arithmetic; NULL-only fields remain nullable TEXT.
             types = []
@@ -54,6 +57,7 @@ class SQLReader:
     def describe(self):
         return {
             "tables": self.schema,
+            "survey_dimensions": self.survey_dimensions,
             "scope": self.scope.__dict__,
             "notes": [
                 "Tables contain only this manager's pilot roster and selected dates; surveys cover their teams.",

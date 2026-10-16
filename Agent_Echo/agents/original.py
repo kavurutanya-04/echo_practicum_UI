@@ -75,7 +75,8 @@ class OriginalAgent(Specialist):
             "needs_numbers": {"type": "boolean"}, "needs_text": {"type": "boolean"},
             "include_chart": {"type": "boolean"}, "clarification_question": {"type": ["string", "null"]},
             "metric": {"type": "string", "enum": ["none", "cross_team_contributions", "survey_trend"]},
-            "dimension": {"type": "string"}})]
+            "dimension": {"type": "string", "description":
+                "Survey topic such as Recognition or Workload, never a time grouping such as quarter. Empty for other metrics."}})]
         history = [{"role": "user", "content": json.dumps({"question": question, "scope": self.scope.__dict__})}]
         for _ in range(2):
             self.budget.consume("model")
@@ -83,6 +84,8 @@ class OriginalAgent(Specialist):
                 "use Vanilla only for requested or necessary narrative/source interpretation. A count alone does not need "
                 "Vanilla. Requests to show numerical evidence, cite SQL results or explain metric limitations do not "
                 "require text retrieval. Use Vanilla for actual narrative examples or qualitative interpretation. "
+                "For example, a quarterly numeric Recognition survey trend with dates, response counts, mean "
+                "scores and metric limitations needs Cherry only; it does not request comment sentiment. "
                 "The backend already restricts the data to the supplied manager's roster and dates; those details "
                 "do not need clarification. Charts are optional; request one only if asked for or useful to compare indicators. "
                 "Choose metric=cross_team_contributions for distinct cross-team totals and recognition coverage, "
@@ -115,6 +118,15 @@ class OriginalAgent(Specialist):
                     raise ValueError("A survey trend needs one exact dimension.")
                 q = clarification_question(plan["clarification_question"])
                 plan["clarification_question"] = q
+                if plan["metric"] == "survey_trend" and q is None:
+                    self.budget.consume("tool")
+                    dimensions = self.specialist("Cherry").reader.describe()["survey_dimensions"]
+                    matches = [d for d in dimensions if d.casefold() == plan["dimension"].strip().casefold()]
+                    if dimensions and not matches:
+                        raise ValueError("Unknown survey dimension. Choose the topic requested by the user from: " +
+                                         ", ".join(dimensions) + ". A quarter is a time grouping, not a survey dimension.")
+                    if matches:
+                        plan["dimension"] = matches[0]
                 record("workflow_plan", agent="Original", needs_numbers=plan["needs_numbers"],
                        needs_text=plan["needs_text"], include_chart=plan["include_chart"], needs_clarification=q is not None,
                        metric=plan["metric"])
@@ -130,9 +142,7 @@ class OriginalAgent(Specialist):
         self.definitions = [tool for tool in self.all_definitions
             if {"ask_cherry": "Cherry", "ask_vanilla": "Vanilla"}[tool["name"]] in self.allowed_delegations]
 
-    def delegate(self, name, question):
-        if name not in self.allowed_delegations:
-            raise ValueError("This repair/plan does not require that specialist. Use the supplied evidence.")
+    def specialist(self, name):
         if name not in self.specialists:
             if name == "Cherry":
                 child = CherryAgent(self.database, self.scope, self.model_factory(name), self.mode, budget=self.budget)
@@ -140,8 +150,13 @@ class OriginalAgent(Specialist):
                 child = VanillaAgent(self.database, self.scope, self.model_factory(name), self.mode,
                     retrieval=self.retrieval, embedding_model=self.embedding_model, cache_root=self.cache_root, budget=self.budget)
             self.specialists[name] = child
+        return self.specialists[name]
+
+    def delegate(self, name, question):
+        if name not in self.allowed_delegations:
+            raise ValueError("This repair/plan does not require that specialist. Use the supplied evidence.")
         try:
-            child = self.specialists[name]
+            child = self.specialist(name)
             prepared = []
             if name == "Cherry" and self.planned_metric and self.repair_round == 0:
                 metric, dimension = self.planned_metric

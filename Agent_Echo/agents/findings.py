@@ -28,10 +28,12 @@ def normalize_citations(text, known):
 
 
 def cited_findings(answer):
-    """Review substantive blocks, including uncited ones; skip plain headings only."""
+    """Review substantive blocks, including uncited ones; skip plain formatting."""
     findings = []
     for text in re.split(r"\n\s*\n", answer.strip()):
         if not text.strip():
+            continue
+        if re.fullmatch(r" {0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})", text.rstrip("\r")):
             continue
         if "\n" not in text and not re.search(r"\d", text) and len(text) < 90 \
                 and (re.fullmatch(r"\*\*[^*]+\*\*:?", text) or re.fullmatch(r"#{1,6}\s+[^\n]+", text)):

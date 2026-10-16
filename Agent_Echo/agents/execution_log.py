@@ -55,6 +55,7 @@ def explain_failure(failure):
         "provider_connection": "Echo could not connect to the model provider.",
         "missing_configuration": "Required connection settings are missing.",
         "output_token_limit": "The model exhausted its output allowance before finishing.",
+        "incomplete_model_response": "The model returned an incomplete response; no answer from that call was accepted.",
         "incomplete_sentiment": "Survey classification was incomplete; no partial percentages were released.",
         "invalid_review": "The verifier did not produce a valid review, so unverified findings were withheld.",
         "invalid_plan": "The coordinator did not produce a valid analysis plan.",

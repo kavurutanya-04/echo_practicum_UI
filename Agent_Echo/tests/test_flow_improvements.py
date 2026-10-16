@@ -113,8 +113,51 @@ class MetricTests(unittest.TestCase):
         verifier = ZeroSugarAgent(SCOPE, ScriptedDemoModel("ZeroSugar"), "offline-unit-test", sql_reader=self.reader)
         self.assertIn("Metric evidence differs from its validated definition.", verifier.audit("Two [SQL1].", [result]))
 
+    def test_survey_dimension_case_and_whitespace_preserve_rows_and_replay(self):
+        expected = MetricCatalog(self.reader).run("survey_trend", "Recognition")["rows"]
+        self.assertTrue(expected)
+        for dimension in ("recognition", "RECOGNITION", "  Recognition  "):
+            with self.subTest(dimension=dimension):
+                result = MetricCatalog(self.reader).run("survey_trend", dimension)
+                self.assertEqual(result["rows"], expected)
+                self.assertEqual(result["metric_version"], 2)
+                verifier = ZeroSugarAgent(SCOPE, None, sql_reader=self.reader)
+                self.assertEqual(verifier.audit("Survey results [" + result["citation_id"] + "].", [result]), [])
+        for dimension in ("Recognitio", "Unknown", "Recognition' OR 1=1 --"):
+            self.assertEqual(MetricCatalog(self.reader).run("survey_trend", dimension)["rows"], [])
+
 
 class ClosingTests(unittest.TestCase):
+    def test_only_standalone_markdown_separators_are_excluded_from_findings(self):
+        for separator in ("---", "***", "___", "-----", "- - -", " * * * ", "  _ _ _\t"):
+            with self.subTest(separator=separator):
+                blocks = cited_findings("Two contributions [SQL1].\n\n" + separator +
+                                       "\n\nThere are nine fabricated contributions.")
+                self.assertEqual([b["text"] for b in blocks],
+                    ["Two contributions [SQL1].", "There are nine fabricated contributions."])
+                self.assertEqual(blocks[-1]["citation_ids"], [])
+        for text in ("--- Unsupported assertion", "---\nThere are nine contributions.",
+                     "### There are 9 contributions", "- There are nine contributions."):
+            self.assertEqual(len(cited_findings(text)), 1)
+
+    def test_prepared_evidence_reaches_model_before_tool_free_interpretation(self):
+        evidence = {"citation_id": "SQL1", "rows": [{"Responses": 32, "Mean_Score": 3.53}],
+                    "scope": SCOPE.__dict__}
+        observed = []
+        class EvidenceModel:
+            def respond(self, instructions, history, tools, require_tool=False):
+                observed.append((history, tools, require_tool))
+                self_payload = json.loads(history[-1]["content"].split("\n", 1)[1])
+                row = self_payload["evidence"][0]["rows"][0]
+                return ModelTurn(text=f"Mean {row['Mean_Score']} from {row['Responses']} responses [SQL1].")
+        agent = Specialist("Cherry", "Use evidence.", EvidenceModel(), SCOPE, [], {})
+        result = agent.run("Show survey scores.", initial_evidence=[evidence])
+        self.assertEqual(result.answer, "Mean 3.53 from 32 responses [SQL1].")
+        self.assertEqual(result.evidence, [evidence])
+        self.assertEqual(result.tool_trace, [])
+        self.assertEqual(len(observed), 1)
+        self.assertEqual(observed[0][1:], ([], False))
+
     def test_structured_repair_answers_every_outstanding_call(self):
         a, b = tool_turn("submit_plan", {}, "a"), tool_turn("submit_plan", {}, "b")
         turn = ModelTurn(calls=a.calls+b.calls)
@@ -156,6 +199,19 @@ class ClosingTests(unittest.TestCase):
 
 
 class OutcomeTests(unittest.TestCase):
+    def test_survey_plan_repairs_nonexistent_dimension_before_preparing_metric(self):
+        with patch("agents.original.CherryAgent", FixtureCherry):
+            coordinator = SequenceModel([plan(metric="survey_trend", dimension="quarter"),
+                                         plan(metric="survey_trend", dimension=" recognition ")])
+            agent = OriginalAgent("unused", SCOPE, lambda name: coordinator, "offline-unit-test")
+            agent.budget = RunBudget()
+            try:
+                result = agent.plan("Show Recognition scores by quarter.")
+                self.assertEqual(result["dimension"], "Recognition")
+                self.assertEqual(agent.specialists["Cherry"].metric_calls, 0)
+            finally:
+                agent.close()
+
     def test_nullable_tool_string_does_not_become_a_fake_clarification(self):
         for value in (None, "None", "null", "N/A", "  "):
             self.assertIsNone(clarification_question(value))
@@ -192,6 +248,19 @@ class OutcomeTests(unittest.TestCase):
                 self.assertNotIn("Vanilla", requested)
                 self.assertNotIn("Lime", requested)
             finally: agent.close()
+
+    def test_markdown_separators_do_not_force_a_supported_workflow_to_partial(self):
+        text = "Two distinct contributions [SQL1].\n\n---\n\nMissing notes do not prove absent recognition [SQL1]."
+        with patch("agents.original.CherryAgent", FixtureCherry):
+            agent, _, _ = self.workflow(["accept"], [text])
+            try:
+                result = agent.run("Count contributions and explain limitations.")
+                self.assertEqual(result.status, "complete")
+                self.assertEqual(result.verification["decision"], "accept")
+                self.assertEqual(len(result.findings), 2)
+                self.assertTrue(all(f["status"] == "supported" for f in result.findings))
+            finally:
+                agent.close()
 
     def test_planned_metric_runs_before_cherry_without_exploratory_queries(self):
         with patch("agents.original.CherryAgent", FixtureCherry):

@@ -20,6 +20,12 @@ The catalog runs read-only SQL on the physically scoped in-memory copy:
 Distinct IDs and EXISTS prevent feedback joins from multiplying contributions. Dimensions
 use bound parameters. Empty populations return zero counts. Feedback is restricted to the
 selected interaction period; missing notes do not prove absent recognition or unfairness.
+`survey_trend` version 2 matches complete dimension names without case sensitivity and
+strips surrounding input whitespace; it does not use fuzzy matching. Empty survey results
+mean no matching publishable rows, not zero scores or proof of a backend error. Prepared
+metric rows and citation IDs are included in Cherry's model history before interpretation.
+Original validates a planned survey dimension against the authorized copy's schema metadata
+and requests a corrected plan for an unknown topic such as `quarter` before executing it.
 Metric artifacts include version, definition, arguments, SQL and parameters. ZeroSugar
 replays both SQL and metric definition. Custom SQL remains available. A conservative guard
 rejects the known contribution/feedback JOIN + COUNT(*) mistake; it does not prove the
@@ -50,7 +56,9 @@ Sources and the final package are still reviewed. Nothing is cached across execu
 
 Each substantive paragraph/block, including uncited blocks, receives an independent
 review with its original ID and citation IDs. When evidence is available, uncited blocks
-are withheld until explicitly grounded. Plain headings are excluded. All claims in a block must be supported; one unsupported claim withholds that block.
+are withheld until explicitly grounded. Plain headings and standalone Markdown separators
+(`---`, `***`, `___`) are excluded. Blocks containing substantive text remain reviewable,
+including uncited claims. All claims in a block must be supported; one unsupported claim withholds that block.
 The reviewer cannot rewrite the text into a new claim. Missing/repeated findings or changed
 source IDs invalidate the review. Source checks also run per block. A safety failure or
 deterministic package error prevents partial release. English is the application policy.
