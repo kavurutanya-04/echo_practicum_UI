@@ -241,8 +241,14 @@ class RuntimeTests(unittest.TestCase):
     def test_runaway_loop_stops_without_an_answer(self):
         turns = [tool_turn("noop", {}, str(i)) for i in range(8)]
         agent = Specialist("Test", "", SequenceModel(turns), AccessScope("M14"), [], {"noop": lambda: {}})
-        with self.assertRaisesRegex(RuntimeError, "turn budget"):
+        with self.assertRaisesRegex(RuntimeError, "Test agent turn budget exceeded after 7 model turns; last action: calling tools: noop"):
             agent.run("Loop forever.")
+
+    def test_exhausted_citation_repairs_identify_the_agent_and_reason(self):
+        turns = [ModelTurn(text="Unsupported source [SQL999].") for _ in range(7)]
+        agent = Specialist("Cherry", "", SequenceModel(turns), AccessScope("M14"), [], {})
+        with self.assertRaisesRegex(RuntimeError, "Cherry agent turn budget.*repairing missing or unknown evidence citations"):
+            agent.run("Count contributions.")
 
     def test_responses_adapter_preserves_tool_call_items(self):
         call_item = {"type": "function_call", "call_id": "provider-call", "name": "describe_schema", "arguments": "{}"}

@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .model import ConfigurationError, ResponsesModel, ChatModel
+from .execution_log import logged_model
 
 AGENTS = ("Original", "Cherry", "Vanilla", "Lime", "ZeroSugar")
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "connections.json"
@@ -129,7 +130,7 @@ class ModelRegistry:
             else:
                 self.models[name] = ResponsesModel(client, model_name)
         # A shared adapter is stateless: conversation history is held by each agent run.
-        return self.models[name]
+        return logged_model(self.models[name], agent, name)
 
     def embeddings(self, name=None):
         name = name or self.config["retrieval"]["embedding_profile"]

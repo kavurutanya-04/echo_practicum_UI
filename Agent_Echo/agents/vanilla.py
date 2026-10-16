@@ -9,6 +9,7 @@ from .data_access import ScopedData
 from .runtime import RunBudget, Specialist, function_tool
 from .tools import TextSearch
 from .semantic_search import SemanticTextSearch
+from .execution_log import record, error_summary
 
 
 INSTRUCTIONS = """You are Vanilla, Echo's textual-information specialist.
@@ -192,6 +193,8 @@ class VanillaAgent(Specialist):
         labels = []
         for offset in range(0, len(documents), SENTIMENT_BATCH_SIZE):
             batch = documents[offset:offset + SENTIMENT_BATCH_SIZE]
+            record("sentiment_batch_started", agent="Vanilla", batch=offset // SENTIMENT_BATCH_SIZE + 1,
+                   batches=batches, comments=len(batch))
             history = [{"role": "user", "content": json.dumps({"comments": batch}, ensure_ascii=False)}]
             accepted = None
             for _ in range(2):
@@ -199,6 +202,7 @@ class VanillaAgent(Specialist):
                 turn = self.model.respond(SENTIMENT_INSTRUCTIONS, history, tools, True)
                 history.extend(turn.output_items)
                 if len(turn.calls) != 1 or turn.calls[0].name != "submit_sentiment_batch":
+                    record("structured_response_repair", agent="Vanilla", reason="expected_one_sentiment_call")
                     history.append({"role": "user", "content": "Return exactly one submit_sentiment_batch call."})
                     continue
                 call = turn.calls[0]
@@ -211,11 +215,13 @@ class VanillaAgent(Specialist):
                     accepted = payload["labels"]
                     break
                 except (ValueError, TypeError) as error:
+                    record("structured_response_repair", agent="Vanilla", **error_summary(error))
                     history.append({"type": "function_call_output", "call_id": call.call_id,
                                     "output": json.dumps({"error": str(error)})})
             if accepted is None:
                 raise RuntimeError("Sentiment classification was incomplete; no partial percentages were returned.")
             labels.extend(accepted)
+            record("sentiment_batch_finished", agent="Vanilla", batch=offset // SENTIMENT_BATCH_SIZE + 1)
         self.sentiment_counter += 1
         identity = f"SENTIMENT{self.sentiment_counter}"
         report = {"citation_id": identity, "scope": self.scope.__dict__, "dimension": dimension,

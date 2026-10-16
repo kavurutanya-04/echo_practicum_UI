@@ -7,6 +7,7 @@ import math
 import re
 
 from .runtime import RunBudget, function_tool
+from .execution_log import record, error_summary
 
 INSTRUCTIONS = """You are Lime, Echo's indicator-visualization specialist.
 Your input is the manager question, the candidate answer, Cherry's scoped SQL evidence and optional
@@ -152,11 +153,13 @@ class LimeAgent:
             try:
                 plan = validate_visuals(json.loads(call.arguments), evidence, self.scope)
             except (ValueError, TypeError, KeyError) as error:
+                record("structured_response_repair", agent="Lime", **error_summary(error))
                 trace.append({"tool": call.name, "error": str(error)})
                 history.append({"type": "function_call_output", "call_id": call.call_id,
                                 "output": json.dumps({"error": str(error)})})
                 continue
             trace.append({"tool": call.name, "result": plan})
+            record("visual_plan_validated", agent="Lime", charts=len(plan["charts"]))
             return VisualizationResult(plan["charts"], plan["reason"], self.mode, trace)
         raise RuntimeError("Lime did not return a valid evidence-bound chart plan.")
 

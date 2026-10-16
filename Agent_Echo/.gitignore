@@ -6,3 +6,4 @@ __pycache__/
 data/*.db
 data/rag_cache/
 reports/*.json
+reports/logs/

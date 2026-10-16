@@ -13,8 +13,10 @@ from agents.preflight import check_connections
 from agents.connections import DEFAULT_CONFIG, ModelRegistry
 from agents.model import ConfigurationError, ScriptedDemoModel
 from agents.runtime import RunBudget
+from agents.execution_log import RunLog, record, error_summary, logged_model
 
 HERE = Path(__file__).resolve().parent
+LOG_DIRECTORY = HERE / "reports" / "logs"
 NAMES = {"cherry": "Cherry", "vanilla": "Vanilla", "original": "Original", "zerosugar": "ZeroSugar", "lime": "Lime", "visualizer": "Lime"}
 
 
@@ -46,6 +48,24 @@ def main(argv=None):
         args.agent = "lime"
     if args.show_connections and args.check_connection:
         parser.error("Choose --show-connections or --check-connection, not both.")
+    if args.show_connections:
+        return execute(args, parser)
+    try:
+        with RunLog(LOG_DIRECTORY, agent=args.agent, mode="offline_scripted_demo" if args.demo else "live",
+                    connection_check=args.check_connection) as log:
+            print("Execution log: " + str(log.path), flush=True)
+            code = execute(args, parser)
+            log.finish(code)
+            return code
+    except OSError:
+        print("Execution logging failed; check local reports/logs permissions and disk space.", file=sys.stderr)
+        return 1
+    except Exception:
+        print("Unexpected execution failure; examine the execution log for the last completed step.", file=sys.stderr)
+        return 1
+
+
+def execute(args, parser):
     registry, agent = None, None
     try:
         registry = ModelRegistry(args.connections, args.profile)
@@ -74,10 +94,11 @@ def main(argv=None):
         previous_scope = artifact.get("scope", {}) if artifact else {}
         scope = AccessScope(args.manager, args.start or previous_scope.get("start_date", "2024-10-01"),
                             args.end or previous_scope.get("end_date", "2026-09-30"))
+        record("scope_ready", **scope.__dict__)
         mode = "offline-scripted-demo" if args.demo else "live"
         print("MODE: OFFLINE SCRIPTED FIXTURE - 0 generation API calls; not a model evaluation."
               if args.demo else "MODE: LIVE - configured model API calls required; no offline fallback.")
-        factory = (lambda name: ScriptedDemoModel(name)) if args.demo else registry.get
+        factory = (lambda name: logged_model(ScriptedDemoModel(name), name, "offline_fixture")) if args.demo else registry.get
         retrieval = args.retrieval or ("lexical" if args.demo else registry.config["retrieval"]["mode"])
         if args.demo and retrieval != "lexical":
             parser.error("Offline demos use lexical retrieval. Semantic/hybrid retrieval requires configured embeddings.")
@@ -143,9 +164,11 @@ def main(argv=None):
             print(f"Evidence artifact: {args.output.resolve()}")
         return 2 if result.verification.get("decision") == "revise" else 0
     except KeyboardInterrupt:
+        record("run_cancelled")
         print("Execution cancelled. API connectivity and answer quality were not confirmed by this interrupted run.", file=sys.stderr)
         return 130
     except (ConfigurationError, RuntimeError, ValueError, OSError, sqlite3.Error, KeyError) as error:
+        record("run_error", **error_summary(error))
         print(str(error), file=sys.stderr)
         return 1
     finally:

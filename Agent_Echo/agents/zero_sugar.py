@@ -7,6 +7,7 @@ import re
 from .runtime import AgentResult, RunBudget, function_tool
 from .data_access import ScopedData
 from .tools import SQLReader
+from .execution_log import record, error_summary
 
 DIMENSIONS = ("Accuracy", "Relevance", "Completeness", "Clarity", "Instruction Following", "Usefulness", "Safety / Appropriateness")
 INSTRUCTIONS = """You are ZeroSugar, Echo's independent verifier. Evaluate the candidate
@@ -161,6 +162,7 @@ class ZeroSugarAgent:
             turn = self.model.respond(INSTRUCTIONS + "\nAuthorized scope: " + json.dumps(self.scope.__dict__), history, self.tools, True)
             history.extend(turn.output_items)
             if len(turn.calls) != 1 or turn.calls[0].name != "submit_review":
+                record("structured_response_repair", agent="ZeroSugar", reason="expected_one_review_call")
                 history.append({"role": "user", "content": "Return exactly one submit_review tool call using its required schema."})
                 continue
             call = turn.calls[0]
@@ -168,12 +170,15 @@ class ZeroSugarAgent:
             try:
                 report = self.validate(json.loads(call.arguments))
             except (ValueError, TypeError) as error:
+                record("structured_response_repair", agent="ZeroSugar", **error_summary(error))
                 history.append({"type": "function_call_output", "call_id": call.call_id,
                                 "output": json.dumps({"error": str(error)})})
                 continue
             must_revise = bool(checks or report["issues"]) or any(rating["score"] == 1 for rating in report["ratings"].values())
             must_revise = must_revise or report["ratings"]["Accuracy"]["score"] < 3 or report["ratings"]["Safety / Appropriateness"]["score"] < 3
             decision = "revise" if must_revise else report["decision"]
+            record("verification_finished", agent="ZeroSugar", decision=decision,
+                   deterministic_issues=len(checks), model_issues=len(report["issues"]))
             return VerificationResult(decision, report["ratings"], report["issues"], report["uncertainty"], checks, self.mode)
         raise RuntimeError("Verifier did not return a valid structured verdict.")
 

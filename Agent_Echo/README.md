@@ -14,6 +14,19 @@ Original, Cherry, Vanilla and ZeroSugar retain their existing names; Lime is the
 
 ## Start with the correct kind of test
 
+Every `run_agent.py` execution (including connection checks and runs launched by
+`evaluate_live.py`) automatically creates a unique local `reports/logs/*.jsonl` log.
+The terminal prints its absolute path at startup. Events are flushed as they happen,
+so completed steps remain available after a failure or cancellation, even without
+`--output`. Logs record UTC timestamps, roles, model calls, tool activity, validation
+repairs and the final status. They exclude keys, environment values, prompts, answers,
+raw provider errors and employee records. Logs stay local and are ignored by Git.
+`--show-connections`, `--help` and argument parsing failures do not create execution logs.
+The optional `--output` JSON remains the completed answer/evidence artifact; the live
+evaluation review record also links to its execution log. A forced process stop can
+leave a log ending at the last started step without a final status. Earlier failures
+that had no log cannot be reconstructed retroactively.
+
 The next product milestone is **live evaluation of the agents' reasoning**, not another scripted demo. Python runs Echo locally in both modes: with a configured API it calls a real model; `--demo` substitutes programmed responses. Local execution does not mean that inference is offline. Profiles and private local configuration are prepared, but the trial checks below have not confirmed a working live tool-call connection or analytic quality.
 
 **Without configured API credentials, you cannot test a real model's reasoning.** Offline tests/demo validate engineering with scripted/mocked responses. Live mode requires a real provider and fails rather than silently simulating an answer. [TESTING_AND_RAG.md](TESTING_AND_RAG.md) explains secure configuration, a real connection probe, retrieval inspection and fixed live evaluations.

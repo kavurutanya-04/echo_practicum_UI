@@ -41,6 +41,8 @@ def main():
     run = subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
                          env=os.environ | {"PYTHONUTF8": "1"})
     summary = {"case_id": selected["id"], "exit_code": run.returncode,
+        "execution_log": next((line.removeprefix("Execution log: ") for line in run.stdout.splitlines()
+                               if line.startswith("Execution log: ")), None),
         "elapsed_seconds": round(time.monotonic() - started, 3),
         "status": {0: "execution_completed", 2: "revision_required"}.get(run.returncode, "execution_failed"),
         "artifact": str(artifact) if artifact.exists() else None,

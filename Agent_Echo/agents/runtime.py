@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import json
 import re
 import time
+from .execution_log import record, error_summary
 
 
 def function_tool(name, description, properties):
@@ -64,6 +65,7 @@ class Specialist:
         self.budget = budget
 
     def run(self, question, initial_evidence=(), context=()):
+        record("agent_started", agent=self.name)
         if not isinstance(question, str) or not question.strip() or len(question) > 4000:
             raise ValueError("Question must contain 1 to 4,000 characters.")
         history = [{"role": "user", "content": question}]
@@ -72,7 +74,9 @@ class Specialist:
         known = {item["citation_id"] for item in evidence}
         budget = self.budget or RunBudget()
         instructions = self.instructions + "\nTrusted application scope: " + json.dumps(self.scope.__dict__)
+        last_action = "no completed turn"
         for step in range(7):
+            record("agent_turn", agent=self.name, turn=step + 1)
             budget.consume("model")
             turn = self.model.respond(instructions, history, self.definitions, require_tool=(step == 0 and not initial_evidence))
             history.extend(turn.output_items)
@@ -82,14 +86,23 @@ class Specialist:
                 cited = set(re.findall(r"\[([A-Za-z0-9_:-]+)\]", turn.text))
                 unknown = cited - known
                 if unknown or (evidence and not (cited & known)):
+                    last_action = "repairing missing or unknown evidence citations"
+                    record("citation_repair", agent=self.name, unknown_citations=len(unknown),
+                           missing_evidence_citation=bool(evidence and not (cited & known)))
                     history.append({"role": "user", "content":
                         "Repair citation formatting. Use only evidence IDs returned by your tools in square brackets. "
                         "Ground findings in those sources; do not fabricate citations. Available IDs: " + ", ".join(sorted(known))})
                     continue
+                record("agent_finished", agent=self.name, evidence_count=len(evidence))
                 return AgentResult(self.name, question, turn.text, self.scope.__dict__, evidence, trace, self.mode)
             if len(turn.calls) > 4 or len(trace) + len(turn.calls) > 12:
-                raise RuntimeError("Agent tool-call budget exceeded.")
+                raise RuntimeError(f"{self.name} agent tool-call budget exceeded; no unverified answer was returned.")
+            last_action = "calling tools: " + ", ".join(
+                call.name if call.name in self.handlers else "unavailable tool" for call in turn.calls)
+            tool_errors = 0
             for call in turn.calls:
+                tool_name = call.name if call.name in self.handlers else "unavailable_tool"
+                record("tool_started", agent=self.name, tool=tool_name)
                 budget.consume("tool")
                 try:
                     if call.name not in self.handlers:
@@ -101,7 +114,16 @@ class Specialist:
                     if len(json.dumps(result)) > 80_000:
                         raise ValueError("Result is too large. Select fewer columns or aggregate the query.")
                 except (ValueError, TypeError) as error:
+                    record("tool_validation_failed", agent=self.name, tool=tool_name, **error_summary(error))
                     result = {"error": str(error)}
+                except BaseException as error:
+                    record("tool_failed", agent=self.name, tool=tool_name, **error_summary(error))
+                    raise
+                if "error" in result:
+                    tool_errors += 1
+                record("tool_finished", agent=self.name, tool=tool_name, success="error" not in result,
+                       rows=len(result.get("rows", [])), passages=len(result.get("passages", [])),
+                       truncated=bool(result.get("truncated", False)))
                 trace.append({"tool": call.name, "arguments": call.arguments, "result": result})
                 if "citation_id" in result:
                     evidence.append(result)
@@ -114,4 +136,8 @@ class Specialist:
                     known.add(item["citation_id"])
                 history.append({"type": "function_call_output", "call_id": call.call_id,
                                 "output": json.dumps(result, ensure_ascii=False)})
-        raise RuntimeError("Agent turn budget exceeded; no unverified answer was returned.")
+            if tool_errors:
+                last_action += f" ({tool_errors} tool errors)"
+        record("agent_turn_limit", agent=self.name, turns=7)
+        raise RuntimeError(f"{self.name} agent turn budget exceeded after 7 model turns; "
+                           f"last action: {last_action}. No unverified answer was returned.")
