@@ -126,6 +126,10 @@ class ChatModel:
             response = self.client.chat.completions.create(**options)
         except Exception as error:
             raise request_failure(error) from None
+        if response.choices and response.choices[0].finish_reason == "length":
+            raise RuntimeError("Model output token budget exhausted before completion. Reasoning may consume "
+                               "the output budget before visible text or tool calls; check max_output_tokens. "
+                               "No answer was accepted.")
         if not response.choices or response.choices[0].finish_reason not in {"stop", "tool_calls"}:
             raise RuntimeError("Model response did not complete; no answer was accepted.")
         self.successful_requests += 1

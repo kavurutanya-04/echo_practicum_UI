@@ -68,7 +68,7 @@ class TrialProviderTests(unittest.TestCase):
     def test_trial_profiles_route_probe_to_their_own_endpoint_and_model(self):
         for profile, variable, endpoint, model_name in (
             ("nvidia_test", "NVIDIA_API_KEY", "https://integrate.api.nvidia.com/v1",
-             "nvidia/nemotron-3-ultra-550b-a55b"),
+             "nvidia/nemotron-3-super-120b-a12b"),
             ("nvidia_glm_test", "NVIDIA_API_KEY", "https://integrate.api.nvidia.com/v1",
              "z-ai/glm-5.3-flash"),
             ("opencode_test", "OPENCODE_API_KEY", "https://opencode.ai/inference/openai/v1",
@@ -98,6 +98,9 @@ class TrialProviderTests(unittest.TestCase):
                     result = check_connections(registry, ["Cherry", "Vanilla"], progress=progress.append)
                     self.assertEqual(clients[0]["base_url"], endpoint)
                     self.assertEqual(clients[0]["api_key"], "offline-key")
+                    self.assertEqual(clients[0]["timeout"], 120 if profile.startswith("nvidia_") else 45)
+                    self.assertEqual(clients[0]["max_retries"], 0 if profile.startswith("nvidia_") else 1)
+                    self.assertEqual(requests[0]["max_tokens"], 8192)
                     self.assertEqual(requests[0]["model"], model_name)
                     self.assertEqual(requests[0]["tool_choice"], "required")
                     self.assertEqual(requests[0]["tools"][0]["function"]["name"], "connection_check")
@@ -125,6 +128,27 @@ class TrialProviderTests(unittest.TestCase):
                 self.assertNotIn("offline-${OTHER}-key", json.dumps(registry.describe()))
                 registry.close()
                 self.assertIsNone(registry._local_settings)
+
+    def test_invalid_timeout_and_retry_settings_fail_before_client_construction(self):
+        for setting, values in (("timeout_seconds", (0, -1, 601, "120", True, float("nan"))),
+                                ("max_retries", (-1, 4, "0", True))):
+            for value in values:
+                with self.subTest(setting=setting, value=value), patch.dict(os.environ, {}, clear=True):
+                    registry = ModelRegistry(force_profile="nvidia_test", env_file=None)
+                    registry.config["profiles"]["nvidia_test"][setting] = value
+                    with self.assertRaisesRegex(ConfigurationError, setting):
+                        registry.get("Cherry")
+                    self.assertEqual(registry.clients, {})
+
+    def test_output_limit_is_distinguished_from_provider_failure_without_raw_reasoning(self):
+        response = SimpleNamespace(choices=[SimpleNamespace(finish_reason="length",
+            message=SimpleNamespace(content=None, reasoning_content="offline-private-text"))])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **kwargs: response)))
+        model = ChatModel(client, "offline-model", max_output_tokens=8192)
+        with self.assertRaisesRegex(RuntimeError, "output token budget exhausted") as raised:
+            model.respond("Use tools.", [], [])
+        self.assertNotIn("offline-private-text", str(raised.exception))
+        self.assertEqual(model.successful_requests, 0)
 
     def test_environment_key_wins_without_reading_private_file(self):
         with patch.dict(os.environ, {"NVIDIA_API_KEY": "offline-env-key"}, clear=True), \
@@ -157,7 +181,7 @@ class TrialProviderTests(unittest.TestCase):
             models = {role: registry.get(role) for role in assignments}
             self.assertEqual(models["Cherry"].model, "z-ai/glm-5.3-flash")
             self.assertEqual(models["Vanilla"].model, "deepseek-v4.1-flash-free")
-            self.assertEqual(models["Original"].model, "nvidia/nemotron-3-ultra-550b-a55b")
+            self.assertEqual(models["Original"].model, "nvidia/nemotron-3-super-120b-a12b")
             self.assertIs(models["Cherry"], models["ZeroSugar"])
             self.assertIs(models["Original"], models["Lime"])
             self.assertIsNot(models["Original"], models["Cherry"])

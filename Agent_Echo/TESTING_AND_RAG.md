@@ -4,7 +4,7 @@ Updated 2026-10-16. Run commands inside `Final_Project/Agent_Echo` with the proj
 
 ## Three different activities
 
-For evaluating intelligence, use the live evaluation cases after configuring a provider. Running Python locally can still call a cloud LLM; the decisive distinction is live API responses versus programmed fixtures. The demo is an optional engineering diagnostic, not a reasoning benchmark. NVIDIA/OpenCode profiles are prepared; live connection and quality checks are pending private keys.
+For evaluating intelligence, use the live evaluation cases after configuring a provider. Running Python locally can still call a cloud LLM; the decisive distinction is live API responses versus programmed fixtures. The demo is an optional engineering diagnostic, not a reasoning benchmark. Provider access and analytic quality require separate checks; see the NVIDIA/OpenCode access findings below.
 
 | Activity | Calls an API? | What the result establishes |
 | --- | --- | --- |
@@ -52,11 +52,15 @@ OPENCODE_API_KEY=
 
 The models/endpoints are configured, but live access is not guaranteed. Both NVIDIA profiles use the same `NVIDIA_API_KEY`. On 2026-10-16 OpenCode rejected external free-tier Python requests with HTTP 403 `FreeTierError`, NVIDIA GLM timed out, and NVIDIA Nemotron Ultra returned HTTP 404. Do not present these as working live connections. The OpenCode command below remains an access diagnostic, not a recommendation to use its free tier for Echo. Run the probes separately:
 
+Follow-up: `nvidia_test` now uses `nvidia/nemotron-3-super-120b-a12b`, which the user reports answered a plain text request. Both NVIDIA profiles retain 8192 output tokens, now with `timeout_seconds=120` and `max_retries=0`. The GLM default retains NVIDIA's documented reasoning settings; a plain diagnostic can omit them in memory. Text completion, tool-call confirmation and full analytic quality are distinct checks. Earlier Echo timeouts occurred with 8192 tokens, so the user's separate 20-token experiments do not establish their cause. `finish_reason=length` now produces an explicit output-token-limit error. Private `.env` overrides can set `NVIDIA_MODEL` and `NVIDIA_BASE_URL`; an existing terminal variable still takes precedence.
+
 ```powershell
 python .\run_agent.py --check-connection --profile nvidia_test
 python .\run_agent.py --check-connection --profile nvidia_glm_test
 python .\run_agent.py --check-connection --profile opencode_test
 ```
+
+Follow-up live probes on 2026-10-16 confirmed one real tool call with Nemotron Super, one with GLM-5.3-Flash using a plain request without reasoning options, and one using the configured GLM reasoning options. Both GLM probes took close to two minutes; the configured defaults are retained. Minimal tool access now works for the tested account, but latency and continued availability remain unconfirmed beyond these individual requests. These are minimal API/tool checks, not completed manager analyses. The earlier failures remain historical observations; local logs preserve the follow-up results.
 
 Environment keys take precedence over `.env`. Only live client construction can read that file; inspection and scripted demos do not. New collaborators can copy `.env.example` to a new local `.env` and insert their own keys; `.env` never needs to be shared. If the keys already exist as terminal/system environment variables, no `.env` is required. The shared default is still `gw_azure`, so select a test profile explicitly. These profiles use no paid-model fallback. Check the provider's current free access and limits; the application does not monitor pricing changes.
 

@@ -19,6 +19,7 @@ def error_summary(error):
         ("turn budget", "agent_turn_limit"), ("tool-call budget", "agent_tool_limit"),
         ("elapsed-time budget", "time_limit"), ("call budget", "workflow_call_limit"),
         ("sentiment classification was incomplete", "incomplete_sentiment"),
+        ("output token budget exhausted", "output_token_limit"),
         ("no such column", "sql_unknown_column"), ("no such table", "sql_unknown_table"),
         ("syntax error", "sql_syntax"), ("query rejected", "sql_rejected"),
         ("quote must be an exact", "invalid_source_quote"),

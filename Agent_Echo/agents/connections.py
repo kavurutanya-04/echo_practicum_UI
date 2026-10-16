@@ -93,6 +93,12 @@ class ModelRegistry:
             raise ConfigurationError("A custom compatible profile requires an explicit HTTPS endpoint.")
         if endpoint and (urlparse(endpoint).scheme != "https" or not urlparse(endpoint).hostname):
             raise ConfigurationError("The configured cloud endpoint must use HTTPS.")
+        timeout = profile.get("timeout_seconds", 45)
+        retries = profile.get("max_retries", 1)
+        if type(timeout) not in {int, float} or not 0 < timeout <= 600:
+            raise ConfigurationError("timeout_seconds must be a number greater than 0 and at most 600.")
+        if type(retries) is not int or not 0 <= retries <= 3:
+            raise ConfigurationError("max_retries must be an integer from 0 to 3.")
         key = self._key(profile["key_env"])
         if not key:
             raise ConfigurationError("Missing profile configuration; set variables: " + ", ".join(required) +
@@ -101,7 +107,7 @@ class ModelRegistry:
             from openai import AzureOpenAI, OpenAI
         except ImportError:
             raise ConfigurationError("Install requirements.txt in the project environment.") from None
-        options = {"api_key": key, "timeout": 45, "max_retries": 1}
+        options = {"api_key": key, "timeout": timeout, "max_retries": retries}
         if profile["provider"] == "azure" and profile.get("azure_api", "legacy") == "legacy":
             client = AzureOpenAI(azure_endpoint=endpoint,
                 api_version=self._value(profile, "api_version") or "2025-03-01-preview", **options)
