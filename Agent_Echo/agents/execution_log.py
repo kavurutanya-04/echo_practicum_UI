@@ -27,6 +27,14 @@ def error_summary(error):
         ("timed out", "provider_timeout"), ("could not connect", "provider_connection"),
         ("missing profile configuration", "missing_configuration"),
         ("did not complete", "incomplete_model_response"),
+        ("can duplicate contributions", "unsafe_count_grain"),
+        ("every finding", "finding_coverage"),
+        ("finding citations", "finding_citations"),
+        ("invalid repair targets", "invalid_repair_targets"),
+        ("live reviews must", "missing_finding_reviews"),
+        ("verifier did not return", "invalid_review"),
+        ("valid bounded analysis plan", "invalid_plan"),
+        ("do not match its declared schema", "tool_schema"),
     ):
         if phrase in message:
             category = name
@@ -38,9 +46,29 @@ def error_summary(error):
     return result
 
 
+def explain_failure(failure):
+    messages = {"agent_turn_limit": "An agent could not finish within its allowed turns.",
+        "agent_tool_limit": "An agent reached its tool-call limit.",
+        "time_limit": "The workflow reached its time limit.",
+        "workflow_call_limit": "The workflow reached its call limit.",
+        "provider_timeout": "The model provider did not respond within the configured timeout.",
+        "provider_connection": "Echo could not connect to the model provider.",
+        "missing_configuration": "Required connection settings are missing.",
+        "output_token_limit": "The model exhausted its output allowance before finishing.",
+        "incomplete_sentiment": "Survey classification was incomplete; no partial percentages were released.",
+        "invalid_review": "The verifier did not produce a valid review, so unverified findings were withheld.",
+        "invalid_plan": "The coordinator did not produce a valid analysis plan.",
+        "tool_validation": "The requested data could not be obtained through valid tool calls."}
+    if failure.get("error_category") == "provider_http":
+        return "The model provider rejected or could not complete a request (HTTP " + str(failure.get("http_status", "unknown")) + ")."
+    return messages.get(failure.get("error_category"), "An execution error interrupted the analysis; the log identifies the affected step.")
+
+
 def record(event, **fields):
     log = _active.get()
     if log is not None:
+        if event == "response_finished" and fields.get("status") in {"complete", "partial", "needs_clarification", "failed"}:
+            log.response_status = fields["status"]
         log.write(event, **fields)
 
 
@@ -78,6 +106,8 @@ class RunLog:
                 self.exit_code = 130 if isinstance(error, KeyboardInterrupt) else 1
                 self.write("run_error", **error_summary(error))
             status = {0: "completed", 2: "revision_required", 130: "cancelled"}.get(self.exit_code, "failed")
+            if error is None and self.exit_code in {0, 2}:
+                status = getattr(self, "response_status", status)
             self.write("run_finished", status=status, exit_code=self.exit_code)
         finally:
             _active.reset(self.token)

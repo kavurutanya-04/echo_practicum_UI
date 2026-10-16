@@ -57,6 +57,7 @@ class SQLReader:
             "scope": self.scope.__dict__,
             "notes": [
                 "Tables contain only this manager's pilot roster and selected dates; surveys cover their teams.",
+                "The caller manager_id is an authorization identifier, not an Employee_ID. Do not search employees for M14 to establish the already-scoped roster.",
                 "Survey groups with fewer than five responses and program groups below five employees are excluded.",
                 "Join contributions.Contribution_ID to recognition_feedback.Contribution_ID; use EXISTS to avoid fan-out.",
                 "Capacity is weekly. Join work_requests to capacity by employee AND Week_Start after aggregating requests.",
@@ -69,13 +70,19 @@ class SQLReader:
             ],
         }
 
-    def execute(self, sql):
+    def execute(self, sql, parameters=()):
         if not isinstance(sql, str) or len(sql) > 12_000:
             raise ValueError("SQL must be a string no longer than 12,000 characters.")
+        if not isinstance(parameters, (list, tuple)) or any(type(p) not in {str, int, float, type(None)} for p in parameters):
+            raise ValueError("SQL parameters must be scalar values.")
+        if re.search(r"\bcontributions\b", sql, re.I) and re.search(r"\bjoin\s+recognition_feedback\b", sql, re.I) \
+                and re.search(r"\bcount\s*\(\s*\*\s*\)", sql, re.I):
+            raise ValueError("A contribution/feedback join with COUNT(*) can duplicate contributions. "
+                             "Use run_metric or count distinct Contribution_ID; count feedback records at their own grain.")
         deadline = time.monotonic() + 3
         self.connection.set_progress_handler(lambda: int(time.monotonic() > deadline), 1000)
         try:
-            cursor = self.connection.execute(sql)
+            cursor = self.connection.execute(sql, parameters)
             if cursor.description is None:
                 raise ValueError("Only read-only result queries are allowed.")
             rows = [dict(row) for row in cursor.fetchmany(101)]
@@ -86,7 +93,7 @@ class SQLReader:
         self.counter += 1
         return {"citation_id": f"SQL{self.counter}", "producer": "Cherry", "sql": sql,
                 "rows": rows[:100], "truncated": len(rows) > 100,
-                "scope": self.scope.__dict__}
+                "scope": self.scope.__dict__, "parameters": list(parameters)}
 
     def close(self):
         self.connection.close()

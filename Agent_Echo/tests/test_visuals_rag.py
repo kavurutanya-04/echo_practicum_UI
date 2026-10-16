@@ -116,7 +116,7 @@ class VisualizationTests(unittest.TestCase):
     def test_verifier_forces_revision_for_bad_chart_even_if_model_accepts(self):
         invalid = plan(); invalid["charts"][0]["y"] = "invented"
         reviewer = ZeroSugarAgent(SCOPE, SequenceModel([tool_turn("submit_review", report())]),
-                                 sql_reader=SimpleNamespace(execute=lambda sql: evidence()[0]))
+                                 "offline-unit-test", sql_reader=SimpleNamespace(execute=lambda sql, parameters=(): evidence()[0]))
         verdict = reviewer.review("Show trend.", "Trend [SQL1].", evidence(), invalid)
         self.assertEqual(verdict.decision, "revise")
         self.assertTrue(any("Invalid visualization" in item for item in verdict.deterministic_issues))
@@ -153,7 +153,7 @@ class RagAndConnectionTests(unittest.TestCase):
         finally:
             agent.close()
 
-    def test_live_cli_without_configuration_fails_and_does_not_write_demo_artifact(self):
+    def test_live_cli_without_configuration_writes_failed_artifact_without_a_demo(self):
         with TemporaryDirectory() as output, patch.dict("os.environ", {}, clear=True), \
              patch.object(ModelRegistry, "_local_value", return_value=""), \
              redirect_stdout(io.StringIO()) as stdout, redirect_stderr(io.StringIO()) as stderr:
@@ -161,7 +161,11 @@ class RagAndConnectionTests(unittest.TestCase):
             code = run_agent.main(["original", "--manager", "M14", "--profile", "google_test",
                                    "--question", "Review recognition.", "--output", str(target)])
             self.assertEqual(code, 1)
-            self.assertFalse(target.exists())
+            self.assertTrue(target.exists())
+            saved = json.loads(target.read_text(encoding="utf-8"))
+            self.assertEqual(saved["status"], "failed")
+            self.assertEqual(saved["execution"]["generation_api_calls"], 0)
+            self.assertEqual(saved["mode"], "live")
             self.assertIn("no offline fallback", stdout.getvalue())
             self.assertIn("GOOGLE_API_KEY", stderr.getvalue())
 
@@ -306,7 +310,8 @@ class SentimentTests(unittest.TestCase):
         vanilla_turns = [tool_turn("analyze_survey_sentiment", {"dimension": "Recognition"})]
         vanilla_turns += [tool_turn("submit_sentiment_batch", {"labels": labels[offset:offset + 20]}) for offset in range(0, len(labels), 20)]
         vanilla_turns += [ModelTurn(text="Provisional labels for all eligible comments [SENTIMENT1].")]
-        models = {"Original": SequenceModel([tool_turn("ask_vanilla", {"question": "Classify all Recognition survey comments."}),
+        models = {"Original": SequenceModel([tool_turn("submit_plan", {"needs_numbers": False, "needs_text": True,
+                    "include_chart": False, "clarification_question": None}), tool_turn("ask_vanilla", {"question": "Classify all Recognition survey comments."}),
                     ModelTurn(text="Provisional comment labels, pending human validation [SENTIMENT1].")]),
                   "Vanilla": SequenceModel(vanilla_turns), "Lime": ScriptedDemoModel("Lime"),
                   "ZeroSugar": ScriptedDemoModel("ZeroSugar")}

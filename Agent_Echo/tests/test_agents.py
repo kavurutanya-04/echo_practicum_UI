@@ -241,7 +241,7 @@ class RuntimeTests(unittest.TestCase):
     def test_runaway_loop_stops_without_an_answer(self):
         turns = [tool_turn("noop", {}, str(i)) for i in range(8)]
         agent = Specialist("Test", "", SequenceModel(turns), AccessScope("M14"), [], {"noop": lambda: {}})
-        with self.assertRaisesRegex(RuntimeError, "Test agent turn budget exceeded after 7 model turns; last action: calling tools: noop"):
+        with self.assertRaisesRegex(RuntimeError, "Test agent turn budget exceeded after 3 model turns; last action: calling tools: noop"):
             agent.run("Loop forever.")
 
     def test_exhausted_citation_repairs_identify_the_agent_and_reason(self):

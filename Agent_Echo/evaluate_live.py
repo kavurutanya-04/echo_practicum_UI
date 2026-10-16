@@ -48,6 +48,10 @@ def main():
         "artifact": str(artifact) if artifact.exists() else None,
         "review_criteria": selected["review_criteria"], "human_quality_review": "pending",
         "note": "Review criteria were not sent to agents. Completion and model acceptance are not benchmark accuracy."}
+    if artifact.exists():
+        saved = json.loads(artifact.read_text(encoding="utf-8"))
+        summary["response_status"] = saved.get("status", "unverified")
+        summary["supported_findings"] = sum(f.get("status") == "supported" for f in saved.get("findings", []))
     summary_path = args.output_dir / (stem + "_review.json")
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(run.stdout.strip())

@@ -229,7 +229,8 @@ class WorkflowTests(unittest.TestCase):
             agent.close()
 
     def build_revision_workflow(self, accept_second):
-        coordinator = SequenceModel([tool_turn("ask_cherry", {"question": "Show recognition metrics."}),
+        coordinator = SequenceModel([tool_turn("submit_plan", {"needs_numbers": True, "needs_text": False,
+            "include_chart": False, "clarification_question": None}), tool_turn("ask_cherry", {"question": "Show recognition metrics."}),
             ModelTurn(text="Unsupported claim [SQL1]."), ModelTurn(text="Corrected description of the evidence [SQL1].")])
         verdicts = iter([report("revise", ["Correct the unsupported claim."]), report("accept" if accept_second else "revise", [] if accept_second else ["Still unsupported."])])
         def factory(name):

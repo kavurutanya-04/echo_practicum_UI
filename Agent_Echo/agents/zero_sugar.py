@@ -1,13 +1,14 @@
 """ZeroSugar: independent answer review with deterministic evidence checks."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import json
 import re
 
-from .runtime import AgentResult, RunBudget, function_tool
+from .runtime import AgentResult, RunBudget, function_tool, reject_calls
 from .data_access import ScopedData
 from .tools import SQLReader
 from .execution_log import record, error_summary
+from .findings import cited_findings, clarification_question
 
 DIMENSIONS = ("Accuracy", "Relevance", "Completeness", "Clarity", "Instruction Following", "Usefulness", "Safety / Appropriateness")
 INSTRUCTIONS = """You are ZeroSugar, Echo's independent verifier. Evaluate the candidate
@@ -41,6 +42,18 @@ reject a recognition count with a different scope or a mean mislabeled as a perc
 accept an honest no-chart explanation when no numeric evidence exists. Request evidence
 or correction when a requested chart can be supported but the candidate omits it.
 SVG layout is checked separately; structured review does not give you visual perception.
+Review each supplied finding block independently, including uncited blocks. Mark supported only when ALL claims in
+the block follow from its cited sources, including the metric definition, distinct entity
+grain and coverage limitations. A valid SQL replay alone does not establish a valid metric.
+Do not mark invented targets or actions as observed outcomes. Preserve the supplied finding
+IDs and citation IDs exactly; never rewrite finding text. Blocks can contain several claims:
+reject the whole block when any substantive claim is unsupported or unsafe.
+When evidence is supplied, every substantive block must cite it; missing citations need
+an Original repair. Proposed targets must be labeled as proposals, never source-derived measurements.
+Specify repair_targets: Cherry for calculations, Vanilla for text evidence, Lime for charts,
+Original for synthesis/presentation, or clarify for a necessary manager clarification.
+All output is English. Do not reject English merely because the question uses another language.
+Only propose clarification of the task or metric; never ask for wider access or identities.
 """
 
 
@@ -52,6 +65,9 @@ class VerificationResult:
     uncertainty: str
     deterministic_issues: list
     mode: str
+    findings: list = field(default_factory=list)
+    repair_targets: list = field(default_factory=list)
+    clarification_question: str | None = None
 
 
 class ZeroSugarAgent:
@@ -73,6 +89,14 @@ class ZeroSugarAgent:
                         "required": list(DIMENSIONS), "additionalProperties": False},
             "issues": {"type": "array", "items": {"type": "string"}},
             "uncertainty": {"type": "string"},
+            "finding_reviews": {"type": "array", "items": {"type": "object", "properties": {
+                "finding_id": {"type": "string"},
+                "decision": {"type": "string", "enum": ["supported", "revise"]},
+                "citation_ids": {"type": "array", "items": {"type": "string"}},
+                "reason": {"type": "string"}},
+                "required": ["finding_id", "decision", "citation_ids", "reason"], "additionalProperties": False}},
+            "repair_targets": {"type": "array", "items": {"type": "string", "enum": ["Cherry", "Vanilla", "Lime", "Original", "clarify"]}},
+            "clarification_question": {"type": ["string", "null"]},
         })]
 
     def audit(self, answer, evidence, visualization=None):
@@ -115,10 +139,16 @@ class ZeroSugarAgent:
                 issues.append("Anonymous survey evidence contains identity fields.")
             if "sql" in item and self.sql_reader:
                 try:
-                    replay = self.sql_reader.execute(item["sql"])
+                    replay = self.sql_reader.execute(item["sql"], item.get("parameters", []))
                     if replay["rows"] != item["rows"] or replay["truncated"] != item["truncated"]:
                         issues.append("SQL evidence does not match a read-only query replay.")
-                except (ValueError, KeyError):
+                    if item.get("metric_id"):
+                        from .metrics import MetricCatalog
+                        metric = MetricCatalog(self.sql_reader, actor="ZeroSugar").run(item["metric_id"], **item["metric_arguments"])
+                        if any(metric.get(key) != item.get(key) for key in
+                               ("rows", "sql", "parameters", "metric_version", "metric_definition")):
+                            issues.append("Metric evidence differs from its validated definition.")
+                except (ValueError, KeyError, TypeError):
                     issues.append("SQL evidence could not be replayed.")
             if "text" in item and self.document_lookup is not None:
                 original = self.document_lookup.get(item["citation_id"])
@@ -134,8 +164,10 @@ class ZeroSugarAgent:
 
     @staticmethod
     def validate(report):
-        if not isinstance(report, dict) or set(report) != {"decision", "ratings", "issues", "uncertainty"}:
-            raise ValueError("Review must contain the four required fields only.")
+        basic = {"decision", "ratings", "issues", "uncertainty"}
+        extended = basic | {"finding_reviews", "repair_targets", "clarification_question"}
+        if not isinstance(report, dict) or set(report) not in (basic, extended):
+            raise ValueError("Review fields differ from the required review schema.")
         if report["decision"] not in {"accept", "revise"} or not isinstance(report["uncertainty"], str):
             raise ValueError("Invalid review decision or uncertainty.")
         if not isinstance(report["ratings"], dict) or set(report["ratings"]) != set(DIMENSIONS):
@@ -149,10 +181,52 @@ class ZeroSugarAgent:
             raise ValueError("Review issues must be a list of strings.")
         return report
 
+    def validate_findings(self, report, blocks, evidence):
+        if "finding_reviews" not in report:
+            if self.mode == "live":
+                raise ValueError("Live reviews must cover every finding and provide repair targets.")
+            return []
+        reviews = report["finding_reviews"]
+        lookup = {b["finding_id"]: b for b in blocks}
+        if not isinstance(reviews, list) or len(reviews) != len(blocks):
+            raise ValueError("Review every finding exactly once.")
+        targets = report["repair_targets"]
+        if not isinstance(targets, list) or any(t not in {"Cherry", "Vanilla", "Lime", "Original", "clarify"} for t in targets):
+            raise ValueError("Invalid repair targets.")
+        question = clarification_question(report["clarification_question"])
+        report["clarification_question"] = question
+        if "clarify" in targets and question is None:
+            raise ValueError("A clarification repair requires an actual question.")
+        seen, checked = set(), []
+        for review in reviews:
+            if not isinstance(review, dict) or set(review) != {"finding_id", "decision", "citation_ids", "reason"}:
+                raise ValueError("Finding review fields are invalid.")
+            key = review["finding_id"]
+            if key not in lookup or key in seen or review["decision"] not in {"supported", "revise"}:
+                raise ValueError("Unknown, repeated or invalid finding review.")
+            block = lookup[key]
+            if not isinstance(review["citation_ids"], list) or sorted(review["citation_ids"]) != block["citation_ids"]:
+                raise ValueError("Finding citations must match the original block exactly.")
+            if not isinstance(review["reason"], str) or not 1 <= len(review["reason"]) <= 1500:
+                raise ValueError("Explain the finding decision.")
+            subset = [item for item in evidence if item.get("citation_id") in block["citation_ids"]]
+            checks = self.audit(block["text"], subset)
+            if evidence and not block["citation_ids"]:
+                checks.append("Finding lacks an explicit evidence citation.")
+            supported = review["decision"] == "supported" and not checks and report["ratings"]["Safety / Appropriateness"]["score"] == 3
+            checked.append({**block, "status": "supported" if supported else "withheld",
+                            "reason": review["reason"], "deterministic_issues": checks})
+            record("finding_reviewed", agent="ZeroSugar", finding_id=key,
+                   status=checked[-1]["status"], deterministic_issues=len(checks))
+            seen.add(key)
+        return checked
+
     def review(self, question, answer, evidence, visualization=None):
         checks = self.audit(answer, evidence, visualization)
+        blocks = cited_findings(answer)
         payload = json.dumps({"question": question, "candidate_answer": answer,
-            "evidence": evidence, "visualization": visualization, "deterministic_issues": checks}, ensure_ascii=False)
+            "evidence": evidence, "visualization": visualization, "deterministic_issues": checks,
+            "findings": blocks}, ensure_ascii=False)
         if len(payload) > 150_000:
             raise ValueError("Review evidence is too large; narrow the question or query results.")
         history = [{"role": "user", "content": payload}]
@@ -163,12 +237,13 @@ class ZeroSugarAgent:
             history.extend(turn.output_items)
             if len(turn.calls) != 1 or turn.calls[0].name != "submit_review":
                 record("structured_response_repair", agent="ZeroSugar", reason="expected_one_review_call")
-                history.append({"role": "user", "content": "Return exactly one submit_review tool call using its required schema."})
+                reject_calls(history, turn, "Return exactly one submit_review tool call using its required schema.")
                 continue
             call = turn.calls[0]
             budget.consume("tool")
             try:
                 report = self.validate(json.loads(call.arguments))
+                findings = self.validate_findings(report, blocks, evidence)
             except (ValueError, TypeError) as error:
                 record("structured_response_repair", agent="ZeroSugar", **error_summary(error))
                 history.append({"type": "function_call_output", "call_id": call.call_id,
@@ -176,10 +251,15 @@ class ZeroSugarAgent:
                 continue
             must_revise = bool(checks or report["issues"]) or any(rating["score"] == 1 for rating in report["ratings"].values())
             must_revise = must_revise or report["ratings"]["Accuracy"]["score"] < 3 or report["ratings"]["Safety / Appropriateness"]["score"] < 3
+            must_revise = must_revise or any(f["status"] != "supported" for f in findings)
             decision = "revise" if must_revise else report["decision"]
             record("verification_finished", agent="ZeroSugar", decision=decision,
                    deterministic_issues=len(checks), model_issues=len(report["issues"]))
-            return VerificationResult(decision, report["ratings"], report["issues"], report["uncertainty"], checks, self.mode)
+            targets = report.get("repair_targets", [])
+            if decision == "revise" and not targets:
+                targets = ["Original"]
+            return VerificationResult(decision, report["ratings"], report["issues"], report["uncertainty"], checks, self.mode,
+                                      findings, targets, report.get("clarification_question"))
         raise RuntimeError("Verifier did not return a valid structured verdict.")
 
     def run(self, artifact):

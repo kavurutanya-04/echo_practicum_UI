@@ -6,7 +6,7 @@ import json
 import math
 import re
 
-from .runtime import RunBudget, function_tool
+from .runtime import RunBudget, function_tool, reject_calls
 from .execution_log import record, error_summary
 
 INSTRUCTIONS = """You are Lime, Echo's indicator-visualization specialist.
@@ -147,7 +147,9 @@ class LimeAgent:
             turn = self.model.respond(INSTRUCTIONS, history, self.tools, True)
             history.extend(turn.output_items)
             if len(turn.calls) != 1 or turn.calls[0].name != "submit_visuals":
-                raise RuntimeError("Lime must return exactly one submit_visuals call.")
+                record("structured_response_repair", agent="Lime", reason="expected_one_visual_call")
+                reject_calls(history, turn, "Return exactly one submit_visuals call.")
+                continue
             call = turn.calls[0]
             self.budget.consume("tool")
             try:

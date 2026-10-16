@@ -3,6 +3,7 @@
 from .data_access import ScopedData
 from .runtime import Specialist, function_tool
 from .tools import SQLReader
+from .metrics import MetricCatalog, METRICS
 
 
 INSTRUCTIONS = """You are Cherry, Echo's structured-data specialist.
@@ -38,6 +39,13 @@ Worked patterns (use describe_schema to confirm exact columns first):
   employee/offering record denominators. Do not expose individual participation history.
 - "What caused low engagement?": describe associations and missing evidence, not causation.
 Return the metric, period, population, exact numeric result, [SQLn] reference and limits.
+For cross-team contribution counts, prefer run_metric(metric="cross_team_contributions",
+dimension=null). It returns distinct totals and separate manager-recognition, partner-feedback
+and no-feedback counts. State which definition answers the question; never equate these fields.
+For a standard survey trend use run_metric(metric="survey_trend", dimension="Recognition")
+or another exact dimension. For new questions generate SQL with execute_sql.
+The data is already physically restricted to the caller's roster: manager_id is not an Employee_ID.
+Stop querying once the requested metrics have been obtained. Respect the closing-turn instruction.
 Do not render charts or choose presentation layouts; those belong to Lime.
 """
 
@@ -50,12 +58,16 @@ class CherryAgent(Specialist):
         finally:
             backend.close()
         tools = [
+            function_tool("run_metric", "Run a validated metric on the authorized roster/period; prefer for standard counts or survey trends.", {
+                "metric": {"type": "string", "enum": list(METRICS)},
+                "dimension": {"type": ["string", "null"]}}),
             function_tool("describe_schema", "Inspect the permitted tables, columns and metric definitions.", {}),
             function_tool("execute_sql", "Execute one bounded read-only SQLite query on the scoped data copy.",
                           {"sql": {"type": "string", "description": "A SELECT query; WITH/CTEs are supported."}}),
         ]
         super().__init__("Cherry", INSTRUCTIONS, model, scope, tools,
-            {"describe_schema": self.reader.describe, "execute_sql": self.reader.execute}, mode, budget)
+            {"describe_schema": self.reader.describe, "execute_sql": self.reader.execute,
+             "run_metric": MetricCatalog(self.reader).run}, mode, budget)
 
     def close(self):
         self.reader.close()

@@ -1,6 +1,11 @@
 # Echo agent responsibilities and examples
 
-Updated 2026-10-06. Five roles share configurable model adapters; each has its own instructions and history. This is a terminal/local-file prototype. All employee data is synthetic. Descriptions below complement the executable `INSTRUCTIONS` in each agent file.
+The [workflow reliability update](WORKFLOW_RELIABILITY.md) supersedes unconditional role
+execution and all-or-nothing release described below: Original now plans required roles,
+Cherry offers validated metrics, ZeroSugar reviews cited blocks, and only supported blocks
+can appear in a partial answer. Output is English. Lime runs only when a chart is planned.
+
+Updated 2026-10-16. Five roles share configurable model adapters; each has its own instructions and history. This is a terminal/local-file prototype. All employee data is synthetic. Descriptions below complement the executable `INSTRUCTIONS` in each agent file.
 
 ## Original — coordination, synthesis and supervised revision
 
@@ -66,13 +71,13 @@ Lime still accepts only Cherry's SQL evidence. It therefore does not chart these
 
 ## ZeroSugar — independent answer and chart-plan review
 
-**Input:** question, candidate answer, original evidence, Lime plan and scope. **Tool:** `submit_review(decision, ratings, issues, uncertainty)`. **Output:** seven independent 1–3 ratings, rationale, uncertainty, issues and accept/revise decision.
+**Input:** question, candidate answer, original evidence, Lime plan and scope. **Tool:** `submit_review` with rubric ratings, per-block finding decisions, repair targets and an optional clarification question. **Output:** seven independent 1–3 ratings, rationale, uncertainty, issues and accept/revise decision.
 
 ZeroSugar checks citations, manager/date scope, anonymous identity fields, SQL replay, text/source correspondence and chart schema. Its model checks whether claims and chart labels are supported, whether the indicator addresses the question and whether units/denominators match. It does not write the answer or generate new metrics. Code forces revision for deterministic failures even if the model accepts.
 
 Example rejection: a title claiming causal engagement improvement from synthetic associations; an average labeled as a percentage; a chart built from truncated rows; invented sentiment prevalence from selected comments. Example acceptance: supported findings with source references, an appropriate chart and honest limitations, or a justified no-chart result.
 
-One correction round is allowed. A twice-rejected answer and its chart plans are withheld; no accepted chart files are exported. Model judgment remains fallible. ZeroSugar reviews structured specs and data, not a rendered image; human visual inspection is separate.
+One localized correction round is allowed. A rejected full draft is withheld; independently supported blocks can be released as a partial answer. Charts remain withheld for incomplete packages. Model judgment remains fallible. ZeroSugar reviews structured specs and data, not a rendered image; human visual inspection is separate.
 
 ## Workflow
 

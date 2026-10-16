@@ -12,7 +12,7 @@ from agents import AccessScope, CherryAgent, VanillaAgent, OriginalAgent, ZeroSu
 from agents.preflight import check_connections
 from agents.connections import DEFAULT_CONFIG, ModelRegistry
 from agents.model import ConfigurationError, ScriptedDemoModel
-from agents.runtime import RunBudget
+from agents.runtime import RunBudget, AgentResult
 from agents.execution_log import RunLog, record, error_summary, logged_model
 
 HERE = Path(__file__).resolve().parent
@@ -21,6 +21,9 @@ NAMES = {"cherry": "Cherry", "vanilla": "Vanilla", "original": "Original", "zero
 
 
 def main(argv=None):
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("agent", nargs="?", choices=tuple(NAMES))
     parser.add_argument("--manager", help="Demo manager scope; this is not authentication.")
@@ -123,6 +126,8 @@ def execute(args, parser):
                 raise ValueError("Standalone Lime requires an Original workflow artifact.")
             if artifact.get("verification", {}).get("decision") != "accept":
                 raise ValueError("Standalone Lime requires an accepted Original artifact; use Original to review specialist evidence first.")
+            if artifact.get("status", "complete") not in {"complete", "unverified"}:
+                raise ValueError("Standalone Lime requires a complete artifact, not a partial or failed analysis.")
             if not args.demo and artifact.get("mode") != "live":
                 raise ValueError("A scripted demo artifact cannot be used as a live analytic result.")
             lime = LimeAgent(scope, factory("Lime"), mode)
@@ -145,12 +150,18 @@ def execute(args, parser):
         result.connections = connections
         result.execution = {"generation_api_calls": 0, "successful_generation_api_calls": 0,
                             "note": "Scripted fixtures, not provider responses."} if args.demo else registry.execution_summary()
-        if result.visualization and result.verification.get("decision") == "accept":
+        if result.visualization and result.verification.get("decision") == "accept" and result.status in {"complete", "unverified"}:
             directory = args.charts_dir or HERE / "reports" / "visuals" / uuid.uuid4().hex[:12]
             result.visualization["files"] = LimeAgent.export(result.visualization, result.evidence, scope, directory)
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(asdict(result), indent=2, ensure_ascii=False), encoding="utf-8")
+        record("response_finished", status=result.status, supported_findings=sum(f["status"] == "supported" for f in result.findings),
+               withheld_findings=sum(f["status"] != "supported" for f in result.findings))
+        print("Result status: " + result.status)
         print(result.answer)
         print("Successful generation API calls: " + str(result.execution["successful_generation_api_calls"]))
-        if result.rag:
+        if result.rag.get("specialist_runs") or result.rag.get("retrieval_calls"):
             print("RAG trace: retrieval calls, returned source IDs and generation mode are stored in the JSON artifact.")
         if result.visualization:
             print("Lime: " + result.visualization["reason"])
@@ -159,10 +170,10 @@ def execute(args, parser):
         if result.verification:
             print("Verification: " + result.verification["decision"] + (" (scripted fixture, not LLM judgment)" if args.demo else ""))
         if args.output:
-            args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(json.dumps(asdict(result), indent=2, ensure_ascii=False), encoding="utf-8")
             print(f"Evidence artifact: {args.output.resolve()}")
-        return 2 if result.verification.get("decision") == "revise" else 0
+        if result.status == "failed":
+            return 1
+        return 2 if result.status in {"partial", "needs_clarification"} or result.verification.get("decision") == "revise" else 0
     except KeyboardInterrupt:
         record("run_cancelled")
         print("Execution cancelled. API connectivity and answer quality were not confirmed by this interrupted run.", file=sys.stderr)
@@ -170,6 +181,19 @@ def execute(args, parser):
     except (ConfigurationError, RuntimeError, ValueError, OSError, sqlite3.Error, KeyError) as error:
         record("run_error", **error_summary(error))
         print(str(error), file=sys.stderr)
+        if args.output and args.agent:
+            failure = getattr(error, "result", None) or AgentResult(NAMES[args.agent], args.question or "", "The analysis could not finish. No unverified findings are released.",
+                {"manager_id": args.manager, "start_date": args.start, "end_date": args.end}, status="failed")
+            failure.failure = error_summary(error)
+            failure.status = "failed"
+            failure.answer = "The analysis could not finish. Review the execution log for the failed step; no unverified findings are released."
+            failure.execution = registry.execution_summary() if registry else {}
+            try:
+                args.output.parent.mkdir(parents=True, exist_ok=True)
+                args.output.write_text(json.dumps(asdict(failure), indent=2, ensure_ascii=False), encoding="utf-8")
+                print("Failure artifact: " + str(args.output.resolve()), file=sys.stderr)
+            except OSError:
+                print("Could not write the failure artifact; the execution log retains completed steps.", file=sys.stderr)
         return 1
     finally:
         if agent and hasattr(agent, "close"):

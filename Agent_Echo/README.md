@@ -14,6 +14,12 @@ Original, Cherry, Vanilla and ZeroSugar retain their existing names; Lime is the
 
 ## Start with the correct kind of test
 
+The [workflow reliability update](WORKFLOW_RELIABILITY.md) adds validated recurring metrics,
+bounded closure, selective roles, localized repairs and independent finding review. Original
+returns `complete`, `partial`, `needs_clarification` or `failed`; partial output contains only
+independently supported blocks. All output is English. `--output` also preserves known
+failures as explicitly failed artifacts, rather than silently omitting the file.
+
 Every `run_agent.py` execution (including connection checks and runs launched by
 `evaluate_live.py`) automatically creates a unique local `reports/logs/*.jsonl` log.
 The terminal prints its absolute path at startup. Events are flushed as they happen,
@@ -229,7 +235,7 @@ Vanilla records retrieval method, query/filter metadata, returned source IDs and
 
 Deterministic issues force revision even if the model accepts. The coordinator gets one revision opportunity. A twice-rejected draft is retained in the local trace but withheld from the user-facing answer. Global limits cover model calls, tools, embeddings and elapsed time, with additional per-agent and SQL limits. These are bounded execution controls, not a guarantee of claim correctness. Human review remains necessary.
 
-Direct Cherry/Vanilla runs are specialist diagnostics and do not automatically invoke ZeroSugar. Use Original for the verified workflow, or review a saved artifact separately. Standalone ZeroSugar also reloads the scoped source data for SQL/text integrity checks. CLI exit codes are 0 for completion, 1 for execution/configuration failure, and 2 when verification requests revision.
+Direct Cherry/Vanilla runs are specialist diagnostics and do not automatically invoke ZeroSugar. Use Original for the verified workflow, or review a saved artifact separately. Standalone ZeroSugar also reloads the scoped source data for SQL/text integrity checks. CLI exit codes are 0 for completion, 1 for execution/configuration failure, and 2 for partial results, clarification or required revision. Cancellation is 130.
 
 ## Data access
 

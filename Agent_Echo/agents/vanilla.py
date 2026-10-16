@@ -6,7 +6,7 @@ import json
 import math
 
 from .data_access import ScopedData
-from .runtime import RunBudget, Specialist, function_tool
+from .runtime import RunBudget, Specialist, function_tool, reject_calls
 from .tools import TextSearch
 from .semantic_search import SemanticTextSearch
 from .execution_log import record, error_summary
@@ -203,7 +203,7 @@ class VanillaAgent(Specialist):
                 history.extend(turn.output_items)
                 if len(turn.calls) != 1 or turn.calls[0].name != "submit_sentiment_batch":
                     record("structured_response_repair", agent="Vanilla", reason="expected_one_sentiment_call")
-                    history.append({"role": "user", "content": "Return exactly one submit_sentiment_batch call."})
+                    reject_calls(history, turn, "Return exactly one submit_sentiment_batch call.")
                     continue
                 call = turn.calls[0]
                 self.budget.consume("tool")

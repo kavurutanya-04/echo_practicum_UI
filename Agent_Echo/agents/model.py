@@ -71,7 +71,7 @@ class ResponsesModel:
         try:
             response = self.client.responses.create(
                 model=self.model, instructions=instructions, input=history, tools=tools,
-                tool_choice="required" if require_tool else "auto",
+                tool_choice=("required" if require_tool else "auto") if tools else "none",
                 parallel_tool_calls=False, max_output_tokens=3500, store=False,
             )
         except Exception as error:
@@ -122,6 +122,8 @@ class ChatModel:
         options.update(self.request_options)
         if definitions:
             options.update(tools=definitions, tool_choice="required" if require_tool else "auto")
+        else:
+            options["tool_choice"] = "none"
         try:
             response = self.client.chat.completions.create(**options)
         except Exception as error:
@@ -150,6 +152,11 @@ class ScriptedDemoModel:
         self.step = 0
 
     def respond(self, instructions, history, tools, require_tool=False):
+        if self.agent_name == "Original" and tools and tools[0]["name"] == "submit_plan":
+            plan = {"needs_numbers": True, "needs_text": True, "include_chart": True, "clarification_question": None}
+            call = ToolCall("demo-plan", "submit_plan", json.dumps(plan))
+            return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id,
+                "name": call.name, "arguments": call.arguments}])
         self.step += 1
         if self.agent_name == "Lime":
             payload = json.loads(history[0]["content"])
@@ -167,9 +174,13 @@ class ScriptedDemoModel:
             return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id,
                 "name": call.name, "arguments": call.arguments}])
         if self.agent_name == "ZeroSugar":
+            payload = json.loads(history[0]["content"])
             report = {"decision": "accept", "ratings": {name: {"score": 3, "rationale": "Scripted fixture score; no LLM judgment was performed."}
                 for name in ("Accuracy", "Relevance", "Completeness", "Clarity", "Instruction Following", "Usefulness", "Safety / Appropriateness")},
                 "issues": [], "uncertainty": "Offline fixture: answer quality has not been assessed by a model."}
+            report.update(finding_reviews=[{"finding_id": b["finding_id"], "decision": "supported",
+                "citation_ids": b["citation_ids"], "reason": "Scripted fixture, not semantic validation."}
+                for b in payload.get("findings", [])], repair_targets=[], clarification_question=None)
             call = ToolCall("demo-review", "submit_review", json.dumps(report))
             return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id, "name": call.name, "arguments": call.arguments}])
         if self.agent_name == "Original":
