@@ -1,10 +1,10 @@
 # What can be tested without an API, and how to verify RAG
 
-Updated 2026-10-06. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; the app does not automatically load it. Never put real keys in files committed to Git.
+Updated 2026-10-16. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients can load API keys from the private, Git-ignored `.env`. Model and endpoint settings stay in `connections.json` or terminal variables. Never put real keys in files committed to Git.
 
 ## Three different activities
 
-For evaluating intelligence, use the live evaluation cases after configuring a provider. Running Python locally can still call a cloud LLM; the decisive distinction is live API responses versus programmed fixtures. The demo is an optional engineering diagnostic, not a reasoning benchmark. API configuration is currently deferred at the user's request.
+For evaluating intelligence, use the live evaluation cases after configuring a provider. Running Python locally can still call a cloud LLM; the decisive distinction is live API responses versus programmed fixtures. The demo is an optional engineering diagnostic, not a reasoning benchmark. NVIDIA/OpenCode profiles are prepared; live connection and quality checks are pending private keys.
 
 | Activity | Calls an API? | What the result establishes |
 | --- | --- | --- |
@@ -34,6 +34,25 @@ python .\inspect_rag.py --manager M14 --start 2026-07-01 --end 2026-09-30 --quer
 Check `retrieval`, `metadata.query`, filters, `corpus_records`, `returned_count`, actual `passages`, dates and `citation_id`. Lexical hits include BM25 scores; lower scores rank first. This command labels `generation_performed=false`. Read the returned passages: matching vocabulary does not guarantee that the passage answers the question.
 
 ## 3. Configure and probe a real connection
+
+For NVIDIA/OpenCode, paste only the keys into the private `.env` beside `connections.json`:
+
+```dotenv
+NVIDIA_API_KEY=
+OPENCODE_API_KEY=
+```
+
+The models/endpoints are already configured. Both NVIDIA profiles use the same `NVIDIA_API_KEY`. Run the probes separately:
+
+```powershell
+python .\run_agent.py --check-connection --profile nvidia_test
+python .\run_agent.py --check-connection --profile nvidia_glm_test
+python .\run_agent.py --check-connection --profile opencode_test
+```
+
+Environment keys take precedence over `.env`. Only live client construction can read that file; inspection and scripted demos do not. New collaborators can copy `.env.example` to a new local `.env` and insert their own keys; `.env` never needs to be shared. If the keys already exist as terminal/system environment variables, no `.env` is required. The shared default is still `gw_azure`, so select a test profile explicitly. These profiles use no paid-model fallback. Check the provider's current free access and limits; the application does not monitor pricing changes.
+
+To test several models in one workflow, assign profiles per role in `connections.json` or use the terminal overrides shown in [README.md](README.md#one-connection-layer-selectable-profiles-per-agent). Run `--show-connections` and then `--check-connection` without `--profile` to preserve those mixed assignments. Supplying `--profile` intentionally forces one model profile for all roles. The probe checks each distinct assigned profile once, even if several roles share it.
 
 Inspect assignments first; this does not test the API:
 

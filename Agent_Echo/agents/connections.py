@@ -1,4 +1,4 @@
-"""Named connection profiles. Keys remain in environment variables, never JSON."""
+"""Named profiles with keys in environment variables or a private local .env."""
 
 import json
 import hashlib
@@ -10,14 +10,17 @@ from .model import ConfigurationError, ResponsesModel, ChatModel
 
 AGENTS = ("Original", "Cherry", "Vanilla", "Lime", "ZeroSugar")
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "connections.json"
+DEFAULT_ENV = DEFAULT_CONFIG.with_name(".env")
 GOOGLE_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
 class ModelRegistry:
-    def __init__(self, config=DEFAULT_CONFIG, force_profile=None):
+    def __init__(self, config=DEFAULT_CONFIG, force_profile=None, env_file=DEFAULT_ENV):
         self.config = json.loads(Path(config).read_text(encoding="utf-8"))
         self.force_profile = force_profile
         self.clients, self.models = {}, {}
+        self.env_file = Path(env_file) if env_file is not None else None
+        self._local_keys = None
         if force_profile and force_profile not in self.config["profiles"]:
             raise ConfigurationError("Unknown connection profile.")
 
@@ -44,28 +47,57 @@ class ModelRegistry:
                 "profiles_used": {name: {"model": model.model, "api_calls": model.request_count,
                     "successful_api_calls": model.successful_requests} for name, model in self.models.items()}}
 
+    @staticmethod
+    def _value(profile, field):
+        return os.getenv(profile.get(field + "_env", "")) or profile.get(field, "")
+
+    def _key(self, variable):
+        # Read the private file only when a live client needs a missing key.
+        # Do not load model/profile selection from this file or change os.environ.
+        if os.getenv(variable):
+            return os.environ[variable]
+        if self._local_keys is None:
+            self._local_keys = {}
+            if self.env_file is not None and self.env_file.is_file():
+                try:
+                    from dotenv import dotenv_values
+                except ImportError:
+                    raise ConfigurationError("Install requirements.txt to load the private .env file.") from None
+                self._local_keys = dotenv_values(self.env_file, encoding="utf-8-sig", interpolate=False)
+        return self._local_keys.get(variable) or ""
+
     def _client(self, name):
         if name in self.clients:
             return self.clients[name]
         profile = self.config["profiles"].get(name)
-        if not profile or profile.get("provider") not in {"azure", "openai", "google"}:
+        if not profile or profile.get("provider") not in {"azure", "openai", "google", "openai_compatible"}:
             raise ConfigurationError("Unsupported connection profile.")
         if profile.get("api") not in {"chat", "responses", "embeddings"} or (profile["provider"] == "google" and profile["api"] == "responses"):
             raise ConfigurationError("The profile API is unsupported for this provider.")
-        required = [profile["key_env"], profile["model_env"]]
-        if profile.get("endpoint_env"):
+        if profile["provider"] == "openai_compatible" and profile["api"] != "chat":
+            raise ConfigurationError("Custom compatible profiles currently support Chat Completions only.")
+        model_name, endpoint = self._value(profile, "model"), self._value(profile, "endpoint")
+        required = [profile["key_env"]]
+        if not profile.get("model"):
+            required.append(profile.get("model_env", "model"))
+        if profile.get("endpoint_env") and not profile.get("endpoint"):
             required.append(profile["endpoint_env"])
-        if any(not os.getenv(variable) for variable in required):
+        if not model_name or (profile.get("endpoint_env") and not endpoint):
             raise ConfigurationError("Missing profile configuration; set variables: " + ", ".join(required) +
                                      ". No API connection was attempted.")
-        endpoint = os.getenv(profile.get("endpoint_env", ""), "")
+        if profile["provider"] == "openai_compatible" and not endpoint:
+            raise ConfigurationError("A custom compatible profile requires an explicit HTTPS endpoint.")
         if endpoint and (urlparse(endpoint).scheme != "https" or not urlparse(endpoint).hostname):
             raise ConfigurationError("The configured cloud endpoint must use HTTPS.")
+        key = self._key(profile["key_env"])
+        if not key:
+            raise ConfigurationError("Missing profile configuration; set variables: " + ", ".join(required) +
+                                     " in the environment or put the API key in the private .env file. No API connection was attempted.")
         try:
             from openai import AzureOpenAI, OpenAI
         except ImportError:
             raise ConfigurationError("Install requirements.txt in the project environment.") from None
-        options = {"api_key": os.environ[profile["key_env"]], "timeout": 45, "max_retries": 1}
+        options = {"api_key": key, "timeout": 45, "max_retries": 1}
         if profile["provider"] == "azure" and profile.get("azure_api", "legacy") == "legacy":
             client = AzureOpenAI(azure_endpoint=endpoint,
                 api_version=os.getenv(profile.get("api_version_env", "AZURE_OPENAI_API_VERSION"), "2025-03-01-preview"), **options)
@@ -73,6 +105,8 @@ class ModelRegistry:
             client = OpenAI(base_url=endpoint.rstrip("/") + "/openai/v1/", **options)
         elif profile["provider"] == "google":
             client = OpenAI(base_url=GOOGLE_ENDPOINT, **options)
+        elif profile["provider"] == "openai_compatible":
+            client = OpenAI(base_url=endpoint, **options)
         else:
             client = OpenAI(**options)
         self.clients[name] = client
@@ -83,9 +117,14 @@ class ModelRegistry:
         if name not in self.models:
             profile = self.config["profiles"][name]
             client = self._client(name)
-            model_name = os.environ[profile["model_env"]]
-            adapter = ChatModel if profile["api"] == "chat" else ResponsesModel
-            self.models[name] = adapter(client, model_name)
+            model_name = self._value(profile, "model")
+            if profile["api"] == "chat":
+                self.models[name] = ChatModel(client, model_name,
+                    max_output_tokens=profile.get("max_output_tokens", 3500),
+                    reasoning_effort=profile.get("reasoning_effort"),
+                    clear_thinking=profile.get("clear_thinking"))
+            else:
+                self.models[name] = ResponsesModel(client, model_name)
         # A shared adapter is stateless: conversation history is held by each agent run.
         return self.models[name]
 
@@ -95,13 +134,15 @@ class ModelRegistry:
         if not profile or profile["api"] != "embeddings":
             raise ConfigurationError("Select a defined embedding connection profile.")
         client = self._client(name)
-        endpoint = os.getenv(profile.get("endpoint_env", ""), profile["provider"])
-        identity = name + ":" + profile["provider"] + ":" + os.environ[profile["model_env"]] + ":" + hashlib.sha256(endpoint.encode()).hexdigest()[:16]
-        return EmbeddingModel(client, os.environ[profile["model_env"]], identity)
+        endpoint = self._value(profile, "endpoint") or profile["provider"]
+        model_name = self._value(profile, "model")
+        identity = name + ":" + profile["provider"] + ":" + model_name + ":" + hashlib.sha256(endpoint.encode()).hexdigest()[:16]
+        return EmbeddingModel(client, model_name, identity)
 
     def close(self):
         for client in self.clients.values():
             client.close()
+        self._local_keys = None
 
 
 class EmbeddingModel:

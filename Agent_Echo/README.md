@@ -14,7 +14,7 @@ Original, Cherry, Vanilla and ZeroSugar retain their existing names; Lime is the
 
 ## Start with the correct kind of test
 
-The next product milestone is **live evaluation of the agents' reasoning**, not another scripted demo. Python runs Echo locally in both modes: with a configured API it calls a real model; `--demo` substitutes programmed responses. Local execution does not mean that inference is offline. API setup remains deferred at the user's request; no live quality result is available yet.
+The next product milestone is **live evaluation of the agents' reasoning**, not another scripted demo. Python runs Echo locally in both modes: with a configured API it calls a real model; `--demo` substitutes programmed responses. Local execution does not mean that inference is offline. NVIDIA and OpenCode test profiles are prepared; private keys and live connection/quality checks are still pending.
 
 **Without configured API credentials, you cannot test a real model's reasoning.** Offline tests/demo validate engineering with scripted/mocked responses. Live mode requires a real provider and fails rather than silently simulating an answer. [TESTING_AND_RAG.md](TESTING_AND_RAG.md) explains secure configuration, a real connection probe, retrieval inspection and fixed live evaluations.
 
@@ -57,13 +57,16 @@ For a larger corpus, `run_agent.py` accepts an explicit `--model-call-limit` (de
 
 ## One connection layer, selectable profiles per agent
 
-`connections.json` lists profiles and each agent's optional profile assignment. It contains environment-variable names, never keys. All five roles inherit `gw_azure` by default. Roles using the same profile share one stateless client/adapter; their instructions and histories stay separate. One credential can serve all five agents on the same account/profile.
+`connections.json` lists profiles and each agent's optional profile assignment. It contains environment-variable names and optional model/endpoint defaults, never keys. All five roles inherit `gw_azure` by default. Roles using the same profile share one stateless client/adapter; their instructions and histories stay separate. One credential can serve all five agents on the same account/profile.
 
 | Profile | Provider/API | Required environment variables |
 | --- | --- | --- |
 | `gw_azure` | University Azure, Responses API | `GW_AZURE_OPENAI_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT` |
 | `google_test` | Gemini, OpenAI-compatible Chat Completions | `GOOGLE_API_KEY`, `GOOGLE_MODEL` |
 | `personal_openai` | OpenAI, Responses API | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| `nvidia_test` | NVIDIA hosted Chat Completions; Nemotron 3 Ultra | `NVIDIA_API_KEY` (environment or private `.env`); model/endpoint already set |
+| `nvidia_glm_test` | NVIDIA hosted Chat Completions; Z.AI GLM-5.3-Flash | Same `NVIDIA_API_KEY`; model/endpoint already set |
+| `opencode_test` | OpenCode hosted Chat Completions; DeepSeek V4.1 Flash Free | `OPENCODE_API_KEY` (environment or private `.env`); model/endpoint already set |
 | `gw_embeddings` | Azure embeddings | GW key/endpoint plus `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` |
 | `google_embeddings` | Google embeddings | Google key plus `GOOGLE_EMBEDDING_MODEL` |
 | `openai_embeddings` | OpenAI embeddings | OpenAI key plus `OPENAI_EMBEDDING_MODEL` |
@@ -77,7 +80,46 @@ python .\run_agent.py --show-connections --profile google_test
 
 Selection precedence: `--profile` forces every model role in that run; otherwise a role-specific environment override wins over its JSON assignment, followed by `ECHO_DEFAULT_PROFILE`, then the JSON default. For a mixed-provider run, set `ECHO_CHERRY_PROFILE`, `ECHO_VANILLA_PROFILE`, `ECHO_ORIGINAL_PROFILE`, `ECHO_LIME_PROFILE`, or `ECHO_ZEROSUGAR_PROFILE`, or edit the corresponding non-secret JSON assignment.
 
-Each selected model must support function calling. Deployment/model names are chosen from the account's actual access; they are not hardcoded. The professor's AzureOpenAI/Responses API version is retained by default. An Azure profile can set `azure_api` to `v1` to use the current Microsoft v1 client pattern when the assigned resource supports it. Credentials are never printed or written into artifacts. There is no automatic provider fallback.
+Each selected model must support function calling. Azure/OpenAI/Google model names are chosen from the account's actual access. NVIDIA/OpenCode have configurable defaults in JSON; optional terminal overrides are `NVIDIA_MODEL`, `NVIDIA_GLM_MODEL`, `NVIDIA_BASE_URL`, `OPENCODE_MODEL` and `OPENCODE_BASE_URL`. The professor's AzureOpenAI/Responses API version is retained by default. An Azure profile can set `azure_api` to `v1` to use the current Microsoft v1 client pattern when the assigned resource supports it. Credentials are never printed or written into artifacts. There is no automatic provider fallback.
+
+Multiple models can participate in one workflow, with one selected profile per role. For example, the following terminal settings use Nemotron for Original/Lime, GLM for Cherry/ZeroSugar and DeepSeek for Vanilla:
+
+```powershell
+$env:ECHO_DEFAULT_PROFILE = "nvidia_test"
+$env:ECHO_CHERRY_PROFILE = "nvidia_glm_test"
+$env:ECHO_ZEROSUGAR_PROFILE = "nvidia_glm_test"
+$env:ECHO_VANILLA_PROFILE = "opencode_test"
+python .\run_agent.py --show-connections
+python .\run_agent.py --check-connection
+python .\run_agent.py original --manager M14 --start 2026-07-01 --end 2026-09-30 --question "Review recognition using quarterly metrics and anonymous comments. Explain limitations."
+```
+
+Omit `--profile` for mixed-model runs: supplying it forces every role to use that single profile. Alternatively, assign the five profile names in the `agents` section of `connections.json`. This is a test arrangement, not a quality ranking. Each profile has independent tool histories; evidence is shared through the existing specialist workflow. The two NVIDIA profiles reuse `NVIDIA_API_KEY`, while OpenCode uses `OPENCODE_API_KEY`. The connection probe tests each distinct selected profile once.
+
+## Test NVIDIA and OpenCode with private local keys
+
+Open the local `.env` in this directory and paste each key after its equals sign:
+
+```dotenv
+NVIDIA_API_KEY=
+OPENCODE_API_KEY=
+```
+
+This file is excluded from Git and exists separately on each computer. GitHub includes `.env.example`, an empty-key template. A new collaborator creates their own `.env` by copying that template (only if `.env` does not already exist), then pastes their own key values into `.env`. The application reads it automatically when a live client needs a key. Never replace an existing `.env` while copying the template.
+
+Do not put keys in `connections.json` or `.env.example`. Only API keys are loaded from `.env`; existing environment keys take precedence. If the computer or terminal already exposes the required `NVIDIA_API_KEY` / `OPENCODE_API_KEY` environment variables, `.env` is unnecessary. Merely saving a key in an unrelated text file does not configure Echo. `--show-connections` and `--demo` do not read the private file. Other configuration stays in JSON or terminal environment variables. A live profile fails if its key is unavailable; unused profiles do not require keys, and offline demos need none.
+
+With the `echo-agent` environment active and `requirements.txt` installed, test one provider at a time:
+
+```powershell
+python .\run_agent.py --check-connection --profile nvidia_test
+python .\run_agent.py --check-connection --profile nvidia_glm_test
+python .\run_agent.py --check-connection --profile opencode_test
+```
+
+Each command makes one minimal real tool call without employee data. The NVIDIA profiles use `nvidia/nemotron-3-ultra-550b-a55b` and `z-ai/glm-5.3-flash` at `https://integrate.api.nvidia.com/v1`. OpenCode uses `deepseek-v4.1-flash-free` at `https://opencode.ai/inference/openai/v1`. The GLM profile requests `reasoning_effort=low` to bound initial tests and `clear_thinking=true` following NVIDIA's chat guidance; these are explicit JSON settings. The adapter preserves provider reasoning fields needed during tool calls. These profiles do not switch to paid models on failure. NVIDIA's catalog currently offers free prototype endpoints; OpenCode's DeepSeek free offer is temporary. Check current availability, limits and retirement banners before testing. A free endpoint can be task-specific: Echo needs a chat model with function calling, not an arbitrary vision, pose or tabular endpoint.
+
+Sources: [NVIDIA model catalog](https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b), [GLM-5.3-Flash capabilities and chat settings](https://docs.api.nvidia.com/nim/reference/z-ai-glm-5-3-flash), [GLM endpoint and model ID](https://docs.api.nvidia.com/nim/reference/z-ai-glm-5-3-flash-infer), [NVIDIA prototype terms](https://docs.api.nvidia.com/nim/docs/product), [OpenCode model pricing](https://opencode.ai/v2/docs/console/models/), [OpenCode inference API](https://opencode.ai/v2/docs/console/api/inference/). Checked 2026-10-16; account access and live quality are not yet validated.
 
 ## Test with Google, then switch to GW Azure
 
@@ -88,7 +130,7 @@ conda activate echo-agent
 python -m pip install -r requirements.txt
 ```
 
-The example file `.env.example` lists variable names; the application does not automatically load it. Set variables in the same terminal session or through approved secret management. For a Google test:
+The example file `.env.example` lists variable names; the application does not automatically load that example. Live clients can read keys from the private `.env`; set model/endpoint variables in the same terminal session or through approved secret management. For a Google test:
 
 ```powershell
 $env:GOOGLE_MODEL = "YOUR-TOOL-CAPABLE-GEMINI-MODEL"

@@ -62,10 +62,20 @@ class ResponsesModel:
 
 
 class ChatModel:
-    """Google's documented OpenAI-compatible API, with provider metadata preserved."""
+    """Chat Completions adapter with provider tool-call metadata preserved."""
 
-    def __init__(self, client, model):
+    def __init__(self, client, model, max_output_tokens=3500, reasoning_effort=None, clear_thinking=None):
         self.client, self.model = client, model
+        self.max_output_tokens = max_output_tokens
+        self.request_options = {}
+        if reasoning_effort is not None:
+            if reasoning_effort not in {"low", "high", "max"}:
+                raise ConfigurationError("Unsupported Chat Completions reasoning effort.")
+            self.request_options["reasoning_effort"] = reasoning_effort
+        if clear_thinking is not None:
+            if not isinstance(clear_thinking, bool):
+                raise ConfigurationError("clear_thinking must be a boolean.")
+            self.request_options["extra_body"] = {"chat_template_kwargs": {"clear_thinking": clear_thinking}}
         self.request_count, self.successful_requests = 0, 0
 
     def respond(self, instructions, history, tools, require_tool=False):
@@ -83,19 +93,21 @@ class ChatModel:
                 raise RuntimeError("Conversation items do not match the selected provider adapter.")
         definitions = [{"type": "function", "function": {key: tool[key]
             for key in ("name", "description", "parameters")}} for tool in tools]
-        options = {"model": self.model, "messages": messages, "max_tokens": 3500}
+        options = {"model": self.model, "messages": messages, "max_tokens": self.max_output_tokens}
+        options.update(self.request_options)
         if definitions:
             options.update(tools=definitions, tool_choice="required" if require_tool else "auto")
         try:
             response = self.client.chat.completions.create(**options)
         except Exception:
-            raise RuntimeError("Google model request failed. Check model access and tool support.") from None
+            raise RuntimeError("Chat model request failed. Check the selected profile's key, endpoint, model access, limits and tool support.") from None
         if not response.choices or response.choices[0].finish_reason not in {"stop", "tool_calls"}:
             raise RuntimeError("Model response did not complete; no answer was accepted.")
         self.successful_requests += 1
         message = response.choices[0].message
         raw = message.model_dump(exclude_none=True)
-        raw = {key: value for key, value in raw.items() if key in {"role", "content", "tool_calls"}}
+        # DeepSeek thinking/tool turns require reasoning_content on subsequent calls.
+        raw = {key: value for key, value in raw.items() if key in {"role", "content", "tool_calls", "reasoning_content"}}
         calls = [ToolCall(call.id, call.function.name, call.function.arguments)
                  for call in (message.tool_calls or [])]
         return ModelTurn(message.content or "", calls, [{"type": "chat_message", "message": raw}])

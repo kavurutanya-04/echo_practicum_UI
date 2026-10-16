@@ -22,6 +22,28 @@
       "provider": "openai", "api": "responses",
       "model_env": "OPENAI_MODEL", "key_env": "OPENAI_API_KEY"
     },
+    "nvidia_test": {
+      "provider": "openai_compatible", "api": "chat",
+      "endpoint": "https://integrate.api.nvidia.com/v1",
+      "endpoint_env": "NVIDIA_BASE_URL",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b", "model_env": "NVIDIA_MODEL",
+      "key_env": "NVIDIA_API_KEY", "max_output_tokens": 8192
+    },
+    "nvidia_glm_test": {
+      "provider": "openai_compatible", "api": "chat",
+      "endpoint": "https://integrate.api.nvidia.com/v1",
+      "endpoint_env": "NVIDIA_BASE_URL",
+      "model": "z-ai/glm-5.3-flash", "model_env": "NVIDIA_GLM_MODEL",
+      "key_env": "NVIDIA_API_KEY", "max_output_tokens": 8192,
+      "reasoning_effort": "low", "clear_thinking": true
+    },
+    "opencode_test": {
+      "provider": "openai_compatible", "api": "chat",
+      "endpoint": "https://opencode.ai/inference/openai/v1",
+      "endpoint_env": "OPENCODE_BASE_URL",
+      "model": "deepseek-v4.1-flash-free", "model_env": "OPENCODE_MODEL",
+      "key_env": "OPENCODE_API_KEY", "max_output_tokens": 8192
+    },
     "gw_embeddings": {
       "provider": "azure", "api": "embeddings", "azure_api": "legacy",
       "model_env": "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "endpoint_env": "AZURE_OPENAI_ENDPOINT",

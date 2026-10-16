@@ -33,7 +33,11 @@ On macOS or Linux, use `python3` where needed and `.venv/bin/python` instead of 
 
 ## Live model configuration
 
-See `Agent_Echo/README.md` and `.env.example` for provider profile and environment variable names. Configure credentials locally; never commit them. The application does not automatically load `.env` files. Repository access and university email do not supply model API credentials.
+See [Agent_Echo/README.md](Agent_Echo/README.md) and [Agent_Echo/.env.example](Agent_Echo/.env.example) for profiles and key names. Prepared test profiles include NVIDIA Nemotron Ultra (`nvidia_test`), GLM-5.3-Flash through NVIDIA (`nvidia_glm_test`), and DeepSeek through OpenCode (`opencode_test`). Multiple profiles can be assigned to different agents in the same workflow.
+
+Each collaborator supplies their own credentials locally. Create `Agent_Echo/.env` by copying `Agent_Echo/.env.example` if a private `.env` does not already exist, then paste the needed keys into that private copy. Live clients read API keys from it automatically. Existing terminal/system environment variables take precedence, so `.env` is optional when those keys are already configured. Other model/endpoint/profile settings belong in `connections.json` or terminal environment variables. Both NVIDIA models share `NVIDIA_API_KEY`; OpenCode uses `OPENCODE_API_KEY`.
+
+GitHub contains the code and empty-key template; `.env` is excluded from Git and must not be shared. A collaborator only needs keys for the profiles they use. Without credentials they can run offline demos and local tests; live calls require their selected provider's key. Repository access and university email do not supply API credentials. Provider quotas and free-endpoint availability can change; a prepared profile is not proof of live access or model quality.
 
 ## Publish from VS Code
 
