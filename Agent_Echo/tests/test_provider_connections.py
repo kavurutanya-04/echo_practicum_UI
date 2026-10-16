@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from agents.connections import ModelRegistry
-from agents.model import ChatModel, ConfigurationError
+from agents.model import ChatModel, ConfigurationError, request_failure
 from agents.preflight import check_connections
 from agents.runtime import function_tool
 
@@ -94,7 +94,8 @@ class TrialProviderTests(unittest.TestCase):
                 with patch.dict(os.environ, values, clear=True), patch.dict("sys.modules", {
                     "openai": SimpleNamespace(OpenAI=client, AzureOpenAI=client)}):
                     registry = ModelRegistry(force_profile=profile, env_file=None)
-                    result = check_connections(registry, ["Cherry", "Vanilla"])
+                    progress = []
+                    result = check_connections(registry, ["Cherry", "Vanilla"], progress=progress.append)
                     self.assertEqual(clients[0]["base_url"], endpoint)
                     self.assertEqual(clients[0]["api_key"], "offline-key")
                     self.assertEqual(requests[0]["model"], model_name)
@@ -103,6 +104,8 @@ class TrialProviderTests(unittest.TestCase):
                     self.assertEqual(len(requests), 1)
                     self.assertEqual(result["execution"]["successful_generation_api_calls"], 1)
                     self.assertNotIn("offline-key", json.dumps(result))
+                    self.assertEqual(len(progress), 1)
+                    self.assertNotIn("offline-key", progress[0])
                     if profile == "nvidia_glm_test":
                         self.assertEqual(requests[0]["reasoning_effort"], "low")
                         self.assertIs(requests[0]["extra_body"]["chat_template_kwargs"]["clear_thinking"], True)
@@ -242,6 +245,42 @@ class TrialProviderTests(unittest.TestCase):
             model.respond("Instructions", [{"role": "user", "content": "Question"}], [])
         self.assertNotIn("offline-key", str(raised.exception))
         self.assertIn("selected profile", str(raised.exception))
+
+    def test_http_diagnostics_distinguish_access_missing_models_and_limits_without_secrets(self):
+        for status, expected in ((400, "parameters"), (401, "Authentication"), (403, "Access denied"),
+                                 (404, "not found"), (429, "quota"), (503, "service error")):
+            with self.subTest(status=status):
+                error = RuntimeError("offline-key and private request text")
+                error.status_code = status
+                error.body = {"message": "offline-key and private request text"}
+                diagnostic = str(request_failure(error))
+                self.assertIn(f"HTTP {status}", diagnostic)
+                self.assertIn(expected, diagnostic)
+                self.assertNotIn("offline-key", diagnostic)
+                self.assertNotIn("private request text", diagnostic)
+
+    def test_opencode_free_restriction_and_timeouts_have_specific_safe_diagnostics(self):
+        error = RuntimeError("offline-key")
+        error.status_code = 403
+        error.body = {"type": "FreeTierError", "message": "OpenCode's free tier can only be used from within OpenCode. offline-key"}
+        diagnostic = str(request_failure(error))
+        self.assertIn("FreeTierError", diagnostic)
+        self.assertIn("cannot be used for Echo", diagnostic)
+        self.assertNotIn("offline-key", diagnostic)
+        timeout = type("APITimeoutError", (Exception,), {})("offline-key")
+        self.assertIn("timed out", str(request_failure(timeout)))
+        self.assertNotIn("offline-key", str(request_failure(timeout)))
+
+    def test_ctrl_c_cancels_probe_cleanly_without_a_traceback(self):
+        import run_agent
+        from contextlib import redirect_stdout, redirect_stderr
+        import io
+        with patch("run_agent.check_connections", side_effect=KeyboardInterrupt), \
+             redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as stderr:
+            result = run_agent.main(["--check-connection", "--profile", "nvidia_test"])
+        self.assertEqual(result, 130)
+        self.assertIn("cancelled", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
 
 
 if __name__ == "__main__":

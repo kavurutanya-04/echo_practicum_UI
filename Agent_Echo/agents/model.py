@@ -9,6 +9,31 @@ class ConfigurationError(RuntimeError):
     pass
 
 
+def request_failure(error):
+    """Explain public error categories without echoing provider payloads or keys."""
+    status = getattr(error, "status_code", None)
+    body = getattr(error, "body", None)
+    detail = body.get("error", body) if isinstance(body, dict) else {}
+    if status == 403 and isinstance(detail, dict) and detail.get("type") == "FreeTierError" \
+            and "within opencode" in str(detail.get("message", "")).lower():
+        return RuntimeError("HTTP 403 (FreeTierError): OpenCode's free tier only works inside OpenCode; "
+                            "it cannot be used for Echo's Python API requests. Select another provider.")
+    if type(error).__name__ in {"APITimeoutError", "ReadTimeout", "ConnectTimeout", "TimeoutException", "TimeoutError"}:
+        return RuntimeError("Model request timed out while waiting for the provider. "
+                            "Key validity and model availability are not confirmed; no answer was accepted.")
+    if type(error).__name__ == "APIConnectionError":
+        return RuntimeError("Could not connect to the model API. Check network access, proxy/TLS settings and the configured endpoint.")
+    reasons = {400: "The provider rejected the request parameters; check model and tool support.",
+               401: "Authentication failed; check the selected provider's key.",
+               403: "Access denied; check account permissions and API/free-tier restrictions.",
+               404: "Model or endpoint not found; the catalog listing alone does not confirm a working endpoint.",
+               429: "Rate limit or quota reached; check the selected provider's limits."}
+    if isinstance(status, int):
+        reason = "Provider service error; try again later." if status >= 500 else reasons.get(status, "The provider rejected the request.")
+        return RuntimeError(f"Model request failed (HTTP {status}). {reason}")
+    return RuntimeError("Chat/model request failed. Check the selected profile's key, endpoint, model access, limits and tool support.")
+
+
 @dataclass
 class ToolCall:
     call_id: str
@@ -49,9 +74,9 @@ class ResponsesModel:
                 tool_choice="required" if require_tool else "auto",
                 parallel_tool_calls=False, max_output_tokens=3500, store=False,
             )
-        except Exception:
+        except Exception as error:
             # Provider errors can contain request data. Do not print their raw payload.
-            raise RuntimeError("Model request failed. Check the configured deployment, access and API support.") from None
+            raise request_failure(error) from None
         if response.status != "completed":
             raise RuntimeError("Model response did not complete; no answer was accepted.")
         self.successful_requests += 1
@@ -99,8 +124,8 @@ class ChatModel:
             options.update(tools=definitions, tool_choice="required" if require_tool else "auto")
         try:
             response = self.client.chat.completions.create(**options)
-        except Exception:
-            raise RuntimeError("Chat model request failed. Check the selected profile's key, endpoint, model access, limits and tool support.") from None
+        except Exception as error:
+            raise request_failure(error) from None
         if not response.choices or response.choices[0].finish_reason not in {"stop", "tool_calls"}:
             raise RuntimeError("Model response did not complete; no answer was accepted.")
         self.successful_requests += 1

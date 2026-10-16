@@ -39,6 +39,8 @@ Each collaborator supplies authorized credentials locally. Create `Agent_Echo/.e
 
 GitHub contains the code and empty-key template; `.env` is excluded from Git and must not be shared. A collaborator only needs keys for the profiles they use. Without credentials they can run offline demos and local tests; live calls require their selected provider's key. Repository access and university email do not supply API credentials. Provider quotas and free-endpoint availability can change; a prepared profile is not proof of live access or model quality.
 
+Trial access checks on 2026-10-16 did not confirm a working connection: OpenCode's free tier rejected external Python requests with HTTP 403 `FreeTierError`; NVIDIA model checks returned HTTP 404 or timed out. [Agent_Echo/README.md](Agent_Echo/README.md#test-nvidia-and-opencode-with-private-local-keys) records the scope and limitations. Connection failures now report safe HTTP/timeout categories without exposing credentials. The primary/final provider remains GW Azure.
+
 ## Publish from VS Code
 
 Open this `Final_Project` folder itself. Check `git --version` and `git lfs version` in the VS Code terminal. Initialize a repository in this folder, run `git lfs install`, review and stage the included files, and commit. The committed `.gitattributes` configures the large CSV before it is added.

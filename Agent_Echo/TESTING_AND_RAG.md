@@ -50,7 +50,7 @@ NVIDIA_API_KEY=
 OPENCODE_API_KEY=
 ```
 
-The models/endpoints are already configured. Both NVIDIA profiles use the same `NVIDIA_API_KEY`. Run the probes separately:
+The models/endpoints are configured, but live access is not guaranteed. Both NVIDIA profiles use the same `NVIDIA_API_KEY`. On 2026-10-16 OpenCode rejected external free-tier Python requests with HTTP 403 `FreeTierError`, NVIDIA GLM timed out, and NVIDIA Nemotron Ultra returned HTTP 404. Do not present these as working live connections. The OpenCode command below remains an access diagnostic, not a recommendation to use its free tier for Echo. Run the probes separately:
 
 ```powershell
 python .\run_agent.py --check-connection --profile nvidia_test

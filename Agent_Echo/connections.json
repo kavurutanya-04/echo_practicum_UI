@@ -39,6 +39,7 @@
       "reasoning_effort": "low", "clear_thinking": true
     },
     "opencode_test": {
+      "description": "Connection reference only: the free tier rejected external Python calls with HTTP 403 FreeTierError on 2026-10-16. Not a confirmed free option for Echo.",
       "provider": "openai_compatible", "api": "chat",
       "endpoint": "https://opencode.ai/inference/openai/v1",
       "endpoint_env": "OPENCODE_BASE_URL",

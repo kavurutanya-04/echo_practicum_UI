@@ -56,7 +56,8 @@ def main(argv=None):
             if args.demo:
                 parser.error("--check-connection makes real API calls and cannot be combined with --demo.")
             roles = [NAMES[args.agent]] if args.agent else tuple(dict.fromkeys(NAMES.values()))
-            print(json.dumps(check_connections(registry, roles), indent=2))
+            print(json.dumps(check_connections(registry, roles,
+                progress=lambda message: print(message, file=sys.stderr, flush=True)), indent=2))
             return 0
         if not args.agent or not args.manager:
             parser.error("An agent and --manager are required.")
@@ -141,6 +142,9 @@ def main(argv=None):
             args.output.write_text(json.dumps(asdict(result), indent=2, ensure_ascii=False), encoding="utf-8")
             print(f"Evidence artifact: {args.output.resolve()}")
         return 2 if result.verification.get("decision") == "revise" else 0
+    except KeyboardInterrupt:
+        print("Execution cancelled. API connectivity and answer quality were not confirmed by this interrupted run.", file=sys.stderr)
+        return 130
     except (ConfigurationError, RuntimeError, ValueError, OSError, sqlite3.Error, KeyError) as error:
         print(str(error), file=sys.stderr)
         return 1

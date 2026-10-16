@@ -5,7 +5,7 @@ from .connections import AGENTS
 from .runtime import function_tool
 
 
-def check_connections(registry, roles=AGENTS):
+def check_connections(registry, roles=AGENTS, progress=None):
     results, checked = {}, {}
     tools = [function_tool("connection_check", "Confirm that function calling works.", {
         "status": {"type": "string", "enum": ["ok"]}})]
@@ -13,6 +13,8 @@ def check_connections(registry, roles=AGENTS):
         model = registry.get(role)
         profile = registry.profile_for(role)
         if profile not in checked:
+            if progress:
+                progress(f"Checking profile '{profile}': waiting for one real tool-call response; no employee data is sent.")
             turn = model.respond("Call connection_check exactly once with status='ok'. This is a connection probe; no employee data is supplied.",
                 [{"role": "user", "content": "Check API access and tool calling."}], tools, True)
             if len(turn.calls) != 1 or turn.calls[0].name != "connection_check" or json.loads(turn.calls[0].arguments) != {"status": "ok"}:
