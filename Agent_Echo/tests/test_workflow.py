@@ -41,7 +41,7 @@ class ConnectionTests(unittest.TestCase):
 
     def test_missing_profile_values_do_not_construct_a_client(self):
         with patch.dict("os.environ", {}, clear=True):
-            registry = ModelRegistry(force_profile="google_test")
+            registry = ModelRegistry(force_profile="google_test", env_file=None)
             with self.assertRaises(ConfigurationError):
                 registry.get("Vanilla")
             self.assertEqual(registry.clients, {})
@@ -59,7 +59,7 @@ class ConnectionTests(unittest.TestCase):
             return SimpleNamespace(close=lambda: None)
         with patch.dict("os.environ", {"GOOGLE_MODEL": "test-model", "GOOGLE_API_KEY": "offline-fake-key"}, clear=True), \
              patch.dict("sys.modules", {"openai": SimpleNamespace(OpenAI=client, AzureOpenAI=client)}):
-            registry = ModelRegistry(force_profile="google_test")
+            registry = ModelRegistry(force_profile="google_test", env_file=None)
             first, second = registry.get("Cherry"), registry.get("Vanilla")
             self.assertIs(first, second)
             self.assertEqual(len(constructed), 1)
@@ -75,7 +75,7 @@ class ConnectionTests(unittest.TestCase):
         values = {"AZURE_OPENAI_ENDPOINT": "https://offline-assigned-resource.openai.azure.com/",
                   "AZURE_OPENAI_DEPLOYMENT": "offline-deployment", "GW_AZURE_OPENAI_KEY": "offline-fake-key"}
         with patch.dict("os.environ", values, clear=True), patch.dict("sys.modules", {"openai": SimpleNamespace(OpenAI=client, AzureOpenAI=client)}):
-            registry = ModelRegistry()
+            registry = ModelRegistry(env_file=None)
             self.assertEqual(registry.get("Cherry").model, "offline-deployment")
             self.assertEqual(constructed[0]["api_version"], "2025-03-01-preview")
             self.assertEqual(constructed[0]["azure_endpoint"], values["AZURE_OPENAI_ENDPOINT"])

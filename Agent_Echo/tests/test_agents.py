@@ -213,7 +213,9 @@ class RuntimeTests(unittest.TestCase):
             ScopedData(DATABASE, AccessScope("M14' OR 1=1 --"))
 
     def test_missing_configuration_fails_without_api_import_or_connection(self):
-        with patch.dict("os.environ", {}, clear=True), self.assertRaises(ConfigurationError) as raised:
+        with patch.dict("os.environ", {}, clear=True), \
+             patch("agents.connections.ModelRegistry._local_value", return_value=""), \
+             self.assertRaises(ConfigurationError) as raised:
             ResponsesModel.from_environment()
         self.assertIn("No API connection was attempted", str(raised.exception))
 

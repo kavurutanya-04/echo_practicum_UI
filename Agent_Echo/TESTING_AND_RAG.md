@@ -1,6 +1,6 @@
 # What can be tested without an API, and how to verify RAG
 
-Updated 2026-10-16. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients can load API keys from the private, Git-ignored `.env`. Model and endpoint settings stay in `connections.json` or terminal variables. Never put real keys in files committed to Git.
+Updated 2026-10-16. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients can load keys, endpoints, deployment/model names and API versions from the private, Git-ignored `.env`. Profile selection stays in `connections.json` or terminal variables. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
 
 ## Three different activities
 
@@ -34,6 +34,14 @@ python .\inspect_rag.py --manager M14 --start 2026-07-01 --end 2026-09-30 --quer
 Check `retrieval`, `metadata.query`, filters, `corpus_records`, `returned_count`, actual `passages`, dates and `citation_id`. Lexical hits include BM25 scores; lower scores rank first. This command labels `generation_performed=false`. Read the returned passages: matching vocabulary does not guarantee that the passage answers the question.
 
 ## 3. Configure and probe a real connection
+
+Start with the **primary GW Azure** connection when the professor provides your group's access. Fill in the private `.env` with `GW_AZURE_OPENAI_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT` and `AZURE_OPENAI_API_VERSION=2025-03-01-preview`. Use only your group's assigned resource and key; obtain the deployment name from that resource or the professor rather than guessing from the example notebook. These values are read locally and are not committed to GitHub.
+
+```powershell
+python .\run_agent.py --check-connection --profile gw_azure
+```
+
+The explicit `--profile gw_azure` uses the same GW deployment for every role, overriding temporary test assignments. No other provider keys are required, and a missing GW setup never falls back to a trial API. If a collaborator already has the named variables in their terminal/system environment, no `.env` file is needed.
 
 For NVIDIA/OpenCode, paste only the keys into the private `.env` beside `connections.json`:
 

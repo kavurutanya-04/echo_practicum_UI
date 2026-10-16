@@ -10,6 +10,7 @@
   "retrieval": {"mode": "lexical", "embedding_profile": "gw_embeddings"},
   "profiles": {
     "gw_azure": {
+      "description": "Primary final provider: use only the group's GW-assigned Azure resource.",
       "provider": "azure", "api": "responses", "azure_api": "legacy",
       "model_env": "AZURE_OPENAI_DEPLOYMENT", "endpoint_env": "AZURE_OPENAI_ENDPOINT",
       "key_env": "GW_AZURE_OPENAI_KEY", "api_version_env": "AZURE_OPENAI_API_VERSION"
@@ -45,6 +46,7 @@
       "key_env": "OPENCODE_API_KEY", "max_output_tokens": 8192
     },
     "gw_embeddings": {
+      "description": "Optional embeddings using the same GW-assigned resource and key.",
       "provider": "azure", "api": "embeddings", "azure_api": "legacy",
       "model_env": "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "endpoint_env": "AZURE_OPENAI_ENDPOINT",
       "key_env": "GW_AZURE_OPENAI_KEY", "api_version_env": "AZURE_OPENAI_API_VERSION"

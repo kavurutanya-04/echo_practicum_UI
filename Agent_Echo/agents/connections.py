@@ -20,7 +20,7 @@ class ModelRegistry:
         self.force_profile = force_profile
         self.clients, self.models = {}, {}
         self.env_file = Path(env_file) if env_file is not None else None
-        self._local_keys = None
+        self._local_settings = None
         if force_profile and force_profile not in self.config["profiles"]:
             raise ConfigurationError("Unknown connection profile.")
 
@@ -47,24 +47,27 @@ class ModelRegistry:
                 "profiles_used": {name: {"model": model.model, "api_calls": model.request_count,
                     "successful_api_calls": model.successful_requests} for name, model in self.models.items()}}
 
-    @staticmethod
-    def _value(profile, field):
-        return os.getenv(profile.get(field + "_env", "")) or profile.get(field, "")
+    def _value(self, profile, field):
+        variable = profile.get(field + "_env", "")
+        return os.getenv(variable) or self._local_value(variable) or profile.get(field, "")
 
-    def _key(self, variable):
-        # Read the private file only when a live client needs a missing key.
-        # Do not load model/profile selection from this file or change os.environ.
-        if os.getenv(variable):
-            return os.environ[variable]
-        if self._local_keys is None:
-            self._local_keys = {}
+    def _local_value(self, variable):
+        # Read only the explicitly requested variable, during live setup.
+        # Agent/profile selection stays public; never change os.environ or print values.
+        if not variable:
+            return ""
+        if self._local_settings is None:
+            self._local_settings = {}
             if self.env_file is not None and self.env_file.is_file():
                 try:
                     from dotenv import dotenv_values
                 except ImportError:
                     raise ConfigurationError("Install requirements.txt to load the private .env file.") from None
-                self._local_keys = dotenv_values(self.env_file, encoding="utf-8-sig", interpolate=False)
-        return self._local_keys.get(variable) or ""
+                self._local_settings = dotenv_values(self.env_file, encoding="utf-8-sig", interpolate=False)
+        return self._local_settings.get(variable) or ""
+
+    def _key(self, variable):
+        return os.getenv(variable) or self._local_value(variable)
 
     def _client(self, name):
         if name in self.clients:
@@ -84,7 +87,7 @@ class ModelRegistry:
             required.append(profile["endpoint_env"])
         if not model_name or (profile.get("endpoint_env") and not endpoint):
             raise ConfigurationError("Missing profile configuration; set variables: " + ", ".join(required) +
-                                     ". No API connection was attempted.")
+                                     " in the environment or private .env file. No API connection was attempted.")
         if profile["provider"] == "openai_compatible" and not endpoint:
             raise ConfigurationError("A custom compatible profile requires an explicit HTTPS endpoint.")
         if endpoint and (urlparse(endpoint).scheme != "https" or not urlparse(endpoint).hostname):
@@ -100,7 +103,7 @@ class ModelRegistry:
         options = {"api_key": key, "timeout": 45, "max_retries": 1}
         if profile["provider"] == "azure" and profile.get("azure_api", "legacy") == "legacy":
             client = AzureOpenAI(azure_endpoint=endpoint,
-                api_version=os.getenv(profile.get("api_version_env", "AZURE_OPENAI_API_VERSION"), "2025-03-01-preview"), **options)
+                api_version=self._value(profile, "api_version") or "2025-03-01-preview", **options)
         elif profile["provider"] == "azure":
             client = OpenAI(base_url=endpoint.rstrip("/") + "/openai/v1/", **options)
         elif profile["provider"] == "google":
@@ -142,7 +145,7 @@ class ModelRegistry:
     def close(self):
         for client in self.clients.values():
             client.close()
-        self._local_keys = None
+        self._local_settings = None
 
 
 class EmbeddingModel:

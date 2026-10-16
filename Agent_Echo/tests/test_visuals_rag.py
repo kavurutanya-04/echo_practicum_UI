@@ -155,6 +155,7 @@ class RagAndConnectionTests(unittest.TestCase):
 
     def test_live_cli_without_configuration_fails_and_does_not_write_demo_artifact(self):
         with TemporaryDirectory() as output, patch.dict("os.environ", {}, clear=True), \
+             patch.object(ModelRegistry, "_local_value", return_value=""), \
              redirect_stdout(io.StringIO()) as stdout, redirect_stderr(io.StringIO()) as stderr:
             target = Path(output) / "live.json"
             code = run_agent.main(["original", "--manager", "M14", "--profile", "google_test",
@@ -166,7 +167,7 @@ class RagAndConnectionTests(unittest.TestCase):
 
     def test_real_connection_probe_requires_credentials_instead_of_running_fixture(self):
         with patch.dict("os.environ", {}, clear=True):
-            registry = ModelRegistry(force_profile="google_test")
+            registry = ModelRegistry(force_profile="google_test", env_file=None)
             with self.assertRaises(ConfigurationError):
                 check_connections(registry, ["Lime"])
             self.assertEqual(registry.execution_summary()["generation_api_calls"], 0)

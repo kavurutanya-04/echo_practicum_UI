@@ -15,6 +15,56 @@ from agents.runtime import function_tool
 
 
 class TrialProviderTests(unittest.TestCase):
+    def test_final_default_uses_only_assigned_azure_settings_from_private_env(self):
+        clients = []
+
+        def client(**kwargs):
+            clients.append(kwargs)
+            return SimpleNamespace(close=lambda: None)
+
+        with TemporaryDirectory() as directory:
+            private_file = Path(directory) / ".env"
+            private_file.write_text(
+                "GW_AZURE_OPENAI_KEY=offline-group-key\n"
+                "AZURE_OPENAI_ENDPOINT=https://offline-assigned-group.openai.azure.com/\n"
+                "AZURE_OPENAI_DEPLOYMENT=offline-group-deployment\n"
+                "AZURE_OPENAI_API_VERSION=2025-03-01-preview\n"
+                "AZURE_OPENAI_EMBEDDING_DEPLOYMENT=offline-group-embeddings\n"
+                "NVIDIA_API_KEY=offline-unused-trial-key\n", encoding="utf-8")
+            with patch.dict(os.environ, {}, clear=True), patch.dict("sys.modules", {
+                "openai": SimpleNamespace(OpenAI=client, AzureOpenAI=client)}):
+                registry = ModelRegistry(env_file=private_file)
+                models = [registry.get(role) for role in registry.config["agents"]]
+                self.assertTrue(all(model is models[0] for model in models))
+                self.assertEqual(models[0].model, "offline-group-deployment")
+                self.assertEqual(len(clients), 1)
+                self.assertEqual(clients[0]["api_key"], "offline-group-key")
+                self.assertEqual(clients[0]["azure_endpoint"], "https://offline-assigned-group.openai.azure.com/")
+                self.assertEqual(clients[0]["api_version"], "2025-03-01-preview")
+                self.assertTrue(all(item["profile"] == "gw_azure" for item in registry.describe().values()))
+                self.assertEqual(registry.embeddings().model, "offline-group-embeddings")
+                self.assertEqual(clients[1]["api_key"], "offline-group-key")
+                self.assertNotIn("offline-group-key", json.dumps(registry.describe()))
+                self.assertNotIn("GW_AZURE_OPENAI_KEY", os.environ)
+                registry.close()
+
+    def test_azure_does_not_fall_back_to_trial_keys_when_group_setup_is_missing(self):
+        with patch.dict(os.environ, {"NVIDIA_API_KEY": "offline-nvidia", "OPENCODE_API_KEY": "offline-opencode"}, clear=True):
+            registry = ModelRegistry(env_file=None)
+            with self.assertRaisesRegex(ConfigurationError, "GW_AZURE_OPENAI_KEY"):
+                registry.get("Original")
+            self.assertEqual(registry.clients, {})
+            self.assertEqual(registry.execution_summary()["generation_api_calls"], 0)
+
+    def test_azure_environment_settings_override_private_file(self):
+        with TemporaryDirectory() as directory:
+            private_file = Path(directory) / ".env"
+            private_file.write_text("AZURE_OPENAI_DEPLOYMENT=offline-file-model\n", encoding="utf-8")
+            with patch.dict(os.environ, {"AZURE_OPENAI_DEPLOYMENT": "offline-environment-model"}, clear=True):
+                registry = ModelRegistry(env_file=private_file)
+                self.assertEqual(registry._value(registry.config["profiles"]["gw_azure"], "model"), "offline-environment-model")
+                self.assertIsNone(registry._local_settings)
+
     def test_trial_profiles_route_probe_to_their_own_endpoint_and_model(self):
         for profile, variable, endpoint, model_name in (
             ("nvidia_test", "NVIDIA_API_KEY", "https://integrate.api.nvidia.com/v1",
@@ -71,7 +121,7 @@ class TrialProviderTests(unittest.TestCase):
                 self.assertNotIn("NVIDIA_API_KEY", os.environ)
                 self.assertNotIn("offline-${OTHER}-key", json.dumps(registry.describe()))
                 registry.close()
-                self.assertIsNone(registry._local_keys)
+                self.assertIsNone(registry._local_settings)
 
     def test_environment_key_wins_without_reading_private_file(self):
         with patch.dict(os.environ, {"NVIDIA_API_KEY": "offline-env-key"}, clear=True), \
@@ -137,6 +187,7 @@ class TrialProviderTests(unittest.TestCase):
     def test_inspection_and_demo_do_not_read_keys_or_construct_clients(self):
         import run_agent
         with patch.object(ModelRegistry, "_key", side_effect=AssertionError("No key access")), \
+             patch.object(ModelRegistry, "_local_value", side_effect=AssertionError("No private configuration access")), \
              patch.object(ModelRegistry, "_client", side_effect=AssertionError("No live client")), \
              patch("builtins.print"):
             self.assertEqual(run_agent.main(["--show-connections", "--profile", "nvidia_test"]), 0)
