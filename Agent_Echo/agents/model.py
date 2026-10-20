@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass, field
 import json
-import os
 from .execution_log import record
 
 
@@ -58,13 +57,9 @@ class ResponsesModel:
 
     @classmethod
     def from_environment(cls):
-        # Compatibility entry point for older callers; all construction uses the registry.
+        # Compatibility name for older callers; JSON still selects the profile.
         from .connections import ModelRegistry
-        legacy = os.getenv("LLM_PROVIDER")
-        aliases = {"azure": "gw_azure", "openai": "personal_openai", "google": "google_test"}
-        if legacy and legacy.lower() not in aliases:
-            raise ConfigurationError("LLM_PROVIDER must be azure, openai or google.")
-        registry = ModelRegistry(force_profile=aliases.get(legacy.lower()) if legacy else None)
+        registry = ModelRegistry()
         return registry.get("Cherry")
 
     def respond(self, instructions, history, tools, require_tool=False):

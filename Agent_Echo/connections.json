@@ -7,60 +7,106 @@
     "Lime": null,
     "ZeroSugar": null
   },
-  "retrieval": {"mode": "lexical", "embedding_profile": "gw_embeddings"},
+  "retrieval": {
+    "mode": "lexical",
+    "embedding_profile": "gw_embeddings"
+  },
   "profiles": {
     "gw_azure": {
       "description": "Primary final provider: use only the group's GW-assigned Azure resource.",
-      "provider": "azure", "api": "responses", "azure_api": "legacy",
-      "model_env": "AZURE_OPENAI_DEPLOYMENT", "endpoint_env": "AZURE_OPENAI_ENDPOINT",
-      "key_env": "GW_AZURE_OPENAI_KEY", "api_version_env": "AZURE_OPENAI_API_VERSION"
+      "provider": "azure",
+      "api": "responses",
+      "azure_api": "legacy",
+      "key_env": "GW_AZURE_OPENAI_KEY",
+      "model": "",
+      "endpoint": "",
+      "api_version": "2025-03-01-preview",
+      "timeout_seconds": 45,
+      "max_retries": 1,
+      "max_output_tokens": 3500
     },
     "google_test": {
-      "provider": "google", "api": "chat",
-      "model_env": "GOOGLE_MODEL", "key_env": "GOOGLE_API_KEY"
+      "provider": "google",
+      "api": "chat",
+      "key_env": "GOOGLE_API_KEY",
+      "model": "gemini-3.5-flash-lite",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "timeout_seconds": 45,
+      "max_retries": 1,
+      "max_output_tokens": 3500
     },
     "personal_openai": {
-      "provider": "openai", "api": "responses",
-      "model_env": "OPENAI_MODEL", "key_env": "OPENAI_API_KEY"
+      "provider": "openai",
+      "api": "responses",
+      "key_env": "OPENAI_API_KEY",
+      "model": "",
+      "endpoint": "https://api.openai.com/v1",
+      "timeout_seconds": 45,
+      "max_retries": 1,
+      "max_output_tokens": 3500
     },
     "nvidia_test": {
-      "provider": "openai_compatible", "api": "chat",
+      "provider": "openai_compatible",
+      "api": "chat",
       "endpoint": "https://integrate.api.nvidia.com/v1",
-      "endpoint_env": "NVIDIA_BASE_URL",
-      "model": "nvidia/nemotron-3-super-120b-a12b", "model_env": "NVIDIA_MODEL",
-      "key_env": "NVIDIA_API_KEY", "max_output_tokens": 8192,
-      "timeout_seconds": 120, "max_retries": 0
+      "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+      "key_env": "NVIDIA_API_KEY",
+      "max_output_tokens": 8192,
+      "timeout_seconds": 120,
+      "max_retries": 0
     },
     "nvidia_glm_test": {
-      "provider": "openai_compatible", "api": "chat",
+      "provider": "openai_compatible",
+      "api": "chat",
       "endpoint": "https://integrate.api.nvidia.com/v1",
-      "endpoint_env": "NVIDIA_BASE_URL",
-      "model": "z-ai/glm-5.3-flash", "model_env": "NVIDIA_GLM_MODEL",
-      "key_env": "NVIDIA_API_KEY", "max_output_tokens": 8192,
-      "timeout_seconds": 120, "max_retries": 0,
-      "reasoning_effort": "low", "clear_thinking": true
+      "model": "z-ai/glm-5.3-flash",
+      "key_env": "NVIDIA_API_KEY",
+      "max_output_tokens": 8192,
+      "timeout_seconds": 120,
+      "max_retries": 0,
+      "reasoning_effort": "low",
+      "clear_thinking": true
     },
     "opencode_test": {
       "description": "Connection reference only: the free tier rejected external Python calls with HTTP 403 FreeTierError on 2026-10-16. Not a confirmed free option for Echo.",
-      "provider": "openai_compatible", "api": "chat",
+      "provider": "openai_compatible",
+      "api": "chat",
       "endpoint": "https://opencode.ai/inference/openai/v1",
-      "endpoint_env": "OPENCODE_BASE_URL",
-      "model": "deepseek-v4.1-flash-free", "model_env": "OPENCODE_MODEL",
-      "key_env": "OPENCODE_API_KEY", "max_output_tokens": 8192
+      "model": "deepseek-v4.1-flash-free",
+      "key_env": "OPENCODE_API_KEY",
+      "max_output_tokens": 8192,
+      "timeout_seconds": 45,
+      "max_retries": 1
     },
     "gw_embeddings": {
       "description": "Optional embeddings using the same GW-assigned resource and key.",
-      "provider": "azure", "api": "embeddings", "azure_api": "legacy",
-      "model_env": "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "endpoint_env": "AZURE_OPENAI_ENDPOINT",
-      "key_env": "GW_AZURE_OPENAI_KEY", "api_version_env": "AZURE_OPENAI_API_VERSION"
+      "provider": "azure",
+      "api": "embeddings",
+      "azure_api": "legacy",
+      "key_env": "GW_AZURE_OPENAI_KEY",
+      "model": "",
+      "endpoint": "",
+      "api_version": "2025-03-01-preview",
+      "timeout_seconds": 45,
+      "max_retries": 1
     },
     "google_embeddings": {
-      "provider": "google", "api": "embeddings",
-      "model_env": "GOOGLE_EMBEDDING_MODEL", "key_env": "GOOGLE_API_KEY"
+      "provider": "google",
+      "api": "embeddings",
+      "key_env": "GOOGLE_API_KEY",
+      "model": "",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "timeout_seconds": 45,
+      "max_retries": 1
     },
     "openai_embeddings": {
-      "provider": "openai", "api": "embeddings",
-      "model_env": "OPENAI_EMBEDDING_MODEL", "key_env": "OPENAI_API_KEY"
+      "provider": "openai",
+      "api": "embeddings",
+      "key_env": "OPENAI_API_KEY",
+      "model": "",
+      "endpoint": "https://api.openai.com/v1",
+      "timeout_seconds": 45,
+      "max_retries": 1
     }
   }
 }

@@ -26,9 +26,11 @@ def report(decision="accept", issues=()):
 
 
 class ConnectionTests(unittest.TestCase):
-    def test_profiles_default_and_role_override(self):
-        with patch.dict("os.environ", {"ECHO_DEFAULT_PROFILE": "google_test", "ECHO_ZEROSUGAR_PROFILE": "personal_openai"}, clear=True):
+    def test_json_default_and_role_assignment_ignore_old_environment_overrides(self):
+        with patch.dict("os.environ", {"ECHO_DEFAULT_PROFILE": "gw_azure", "ECHO_ZEROSUGAR_PROFILE": "gw_azure"}, clear=True):
             registry = ModelRegistry()
+            registry.config["default_profile"] = "google_test"
+            registry.config["agents"]["ZeroSugar"] = "personal_openai"
             self.assertEqual(registry.profile_for("Cherry"), "google_test")
             self.assertEqual(registry.profile_for("ZeroSugar"), "personal_openai")
             self.assertEqual(registry.clients, {})
@@ -57,9 +59,10 @@ class ConnectionTests(unittest.TestCase):
         def client(**kwargs):
             constructed.append(kwargs)
             return SimpleNamespace(close=lambda: None)
-        with patch.dict("os.environ", {"GOOGLE_MODEL": "test-model", "GOOGLE_API_KEY": "offline-fake-key"}, clear=True), \
+        with patch.dict("os.environ", {"GOOGLE_API_KEY": "offline-fake-key"}, clear=True), \
              patch.dict("sys.modules", {"openai": SimpleNamespace(OpenAI=client, AzureOpenAI=client)}):
             registry = ModelRegistry(force_profile="google_test", env_file=None)
+            registry.config["profiles"]["google_test"]["model"] = "test-model"
             first, second = registry.get("Cherry"), registry.get("Vanilla")
             self.assertIs(first, second)
             self.assertEqual(len(constructed), 1)
@@ -72,13 +75,14 @@ class ConnectionTests(unittest.TestCase):
         def client(**kwargs):
             constructed.append(kwargs)
             return SimpleNamespace(close=lambda: None)
-        values = {"AZURE_OPENAI_ENDPOINT": "https://offline-assigned-resource.openai.azure.com/",
-                  "AZURE_OPENAI_DEPLOYMENT": "offline-deployment", "GW_AZURE_OPENAI_KEY": "offline-fake-key"}
+        values = {"GW_AZURE_OPENAI_KEY": "offline-fake-key"}
         with patch.dict("os.environ", values, clear=True), patch.dict("sys.modules", {"openai": SimpleNamespace(OpenAI=client, AzureOpenAI=client)}):
             registry = ModelRegistry(env_file=None)
+            registry.config["profiles"]["gw_azure"].update(
+                endpoint="https://offline-assigned-resource.openai.azure.com/", model="offline-deployment")
             self.assertEqual(registry.get("Cherry").model, "offline-deployment")
             self.assertEqual(constructed[0]["api_version"], "2025-03-01-preview")
-            self.assertEqual(constructed[0]["azure_endpoint"], values["AZURE_OPENAI_ENDPOINT"])
+            self.assertEqual(constructed[0]["azure_endpoint"], "https://offline-assigned-resource.openai.azure.com/")
             registry.close()
 
     def test_google_tool_response_preserves_thought_signature_metadata(self):

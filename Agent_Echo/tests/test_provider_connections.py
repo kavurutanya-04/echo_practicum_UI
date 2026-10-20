@@ -15,7 +15,7 @@ from agents.runtime import function_tool
 
 
 class TrialProviderTests(unittest.TestCase):
-    def test_final_default_uses_only_assigned_azure_settings_from_private_env(self):
+    def test_final_default_uses_json_azure_settings_and_private_key(self):
         clients = []
 
         def client(**kwargs):
@@ -26,14 +26,14 @@ class TrialProviderTests(unittest.TestCase):
             private_file = Path(directory) / ".env"
             private_file.write_text(
                 "GW_AZURE_OPENAI_KEY=offline-group-key\n"
-                "AZURE_OPENAI_ENDPOINT=https://offline-assigned-group.openai.azure.com/\n"
-                "AZURE_OPENAI_DEPLOYMENT=offline-group-deployment\n"
-                "AZURE_OPENAI_API_VERSION=2025-03-01-preview\n"
-                "AZURE_OPENAI_EMBEDDING_DEPLOYMENT=offline-group-embeddings\n"
                 "NVIDIA_API_KEY=offline-unused-trial-key\n", encoding="utf-8")
             with patch.dict(os.environ, {}, clear=True), patch.dict("sys.modules", {
                 "openai": SimpleNamespace(OpenAI=client, AzureOpenAI=client)}):
                 registry = ModelRegistry(env_file=private_file)
+                for profile in ("gw_azure", "gw_embeddings"):
+                    registry.config["profiles"][profile]["endpoint"] = "https://offline-assigned-group.openai.azure.com/"
+                registry.config["profiles"]["gw_azure"]["model"] = "offline-group-deployment"
+                registry.config["profiles"]["gw_embeddings"]["model"] = "offline-group-embeddings"
                 models = [registry.get(role) for role in registry.config["agents"]]
                 self.assertTrue(all(model is models[0] for model in models))
                 self.assertEqual(models[0].model, "offline-group-deployment")
@@ -56,19 +56,21 @@ class TrialProviderTests(unittest.TestCase):
             self.assertEqual(registry.clients, {})
             self.assertEqual(registry.execution_summary()["generation_api_calls"], 0)
 
-    def test_azure_environment_settings_override_private_file(self):
+    def test_non_secret_environment_and_private_values_cannot_override_json(self):
         with TemporaryDirectory() as directory:
             private_file = Path(directory) / ".env"
             private_file.write_text("AZURE_OPENAI_DEPLOYMENT=offline-file-model\n", encoding="utf-8")
             with patch.dict(os.environ, {"AZURE_OPENAI_DEPLOYMENT": "offline-environment-model"}, clear=True):
                 registry = ModelRegistry(env_file=private_file)
-                self.assertEqual(registry._value(registry.config["profiles"]["gw_azure"], "model"), "offline-environment-model")
+                registry.config["profiles"]["gw_azure"]["model"] = "offline-json-model"
+                self.assertEqual(registry.describe()["Cherry"]["model"], "offline-json-model")
+                self.assertEqual(registry._local_value("AZURE_OPENAI_DEPLOYMENT"), "")
                 self.assertIsNone(registry._local_settings)
 
     def test_trial_profiles_route_probe_to_their_own_endpoint_and_model(self):
         for profile, variable, endpoint, model_name in (
             ("nvidia_test", "NVIDIA_API_KEY", "https://integrate.api.nvidia.com/v1",
-             "nvidia/nemotron-3-super-120b-a12b"),
+             "nvidia/nemotron-3.5-super-vl-120b-a12b"),
             ("nvidia_glm_test", "NVIDIA_API_KEY", "https://integrate.api.nvidia.com/v1",
              "z-ai/glm-5.3-flash"),
             ("opencode_test", "OPENCODE_API_KEY", "https://opencode.ai/inference/openai/v1",
@@ -194,7 +196,7 @@ class TrialProviderTests(unittest.TestCase):
             models = {role: registry.get(role) for role in assignments}
             self.assertEqual(models["Cherry"].model, "z-ai/glm-5.3-flash")
             self.assertEqual(models["Vanilla"].model, "deepseek-v4.1-flash-free")
-            self.assertEqual(models["Original"].model, "nvidia/nemotron-3-super-120b-a12b")
+            self.assertEqual(models["Original"].model, "nvidia/nemotron-3.5-super-vl-120b-a12b")
             self.assertIs(models["Cherry"], models["ZeroSugar"])
             self.assertIs(models["Original"], models["Lime"])
             self.assertIsNot(models["Original"], models["Cherry"])
@@ -233,7 +235,7 @@ class TrialProviderTests(unittest.TestCase):
             self.assertEqual(run_agent.main(["--show-connections", "--profile", "nvidia_test"]), 0)
             self.assertEqual(run_agent.main(["cherry", "--manager", "M14", "--demo", "--profile", "opencode_test"]), 0)
 
-    def test_endpoint_and_model_overrides_are_explicit_and_https_required(self):
+    def test_json_endpoint_and_model_win_over_old_overrides_and_https_is_required(self):
         clients = []
 
         def client(**kwargs):
@@ -245,13 +247,67 @@ class TrialProviderTests(unittest.TestCase):
         with patch.dict(os.environ, values, clear=True), patch.dict("sys.modules", {
             "openai": SimpleNamespace(OpenAI=client, AzureOpenAI=client)}):
             registry = ModelRegistry(force_profile="nvidia_test", env_file=None)
-            self.assertEqual(registry.get("Cherry").model, "offline-model")
-            self.assertEqual(clients[0]["base_url"], values["NVIDIA_BASE_URL"])
+            registry.config["profiles"]["nvidia_test"].update(
+                model="offline-json-model", endpoint="https://json-endpoint.invalid/v1")
+            self.assertEqual(registry.get("Cherry").model, "offline-json-model")
+            self.assertEqual(clients[0]["base_url"], "https://json-endpoint.invalid/v1")
             registry.close()
-            with patch.dict(os.environ, {"NVIDIA_BASE_URL": "http://offline-endpoint.invalid/v1"}):
-                with self.assertRaisesRegex(ConfigurationError, "HTTPS"):
-                    ModelRegistry(force_profile="nvidia_test", env_file=None).get("Cherry")
+            invalid = ModelRegistry(force_profile="nvidia_test", env_file=None)
+            invalid.config["profiles"]["nvidia_test"]["endpoint"] = "http://insecure.invalid/v1"
+            with self.assertRaisesRegex(ConfigurationError, "HTTPS"):
+                invalid.get("Cherry")
             self.assertEqual(len(clients), 1)
+
+    def test_google_and_openai_clients_use_explicit_json_endpoints(self):
+        clients = []
+        def client(**kwargs):
+            clients.append(kwargs)
+            return SimpleNamespace(close=lambda: None)
+        with patch.dict(os.environ, {"GOOGLE_API_KEY": "offline-google", "OPENAI_API_KEY": "offline-openai",
+                                   "OPENAI_BASE_URL": "https://ignored.invalid/v1"}, clear=True), \
+             patch.dict("sys.modules", {"openai": SimpleNamespace(OpenAI=client, AzureOpenAI=client)}):
+            for profile in ("google_test", "personal_openai"):
+                registry = ModelRegistry(force_profile=profile, env_file=None)
+                endpoint = "https://" + profile.replace("_", "-") + ".invalid/v1"
+                registry.config["profiles"][profile].update(model="fixture-model", endpoint=endpoint)
+                registry.get("Cherry")
+                self.assertEqual(clients[-1]["base_url"], endpoint)
+                registry.close()
+
+    def test_legacy_non_secret_env_references_require_migration(self):
+        with TemporaryDirectory() as directory:
+            config_path = Path(directory) / "connections.json"
+            config = ModelRegistry(env_file=None).config
+            config["profiles"]["google_test"]["model_env"] = "GOOGLE_MODEL"
+            config_path.write_text(json.dumps(config), encoding="utf-8")
+            with self.assertRaisesRegex(ConfigurationError, "Move model, endpoint and api_version"):
+                ModelRegistry(config=config_path, env_file=None)
+
+    def test_missing_json_endpoint_never_uses_sdk_or_environment_default(self):
+        with patch.dict(os.environ, {"OPENAI_BASE_URL": "https://ignored.invalid/v1"}, clear=True), \
+             patch.object(ModelRegistry, "_key", side_effect=AssertionError("No credential access")):
+            for profile in ("google_test", "personal_openai", "nvidia_test"):
+                with self.subTest(profile=profile):
+                    registry = ModelRegistry(force_profile=profile, env_file=None)
+                    registry.config["profiles"][profile].update(model="fixture", endpoint="")
+                    with self.assertRaisesRegex(ConfigurationError, "endpoint in connections.json"):
+                        registry.get("Cherry")
+                    self.assertEqual(registry.clients, {})
+
+    def test_azure_v1_uses_the_complete_json_url_without_hidden_suffix(self):
+        clients = []
+        def client(**kwargs):
+            clients.append(kwargs)
+            return SimpleNamespace(close=lambda: None)
+        with patch.dict(os.environ, {"GW_AZURE_OPENAI_KEY": "offline-group"}, clear=True), \
+             patch.dict("sys.modules", {"openai": SimpleNamespace(OpenAI=client, AzureOpenAI=client)}):
+            registry = ModelRegistry(env_file=None)
+            endpoint = "https://assigned-resource.invalid/openai/v1/"
+            registry.config["profiles"]["gw_azure"].update(azure_api="v1", endpoint=endpoint, model="assigned-deployment")
+            registry.get("Cherry")
+            self.assertEqual(clients[0]["base_url"], endpoint)
+            self.assertNotIn("api_version", clients[0])
+            registry.close()
 
     def test_reasoning_content_survives_a_tool_round_trip(self):
         requests = []

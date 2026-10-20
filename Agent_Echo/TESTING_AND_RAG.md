@@ -1,6 +1,6 @@
 # What can be tested without an API, and how to verify RAG
 
-Updated 2026-10-16. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients can load keys, endpoints, deployment/model names and API versions from the private, Git-ignored `.env`. Profile selection stays in `connections.json` or terminal variables. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
+Updated 2026-10-20. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
 
 ## Three different activities
 
@@ -35,13 +35,13 @@ Check `retrieval`, `metadata.query`, filters, `corpus_records`, `returned_count`
 
 ## 3. Configure and probe a real connection
 
-Start with the **primary GW Azure** connection when the professor provides your group's access. Fill in the private `.env` with `GW_AZURE_OPENAI_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT` and `AZURE_OPENAI_API_VERSION=2025-03-01-preview`. Use only your group's assigned resource and key; obtain the deployment name from that resource or the professor rather than guessing from the example notebook. These values are read locally and are not committed to GitHub.
+Start with the **primary GW Azure** connection when the professor provides your group's access. Put only `GW_AZURE_OPENAI_KEY` in the private `.env`. Set the assigned `endpoint`, deployment `model` and `api_version` in the `gw_azure` JSON profile. Use only your group's assigned resource and key; obtain the deployment name from that resource or the professor rather than guessing from the example notebook. API keys stay local and are not committed. JSON contains the non-secret connection settings; unavailable deployment and endpoint values remain empty.
 
 ```powershell
 python .\run_agent.py --check-connection --profile gw_azure
 ```
 
-The explicit `--profile gw_azure` uses the same GW deployment for every role, overriding temporary test assignments. No other provider keys are required, and a missing GW setup never falls back to a trial API. If a collaborator already has the named variables in their terminal/system environment, no `.env` file is needed.
+The explicit `--profile gw_azure` uses the same GW deployment for every role, overriding temporary test assignments. No other provider keys are required, and a missing GW setup never falls back to a trial API. If a collaborator already has the API key in their process environment, no `.env` file is needed; non-secret settings still come from JSON.
 
 For NVIDIA/OpenCode, paste only the keys into the private `.env` beside `connections.json`:
 
@@ -52,7 +52,11 @@ OPENCODE_API_KEY=
 
 The models/endpoints are configured, but live access is not guaranteed. Both NVIDIA profiles use the same `NVIDIA_API_KEY`. On 2026-10-16 OpenCode rejected external free-tier Python requests with HTTP 403 `FreeTierError`, NVIDIA GLM timed out, and NVIDIA Nemotron Ultra returned HTTP 404. Do not present these as working live connections. The OpenCode command below remains an access diagnostic, not a recommendation to use its free tier for Echo. Run the probes separately:
 
-Follow-up: `nvidia_test` now uses `nvidia/nemotron-3-super-120b-a12b`, which the user reports answered a plain text request. Both NVIDIA profiles retain 8192 output tokens, now with `timeout_seconds=120` and `max_retries=0`. The GLM default retains NVIDIA's documented reasoning settings; a plain diagnostic can omit them in memory. Text completion, tool-call confirmation and full analytic quality are distinct checks. Earlier Echo timeouts occurred with 8192 tokens, so the user's separate 20-token experiments do not establish their cause. `finish_reason=length` now produces an explicit output-token-limit error. Private `.env` overrides can set `NVIDIA_MODEL` and `NVIDIA_BASE_URL`; an existing terminal variable still takes precedence.
+Historical follow-up, 2026-10-16: `nvidia_test` used `nvidia/nemotron-3-super-120b-a12b`, which the user reported answered a plain text request. Both NVIDIA profiles retain 8192 output tokens, with `timeout_seconds=120` and `max_retries=0`. The GLM default retains NVIDIA's documented reasoning settings; a plain diagnostic can omit them in memory. Text completion, tool-call confirmation and full analytic quality are distinct checks. Earlier Echo timeouts occurred with 8192 tokens, so the user's separate 20-token experiments do not establish their cause. `finish_reason=length` now produces an explicit output-token-limit error. Those historical model/endpoint overrides have been removed by the configuration standardization; use the JSON profile instead.
+
+Current configuration, 2026-10-20: `nvidia_test` now selects `nvidia/nemotron-3.5-super-vl-120b-a12b` because NVIDIA deprecated the old Super free endpoint. The new model has a documented free Chat Completions endpoint. The October 16 results below belong to the old model; they are not validation of the new model. Edit the JSON profile to change the model; old `.env` and terminal model overrides are not used.
+
+New-model validation, 2026-10-20: the connection probe passed with `nvidia/nemotron-3.5-super-vl-120b-a12b`, using one real tool call for the shared profile. The ignored local log is `reports/logs/20261020_213401_ec97b74226cb.jsonl`. This establishes connection and minimal tool support; a real manager-question evaluation is still separate. The 19 provider-connection tests also passed.
 
 ```powershell
 python .\run_agent.py --check-connection --profile nvidia_test
@@ -64,7 +68,7 @@ Follow-up live probes on 2026-10-16 confirmed one real tool call with Nemotron S
 
 Environment keys take precedence over `.env`. Only live client construction can read that file; inspection and scripted demos do not. New collaborators can copy `.env.example` to a new local `.env` and insert their own keys; `.env` never needs to be shared. If the keys already exist as terminal/system environment variables, no `.env` is required. The shared default is still `gw_azure`, so select a test profile explicitly. These profiles use no paid-model fallback. Check the provider's current free access and limits; the application does not monitor pricing changes.
 
-To test several models in one workflow, assign profiles per role in `connections.json` or use the terminal overrides shown in [README.md](README.md#one-connection-layer-selectable-profiles-per-agent). Run `--show-connections` and then `--check-connection` without `--profile` to preserve those mixed assignments. Supplying `--profile` intentionally forces one model profile for all roles. The probe checks each distinct assigned profile once, even if several roles share it.
+To test several models in one workflow, assign profiles per role in `connections.json`, as shown in [README.md](README.md#one-connection-layer-selectable-profiles-per-agent). Run `--show-connections` and then `--check-connection` without `--profile` to preserve those mixed assignments. Supplying `--profile` intentionally forces one model profile for all roles. The probe checks each distinct assigned profile once, even if several roles share it.
 
 Inspect assignments first; this does not test the API:
 
@@ -72,24 +76,21 @@ Inspect assignments first; this does not test the API:
 python .\run_agent.py --show-connections --profile google_test
 ```
 
-For Google, set the model name available to your account and securely enter the key in the same terminal:
+For Google, set the model and endpoint in the `google_test` JSON profile, then securely enter only the key in the terminal:
 
 ```powershell
-$env:GOOGLE_MODEL = "YOUR-TOOL-CAPABLE-MODEL"
 $env:GOOGLE_API_KEY = [System.Net.NetworkCredential]::new("", (Read-Host "Google API key" -AsSecureString)).Password
 python .\run_agent.py --check-connection --profile google_test
 ```
 
-For the assigned GW Azure resource:
+For the assigned GW Azure resource, configure `profiles.gw_azure.endpoint` and `model` in JSON first:
 
 ```powershell
-$env:AZURE_OPENAI_ENDPOINT = "https://YOUR-ASSIGNED-RESOURCE.openai.azure.com/"
-$env:AZURE_OPENAI_DEPLOYMENT = "YOUR-RESPONSES-CAPABLE-DEPLOYMENT"
 $env:GW_AZURE_OPENAI_KEY = [System.Net.NetworkCredential]::new("", (Read-Host "GW Azure API key" -AsSecureString)).Password
 python .\run_agent.py --check-connection --profile gw_azure
 ```
 
-For personal OpenAI, set `OPENAI_MODEL` and `OPENAI_API_KEY`, and select `--profile personal_openai`. Do not guess deployment availability from the existence of a profile or university account.
+For personal OpenAI, set `profiles.personal_openai.model` and its explicit endpoint in JSON, put `OPENAI_API_KEY` in `.env` or the process environment, and select `--profile personal_openai`. Do not guess deployment availability from the existence of a profile or university account.
 
 The probe makes one actual minimal function call per distinct selected generation profile. A shared profile is tested once and mapped to each role. It supplies no employee data. It does not test embeddings or prove that any analytic answer is correct. No connection was exercised against a real provider during this implementation update.
 
@@ -103,15 +104,14 @@ Omit `--demo`: this is essential. All five model roles use the selected profile.
 
 ## 5. Test semantic/hybrid RAG aligned with the classroom notebook
 
-Configure an embedding model actually available to the same Google account:
+Configure `profiles.google_embeddings.model` in `connections.json` with an embedding model actually available to the same Google account:
 
 ```powershell
-$env:GOOGLE_EMBEDDING_MODEL = "YOUR-AVAILABLE-TEXT-EMBEDDING-MODEL"
 python .\inspect_rag.py --manager M14 --query "recognition of work contributed to another team" --retrieval semantic --embedding-profile google_embeddings --limit 4 --output .\reports\semantic_retrieval.json
 python .\run_agent.py original --manager M14 --start 2026-07-01 --end 2026-09-30 --profile google_test --retrieval hybrid --embedding-profile google_embeddings --question "What recognition metrics and anonymous comments support a manager follow-up?" --output .\reports\hybrid_review.json
 ```
 
-Azure uses `gw_embeddings` plus `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`; personal OpenAI uses `openai_embeddings` plus `OPENAI_EMBEDDING_MODEL`. Start with one quarter: initial document embedding can make many requests and sends scoped passage text to the selected provider. Local caches reuse document vectors but query embeddings still require the provider. There is no automatic semantic-to-lexical fallback.
+Azure uses the `gw_embeddings` JSON profile; personal OpenAI uses `openai_embeddings`. Set the corresponding `model` and `endpoint` in JSON. Start with one quarter: initial document embedding can make many requests and sends scoped passage text to the selected provider. Local caches reuse document vectors but query embeddings still require the provider. There is no automatic semantic-to-lexical fallback.
 
 ## How to demonstrate RAG rather than just claim it
 
