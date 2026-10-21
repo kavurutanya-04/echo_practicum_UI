@@ -46,6 +46,10 @@ For a standard survey trend use run_metric(metric="survey_trend", dimension="Rec
 or another exact dimension. For new questions generate SQL with execute_sql.
 The data is already physically restricted to the caller's roster: manager_id is not an Employee_ID.
 Stop querying once the requested metrics have been obtained. Respect the closing-turn instruction.
+Prepared evidence may cover only part of the request. Compare its metric arguments with
+ALL requested dimensions; use the available tools for missing metrics or custom calculations.
+Use numeric_coverage as a task-status record, not proof that unqueried data does not exist.
+Identical metric requests within this workflow reuse their original rows and citation ID.
 Do not render charts or choose presentation layouts; those belong to Lime.
 """
 
@@ -65,9 +69,43 @@ class CherryAgent(Specialist):
             function_tool("execute_sql", "Execute one bounded read-only SQLite query on the scoped data copy.",
                           {"sql": {"type": "string", "description": "A SELECT query; WITH/CTEs are supported."}}),
         ]
+        self.metric_cache = {}
+        self.metric_errors = set()
         super().__init__("Cherry", INSTRUCTIONS, model, scope, tools,
             {"describe_schema": self.reader.describe, "execute_sql": self.reader.execute,
-             "run_metric": MetricCatalog(self.reader).run}, mode, budget)
+             "run_metric": self.run_metric}, mode, budget)
+
+    def run_metric(self, metric, dimension=None):
+        key = (metric, dimension.strip().casefold() if isinstance(dimension, str) else dimension)
+        if key not in self.metric_cache:
+            try:
+                self.metric_cache[key] = MetricCatalog(self.reader).run(metric, dimension)
+                self.metric_errors.discard(key)
+            except (ValueError, TypeError):
+                self.metric_errors.add(key)
+                raise
+        return self.metric_cache[key]
+
+    def has_pending_work(self, evidence):
+        return any(item["status"] in {"pending", "error"}
+                   for item in self.numeric_coverage(evidence))
+
+    def numeric_coverage(self, evidence):
+        result = []
+        for request in getattr(self, "required_metrics", []):
+            matching = next((item for item in evidence if item.get("metric_id") == request["metric"]
+                and str(item.get("metric_arguments", {}).get("dimension") or "").strip().casefold()
+                == str(request["dimension"] or "").strip().casefold()), None)
+            key = (request["metric"], request["dimension"].strip().casefold() if isinstance(request["dimension"], str) else None)
+            if matching is None:
+                status = "error" if key in getattr(self, "metric_errors", set()) else "pending"
+            elif matching.get("truncated"):
+                status = "error"
+            else:
+                status = "with_results" if matching.get("rows") else "no_rows"
+            result.append({**request, "status": status,
+                           "citation_id": matching.get("citation_id") if matching else None})
+        return result
 
     def close(self):
         self.reader.close()

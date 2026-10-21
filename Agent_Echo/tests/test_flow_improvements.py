@@ -13,6 +13,7 @@ from agents.model import ModelTurn, ScriptedDemoModel
 from agents.runtime import Specialist, function_tool, RunBudget, AgentRunError, AgentResult, reject_calls
 from agents.tools import SQLReader
 from agents.zero_sugar import DIMENSIONS
+from agents.cherry import CherryAgent
 from test_agents import SequenceModel, tool_turn
 
 
@@ -34,10 +35,12 @@ def tables():
 def plan(numbers=True, text=False, chart=False, question=None, metric="none", dimension=""):
     return tool_turn("submit_plan", {"needs_numbers": numbers, "needs_text": text,
                                     "include_chart": chart, "clarification_question": question,
-                                    "metric": metric, "dimension": dimension})
+                                    "metrics": [] if metric == "none" else [{"metric": metric, "dimension": dimension or None}]})
 
 
 class FixtureCherry(Specialist):
+    numeric_coverage = CherryAgent.numeric_coverage
+    has_pending_work = CherryAgent.has_pending_work
     def __init__(self, database, scope, model, mode, budget=None):
         self.reader = SQLReader(tables(), scope)
         self.metric_calls = 0
@@ -207,7 +210,7 @@ class OutcomeTests(unittest.TestCase):
             agent.budget = RunBudget()
             try:
                 result = agent.plan("Show Recognition scores by quarter.")
-                self.assertEqual(result["dimension"], "Recognition")
+                self.assertEqual(result["metrics"][0]["dimension"], "Recognition")
                 self.assertEqual(agent.specialists["Cherry"].metric_calls, 0)
             finally:
                 agent.close()

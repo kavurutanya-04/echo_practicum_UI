@@ -9,6 +9,7 @@ from .data_access import ScopedData
 from .tools import SQLReader
 from .execution_log import record, error_summary
 from .findings import cited_findings, clarification_question
+from .validation import ValidationError, repair_feedback
 
 DIMENSIONS = ("Accuracy", "Relevance", "Completeness", "Clarity", "Instruction Following", "Usefulness", "Safety / Appropriateness")
 INSTRUCTIONS = """You are ZeroSugar, Echo's independent verifier. Evaluate the candidate
@@ -54,6 +55,9 @@ Specify repair_targets: Cherry for calculations, Vanilla for text evidence, Lime
 Original for synthesis/presentation, or clarify for a necessary manager clarification.
 All output is English. Do not reject English merely because the question uses another language.
 Only propose clarification of the task or metric; never ask for wider access or identities.
+numeric_coverage contains code-generated task states. Pending/error is unqueried or unresolved,
+not proof that data does not exist. Check the original question for omitted comparisons even
+if the plan itself omitted a needed dimension. Route missing numerical work to Cherry.
 """
 
 
@@ -167,48 +171,54 @@ class ZeroSugarAgent:
         basic = {"decision", "ratings", "issues", "uncertainty"}
         extended = basic | {"finding_reviews", "repair_targets", "clarification_question"}
         if not isinstance(report, dict) or set(report) not in (basic, extended):
-            raise ValueError("Review fields differ from the required review schema.")
-        if report["decision"] not in {"accept", "revise"} or not isinstance(report["uncertainty"], str):
-            raise ValueError("Invalid review decision or uncertainty.")
+            raise ValidationError("review_fields", "review", "Review fields differ from the required review schema.")
+        if not isinstance(report["decision"], str) or report["decision"] not in {"accept", "revise"} or not isinstance(report["uncertainty"], str):
+            raise ValidationError("review_decision", "decision/uncertainty", "Invalid review decision or uncertainty.")
         if not isinstance(report["ratings"], dict) or set(report["ratings"]) != set(DIMENSIONS):
-            raise ValueError("All seven rubric dimensions are required.")
-        for rating in report["ratings"].values():
+            raise ValidationError("rating_dimensions", "ratings", "All seven rubric dimensions are required.")
+        for name, rating in report["ratings"].items():
             if not isinstance(rating, dict) or set(rating) != {"score", "rationale"}:
-                raise ValueError("Each rating requires a score and rationale.")
+                raise ValidationError("rating_fields", "ratings." + name, "Each rating requires a score and rationale.")
             if type(rating["score"]) is not int or not 1 <= rating["score"] <= 3 or not isinstance(rating["rationale"], str):
-                raise ValueError("Scores must be integers from 1 to 3, with a rationale.")
+                raise ValidationError("rating_value", "ratings." + name, "Scores must be integers from 1 to 3, with a rationale.")
         if not isinstance(report["issues"], list) or any(not isinstance(issue, str) for issue in report["issues"]):
-            raise ValueError("Review issues must be a list of strings.")
+            raise ValidationError("review_issues", "issues", "Review issues must be a list of strings.")
         return report
 
     def validate_findings(self, report, blocks, evidence):
         if "finding_reviews" not in report:
             if self.mode == "live":
-                raise ValueError("Live reviews must cover every finding and provide repair targets.")
+                raise ValidationError("finding_reviews_required", "finding_reviews", "Live reviews must cover every finding and provide repair targets.")
             return []
         reviews = report["finding_reviews"]
         lookup = {b["finding_id"]: b for b in blocks}
         if not isinstance(reviews, list) or len(reviews) != len(blocks):
-            raise ValueError("Review every finding exactly once.")
+            raise ValidationError("finding_coverage", "finding_reviews", "Review every finding exactly once.",
+                expected_count=len(blocks), actual_count=len(reviews) if isinstance(reviews, list) else 0)
         targets = report["repair_targets"]
-        if not isinstance(targets, list) or any(t not in {"Cherry", "Vanilla", "Lime", "Original", "clarify"} for t in targets):
-            raise ValueError("Invalid repair targets.")
-        question = clarification_question(report["clarification_question"])
+        if not isinstance(targets, list) or any(not isinstance(t, str) or t not in {"Cherry", "Vanilla", "Lime", "Original", "clarify"} for t in targets):
+            raise ValidationError("repair_targets", "repair_targets", "Invalid repair targets.")
+        try:
+            question = clarification_question(report["clarification_question"])
+        except ValueError:
+            raise ValidationError("clarification_question", "clarification_question", "Clarification must be a bounded question or null.") from None
         report["clarification_question"] = question
         if "clarify" in targets and question is None:
-            raise ValueError("A clarification repair requires an actual question.")
+            raise ValidationError("clarification_required", "clarification_question", "A clarification repair requires an actual question.")
         seen, checked = set(), []
-        for review in reviews:
+        for index, review in enumerate(reviews):
             if not isinstance(review, dict) or set(review) != {"finding_id", "decision", "citation_ids", "reason"}:
-                raise ValueError("Finding review fields are invalid.")
+                raise ValidationError("finding_fields", "finding_reviews", "Finding review fields are invalid.", item_index=index)
             key = review["finding_id"]
-            if key not in lookup or key in seen or review["decision"] not in {"supported", "revise"}:
-                raise ValueError("Unknown, repeated or invalid finding review.")
+            if not isinstance(key, str) or key not in lookup or key in seen or not isinstance(review["decision"], str) or review["decision"] not in {"supported", "revise"}:
+                raise ValidationError("finding_identity", "finding_reviews.finding_id/decision", "Unknown, repeated or invalid finding review.", item_index=index)
             block = lookup[key]
-            if not isinstance(review["citation_ids"], list) or sorted(review["citation_ids"]) != block["citation_ids"]:
-                raise ValueError("Finding citations must match the original block exactly.")
+            if not isinstance(review["citation_ids"], list) or any(not isinstance(c, str) for c in review["citation_ids"]) \
+                    or sorted(review["citation_ids"]) != block["citation_ids"]:
+                raise ValidationError("finding_citations", "finding_reviews.citation_ids", "Finding citations must match the original block exactly.",
+                                      item_index=index, finding_id=key)
             if not isinstance(review["reason"], str) or not 1 <= len(review["reason"]) <= 1500:
-                raise ValueError("Explain the finding decision.")
+                raise ValidationError("finding_reason", "finding_reviews.reason", "Explain the finding decision.", item_index=index, finding_id=key)
             subset = [item for item in evidence if item.get("citation_id") in block["citation_ids"]]
             checks = self.audit(block["text"], subset)
             if evidence and not block["citation_ids"]:
@@ -221,12 +231,13 @@ class ZeroSugarAgent:
             seen.add(key)
         return checked
 
-    def review(self, question, answer, evidence, visualization=None):
+    def review(self, question, answer, evidence, visualization=None, numeric_coverage=None):
         checks = self.audit(answer, evidence, visualization)
+        unresolved_numeric = any(item["status"] in {"pending", "error"} for item in numeric_coverage or [])
         blocks = cited_findings(answer)
         payload = json.dumps({"question": question, "candidate_answer": answer,
             "evidence": evidence, "visualization": visualization, "deterministic_issues": checks,
-            "findings": blocks}, ensure_ascii=False)
+            "findings": blocks, "numeric_coverage": numeric_coverage or []}, ensure_ascii=False)
         if len(payload) > 150_000:
             raise ValueError("Review evidence is too large; narrow the question or query results.")
         history = [{"role": "user", "content": payload}]
@@ -247,8 +258,14 @@ class ZeroSugarAgent:
             except (ValueError, TypeError) as error:
                 record("structured_response_repair", agent="ZeroSugar", **error_summary(error))
                 history.append({"type": "function_call_output", "call_id": call.call_id,
-                                "output": json.dumps({"error": str(error)})})
+                                "output": json.dumps(repair_feedback(error))})
                 continue
+            if unresolved_numeric:
+                # Missing work requests a localized repair; it is not an integrity error
+                # that invalidates independently reviewed findings for other metrics.
+                report["issues"] = list(dict.fromkeys(report["issues"] + [
+                    "Some planned numeric requests remain unresolved; do not infer absent data."]))
+                report["repair_targets"] = list(dict.fromkeys(report.get("repair_targets", []) + ["Cherry"]))
             must_revise = bool(checks or report["issues"]) or any(rating["score"] == 1 for rating in report["ratings"].values())
             must_revise = must_revise or report["ratings"]["Accuracy"]["score"] < 3 or report["ratings"]["Safety / Appropriateness"]["score"] < 3
             must_revise = must_revise or any(f["status"] != "supported" for f in findings)

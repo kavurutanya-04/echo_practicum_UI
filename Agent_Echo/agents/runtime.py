@@ -112,6 +112,9 @@ class Specialist:
         history.extend(context)
         evidence, trace = list(initial_evidence), []
         self.last_result.evidence, self.last_result.tool_trace = evidence, trace
+        if hasattr(self, "numeric_coverage"):
+            history.append({"role": "user", "content": json.dumps(
+                {"numeric_coverage": self.numeric_coverage(evidence)})})
         if evidence:
             history.append({"role": "user", "content":
                 "The application has already retrieved the following evidence for this task. "
@@ -130,7 +133,8 @@ class Specialist:
         last_action = "no completed turn"
         cache, close_next = {}, False
         for step in range(7):
-            closing = step == 6 or close_next or len(trace) >= 10 or budget.remaining()["model_calls"] <= (2 if self.name == "Original" else 3)
+            pending_work = getattr(self, "has_pending_work", lambda evidence: False)(evidence)
+            closing = step == 6 or (close_next and not pending_work) or len(trace) >= 10 or budget.remaining()["model_calls"] <= (2 if self.name == "Original" else 3)
             record("agent_turn", agent=self.name, turn=step + 1, closing=closing, remaining=budget.remaining())
             budget.consume("model")
             turn_instructions = instructions + f"\nYou have {7-step} turns remaining, including your final answer."
@@ -147,6 +151,11 @@ class Specialist:
             if not turn.calls:
                 if not turn.text.strip():
                     raise RuntimeError("The agent returned no answer.")
+                if pending_work and not closing:
+                    history.append({"role": "user", "content": "Some requested metrics remain unqueried. "
+                        "Use the available tools to complete them; do not claim that unqueried data does not exist. " +
+                        json.dumps({"numeric_coverage": self.numeric_coverage(evidence)})})
+                    continue
                 self.last_result.diagnostics = {"last_unverified_text": turn.text}
                 normalized = normalize_citations(turn.text, known)
                 if normalized != turn.text:
@@ -164,7 +173,10 @@ class Specialist:
                         "Ground findings in those sources; do not fabricate citations. Available IDs: " + ", ".join(sorted(known))})
                     continue
                 record("agent_finished", agent=self.name, evidence_count=len(evidence))
-                return AgentResult(self.name, question, turn.text, self.scope.__dict__, evidence, trace, self.mode)
+                result = AgentResult(self.name, question, turn.text, self.scope.__dict__, evidence, trace, self.mode)
+                if hasattr(self, "numeric_coverage"):
+                    result.diagnostics["numeric_coverage"] = self.numeric_coverage(evidence)
+                return result
             if len(turn.calls) > 4 or len(trace) + len(turn.calls) > 12:
                 raise RuntimeError(f"{self.name} agent tool-call budget exceeded; no unverified answer was returned.")
             last_action = "calling tools: " + ", ".join(

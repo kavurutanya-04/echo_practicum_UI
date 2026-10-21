@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import time
 import uuid
+from .validation import ValidationError, validation_details
 
 _active = ContextVar("echo_execution_log", default=None)
 
@@ -40,6 +41,8 @@ def error_summary(error):
             category = name
             break
     result = {"error_type": type(error).__name__, "error_category": category}
+    if isinstance(error, (ValidationError, json.JSONDecodeError)):
+        result.update(validation_details(error))
     status = re.search(r"http ([1-5][0-9]{2})\b", message)
     if status:
         result.update(error_category="provider_http", http_status=int(status[1]))

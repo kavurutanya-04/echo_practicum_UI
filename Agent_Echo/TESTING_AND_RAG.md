@@ -94,6 +94,37 @@ For personal OpenAI, set `profiles.personal_openai.model` and its explicit endpo
 
 The probe makes one actual minimal function call per distinct selected generation profile. A shared profile is tested once and mapped to each role. It supplies no employee data. It does not test embeddings or prove that any analytic answer is correct. No connection was exercised against a real provider during this implementation update.
 
+### APInex SDK trial
+
+The optional `apinex_test` profile uses the existing OpenAI-compatible Chat Completions adapter, base URL `https://api.apinex.bond/v1`, and model ID `free/gpt-6-luna` from the user's APInex setup page. The SDK appends `/chat/completions`; do not add that path to the base URL. APInex's [public API reference](https://apinex.bond/developers) documents this endpoint. This is an Echo Python integration; the site's Codex `/responses` instructions configure a different client.
+
+Put only a fresh key in the ignored local `.env` beside `connections.json`:
+
+```dotenv
+APINEX_API_KEY=your_new_key_here
+```
+
+Keep the model and endpoint in `connections.json`. Revoke any key exposed in chat before entering its replacement locally. Inspect the profile without API access, then run the tool-call probe after adding the key:
+
+```powershell
+python .\run_agent.py --show-connections --profile apinex_test
+python .\run_agent.py --check-connection --profile apinex_test
+```
+
+The setup page supplied on 2026-10-20 states 5 requests/minute for free access and 30 with a subscription. The user selected one model, Luna, for all five roles and a conservative target of 3 requests/minute. `apinex_test` sets `request_interval_seconds=20` and `rate_limit_retries=2`. One process-wide pacer is shared by roles and registries using the same endpoint and credential, including HTTP 429 retries. It spaces actual request starts, honors a valid `Retry-After` (seconds or HTTP date) when longer than its fallback, and otherwise backs off 20 then 40 seconds before its two retries. Exhaustion still reports the existing safe HTTP error; the cooldown remains shared. SDK `max_retries=0` prevents hidden retries from bypassing pacing. Execution API-call counters include these actual retry attempts. Wait/retry events record timing only, without keys or response payloads. Separate terminal processes or other applications using the key are not coordinated by this in-process pacer.
+
+The existing workflow defaults remain 32 model turns, 48 local tool calls and 300 seconds elapsed time; specialist loops also have their own turn bounds. These prevent runaway loops and are distinct from requests/minute. HTTP retries count in execution API-call totals, not as new logical workflow turns. Deliberate pacing waits consume elapsed time. For a longer Original/Vanilla run, explicitly add `--run-seconds 900` (15 minutes); this does not increase the model-turn limit. Time limits are checked at budget checkpoints, not by forcibly cancelling an in-flight request or wait.
+
+The minimal probe checks one real tool call, not analytical quality or sustained throughput. On 2026-10-20, the local connection probe confirmed one real Luna tool call. The first medium analytic run (`reports/apinex_prueba_media.json`) completed 17 API calls but failed because no valid structured verifier review was obtained; Vanilla also failed quote validation. The shared default remains `gw_azure`; `--profile apinex_test` selects Luna for every role in that run. Its output allowance is now 6000 tokens per request for all roles, raised from 3500 to allow more space for classifications and structured reviews. This is a maximum, not a requested response size; support and analytical quality after the corrections require a separate live test.
+
+The 2026-10-20 workflow corrections support multiple planned metrics, retain Cherry's query tools, expose numeric task coverage, allow literal sentiment excerpts up to 400 characters, repair only invalid records within a classification batch, and identify structured review errors by field/code. Run the focused regression checks without a model or API:
+
+```powershell
+python -m unittest discover -s tests -p test_workflow_repairs.py -v
+```
+
+Then run the full suite. Prescribed model responses test software contracts, not model reasoning. For a real follow-up, repeat the same original medium question/scope with `--profile apinex_test --run-seconds 1000` and a new output filename, preserving the earlier failed artifact. Run only one terminal process per key because pacing is shared within a process.
+
 ## 4. Run a live answer with lexical RAG
 
 ```powershell

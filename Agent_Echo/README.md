@@ -131,6 +131,8 @@ python .\run_agent.py original --manager M14 --start 2026-07-01 --end 2026-09-30
 
 ## Test NVIDIA and OpenCode with private local keys
 
+For the optional single-model APInex/Luna workflow, private key setup, pacing and verified access status, see [APInex SDK trial](TESTING_AND_RAG.md#apinex-sdk-trial). `--profile apinex_test` uses Luna for every role with a shared 20-second request interval, bounded HTTP 429 retries and a 6000-token output maximum.
+
 Open the local `.env` in this directory and paste each key after its equals sign:
 
 ```dotenv

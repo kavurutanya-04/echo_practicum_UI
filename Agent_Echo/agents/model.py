@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 import json
 from .execution_log import record
+from .request_pacing import retry_after_seconds
 
 
 class ConfigurationError(RuntimeError):
@@ -85,8 +86,10 @@ class ResponsesModel:
 class ChatModel:
     """Chat Completions adapter with provider tool-call metadata preserved."""
 
-    def __init__(self, client, model, max_output_tokens=3500, reasoning_effort=None, clear_thinking=None):
+    def __init__(self, client, model, max_output_tokens=3500, reasoning_effort=None, clear_thinking=None,
+                 request_pacer=None, rate_limit_retries=0):
         self.client, self.model = client, model
+        self.request_pacer, self.rate_limit_retries = request_pacer, rate_limit_retries
         self.max_output_tokens = max_output_tokens
         self.request_options = {}
         if reasoning_effort is not None:
@@ -100,7 +103,6 @@ class ChatModel:
         self.request_count, self.successful_requests = 0, 0
 
     def respond(self, instructions, history, tools, require_tool=False):
-        self.request_count += 1
         messages = [{"role": "system", "content": instructions}]
         for item in history:
             if item.get("type") == "chat_message":
@@ -120,10 +122,22 @@ class ChatModel:
             options.update(tools=definitions, tool_choice="required" if require_tool else "auto")
         else:
             options["tool_choice"] = "none"
-        try:
-            response = self.client.chat.completions.create(**options)
-        except Exception as error:
-            raise request_failure(error) from None
+        for attempt in range(self.rate_limit_retries + 1):
+            if self.request_pacer:
+                self.request_pacer.acquire()
+            self.request_count += 1
+            try:
+                response = self.client.chat.completions.create(**options)
+                break
+            except Exception as error:
+                if getattr(error, "status_code", None) != 429 or not self.request_pacer:
+                    raise request_failure(error) from None
+                delay = retry_after_seconds(error, max(20, self.request_pacer.interval) * 2 ** attempt)
+                # Preserve the cooldown even when this call has no retries left.
+                self.request_pacer.defer(delay)
+                if attempt == self.rate_limit_retries:
+                    raise request_failure(error) from None
+                record("request_rate_limit_retry", retry=attempt + 1, seconds=round(delay, 3), http_status=429)
         finish_reason = response.choices[0].finish_reason if response.choices else "no_choices"
         if finish_reason not in {"stop", "tool_calls"}:
             safe_reason = finish_reason if finish_reason in {
@@ -154,7 +168,8 @@ class ScriptedDemoModel:
 
     def respond(self, instructions, history, tools, require_tool=False):
         if self.agent_name == "Original" and tools and tools[0]["name"] == "submit_plan":
-            plan = {"needs_numbers": True, "needs_text": True, "include_chart": True, "clarification_question": None}
+            plan = {"needs_numbers": True, "needs_text": True, "include_chart": True,
+                    "clarification_question": None, "metrics": []}
             call = ToolCall("demo-plan", "submit_plan", json.dumps(plan))
             return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id,
                 "name": call.name, "arguments": call.arguments}])

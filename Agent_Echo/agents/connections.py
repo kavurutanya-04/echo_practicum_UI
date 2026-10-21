@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from .model import ConfigurationError, ResponsesModel, ChatModel
 from .execution_log import logged_model
+from .request_pacing import shared_pacer
 
 AGENTS = ("Original", "Cherry", "Vanilla", "Lime", "ZeroSugar")
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "connections.json"
@@ -97,6 +98,14 @@ class ModelRegistry:
             raise ConfigurationError("timeout_seconds must be a number greater than 0 and at most 600.")
         if type(retries) is not int or not 0 <= retries <= 3:
             raise ConfigurationError("max_retries must be an integer from 0 to 3.")
+        interval = profile.get("request_interval_seconds", 0)
+        rate_retries = profile.get("rate_limit_retries", 0)
+        if type(interval) not in {int, float} or not 0 <= interval <= 3600:
+            raise ConfigurationError("request_interval_seconds must be a number from 0 to 3600.")
+        if type(rate_retries) is not int or not 0 <= rate_retries <= 3:
+            raise ConfigurationError("rate_limit_retries must be an integer from 0 to 3.")
+        if (interval or rate_retries) and (profile["api"] != "chat" or not interval or retries):
+            raise ConfigurationError("Request pacing requires Chat Completions, a positive interval and max_retries=0.")
         key = self._key(profile["key_env"])
         if not key:
             raise ConfigurationError("Missing profile configuration; set variable: " + profile["key_env"] +
@@ -124,7 +133,10 @@ class ModelRegistry:
                 self.models[name] = ChatModel(client, model_name,
                     max_output_tokens=profile.get("max_output_tokens", 3500),
                     reasoning_effort=profile.get("reasoning_effort"),
-                    clear_thinking=profile.get("clear_thinking"))
+                    clear_thinking=profile.get("clear_thinking"),
+                    request_pacer=shared_pacer(profile["endpoint"], self._key(profile["key_env"]),
+                        profile["request_interval_seconds"]) if profile.get("request_interval_seconds") else None,
+                    rate_limit_retries=profile.get("rate_limit_retries", 0))
             else:
                 self.models[name] = ResponsesModel(client, model_name)
         # A shared adapter is stateless: conversation history is held by each agent run.

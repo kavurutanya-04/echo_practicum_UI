@@ -51,6 +51,10 @@ Lime is invoked only for a planned chart; ZeroSugar reviews the released package
 Do not invent numerical targets. Any suggested target must be explicitly a proposal,
 not a measurement or source-derived threshold. Write short cited finding blocks so each
 can be reviewed independently. If evidence is incomplete, state which requested part remains open.
+Numeric task status is supplied by code in numeric_coverage. A pending/error request is
+not evidence of absent data. Ask Cherry only for missing work and reuse completed results.
+You coordinate these tasks and synthesize their evidence; do not repeat Cherry's calculations
+or replace ZeroSugar's independent review. Cite each substantive block using [citation_id].
 """
 
 
@@ -74,9 +78,11 @@ class OriginalAgent(Specialist):
         tools = [function_tool("submit_plan", "Choose only the specialists needed by this question.", {
             "needs_numbers": {"type": "boolean"}, "needs_text": {"type": "boolean"},
             "include_chart": {"type": "boolean"}, "clarification_question": {"type": ["string", "null"]},
-            "metric": {"type": "string", "enum": ["none", "cross_team_contributions", "survey_trend"]},
-            "dimension": {"type": "string", "description":
-                "Survey topic such as Recognition or Workload, never a time grouping such as quarter. Empty for other metrics."}})]
+            "metrics": {"type": "array", "maxItems": 32, "items": {"type": "object", "properties": {
+                "metric": {"type": "string", "enum": ["cross_team_contributions", "survey_trend"]},
+                "dimension": {"type": ["string", "null"], "description":
+                    "Exact survey topic for survey_trend; null for cross-team counts. Never a time grouping."}},
+                "required": ["metric", "dimension"], "additionalProperties": False}}})]
         history = [{"role": "user", "content": json.dumps({"question": question, "scope": self.scope.__dict__})}]
         for _ in range(2):
             self.budget.consume("model")
@@ -88,10 +94,10 @@ class OriginalAgent(Specialist):
                 "scores and metric limitations needs Cherry only; it does not request comment sentiment. "
                 "The backend already restricts the data to the supplied manager's roster and dates; those details "
                 "do not need clarification. Charts are optional; request one only if asked for or useful to compare indicators. "
-                "Choose metric=cross_team_contributions for distinct cross-team totals and recognition coverage, "
-                "metric=survey_trend for standard survey trends with the exact dimension, or metric=none for new "
-                "calculations/breakdowns. dimension is an empty string except for survey_trend. A chosen metric "
-                "must fully answer the numeric part; the application executes it before Cherry interprets it. "
+                "Return metrics as a list of ALL needed catalog requests. Include one survey_trend entry per exact "
+                "dimension: comparing Recognition with Manager support needs TWO entries. Cross-team counts use "
+                "cross_team_contributions with dimension=null. Use metrics=[] for custom SQL or no numeric work. "
+                "The application prepares these metrics; Cherry keeps tools to complete additional calculations. "
                 "Do not widen access. All output is English. clarification_question=null unless a necessary task "
                 "detail prevents proceeding; ask about the task, never credentials, anonymous identities or wider access.", history, tools, True)
             history.extend(turn.output_items)
@@ -101,35 +107,46 @@ class OriginalAgent(Specialist):
             call = turn.calls[0]
             try:
                 plan = json.loads(call.arguments)
-                if isinstance(plan, dict):
-                    plan.setdefault("metric", "none")
-                    plan.setdefault("dimension", "")
-                if not isinstance(plan, dict) or set(plan) != {"needs_numbers", "needs_text", "include_chart", "clarification_question", "metric", "dimension"}:
+                if isinstance(plan, dict) and "metrics" not in plan and self.mode != "live":
+                    # Read older scripted fixtures; live plans must use the current schema.
+                    metric, dimension = plan.pop("metric", "none"), plan.pop("dimension", "")
+                    plan["metrics"] = [] if metric == "none" else [{"metric": metric, "dimension": dimension or None}]
+                if not isinstance(plan, dict) or set(plan) != {"needs_numbers", "needs_text", "include_chart", "clarification_question", "metrics"}:
                     raise ValueError("Plan fields differ from the required schema.")
                 if any(type(plan[k]) is not bool for k in ("needs_numbers", "needs_text", "include_chart")):
                     raise ValueError("Plan flags must be booleans.")
                 if plan["include_chart"] and not plan["needs_numbers"]:
                     raise ValueError("A chart requires numeric evidence.")
-                if plan["metric"] not in {"none", "cross_team_contributions", "survey_trend"} or not isinstance(plan["dimension"], str):
-                    raise ValueError("Invalid planned metric.")
-                if plan["metric"] != "none" and not plan["needs_numbers"]:
+                if not isinstance(plan["metrics"], list) or len(plan["metrics"]) > 32:
+                    raise ValueError("metrics must be a list of at most 32 catalog requests.")
+                if plan["metrics"] and not plan["needs_numbers"]:
                     raise ValueError("A metric requires the numeric specialist.")
-                if plan["metric"] == "survey_trend" and not 1 <= len(plan["dimension"].strip()) <= 100:
-                    raise ValueError("A survey trend needs one exact dimension.")
+                for request in plan["metrics"]:
+                    if not isinstance(request, dict) or set(request) != {"metric", "dimension"} \
+                            or request["metric"] not in {"cross_team_contributions", "survey_trend"}:
+                        raise ValueError("Invalid planned metric request.")
+                    if request["metric"] == "survey_trend":
+                        if not isinstance(request["dimension"], str) or not 1 <= len(request["dimension"].strip()) <= 100:
+                            raise ValueError("A survey trend needs one exact dimension per request.")
+                    elif request["dimension"] is not None:
+                        raise ValueError("Cross-team counts require dimension=null.")
                 q = clarification_question(plan["clarification_question"])
                 plan["clarification_question"] = q
-                if plan["metric"] == "survey_trend" and q is None:
+                if any(r["metric"] == "survey_trend" for r in plan["metrics"]) and q is None:
                     self.budget.consume("tool")
                     dimensions = self.specialist("Cherry").reader.describe()["survey_dimensions"]
-                    matches = [d for d in dimensions if d.casefold() == plan["dimension"].strip().casefold()]
-                    if dimensions and not matches:
-                        raise ValueError("Unknown survey dimension. Choose the topic requested by the user from: " +
-                                         ", ".join(dimensions) + ". A quarter is a time grouping, not a survey dimension.")
-                    if matches:
-                        plan["dimension"] = matches[0]
+                    for request in plan["metrics"]:
+                        if request["metric"] != "survey_trend":
+                            continue
+                        matches = [d for d in dimensions if d.casefold() == request["dimension"].strip().casefold()]
+                        if dimensions and not matches:
+                            raise ValueError("Unknown survey dimension. Choose the topic requested by the user from: " +
+                                             ", ".join(dimensions) + ". A quarter is a time grouping, not a survey dimension.")
+                        request["dimension"] = matches[0] if matches else request["dimension"].strip()
+                plan["metrics"] = list({(r["metric"], r["dimension"]): r for r in plan["metrics"]}.values())
                 record("workflow_plan", agent="Original", needs_numbers=plan["needs_numbers"],
                        needs_text=plan["needs_text"], include_chart=plan["include_chart"], needs_clarification=q is not None,
-                       metric=plan["metric"])
+                       metric_count=len(plan["metrics"]))
                 return plan
             except (ValueError, TypeError) as error:
                 record("structured_response_repair", agent="Original", stage="planning", **error_summary(error))
@@ -158,25 +175,30 @@ class OriginalAgent(Specialist):
         try:
             child = self.specialist(name)
             prepared = []
-            if name == "Cherry" and self.planned_metric and self.repair_round == 0:
-                metric, dimension = self.planned_metric
-                self.budget.consume("tool")
-                prepared = [child.handlers["run_metric"](metric=metric, dimension=dimension)]
-                record("prepared_metric", agent="Cherry", metric_id=metric, remaining=self.budget.remaining())
-            saved_definitions = child.definitions
-            try:
-                if prepared:
-                    child.definitions = []
-                result = child.run(question, initial_evidence=prepared)
-            finally:
-                child.definitions = saved_definitions
+            if name == "Cherry":
+                child.required_metrics = self.planned_metrics
+                if self.repair_round == 0:
+                    for request in self.planned_metrics:
+                        key = (request["metric"], request["dimension"])
+                        if key not in self.prepared_metrics:
+                            self.budget.consume("tool")
+                            try:
+                                self.prepared_metrics[key] = child.handlers["run_metric"](**request)
+                            except (ValueError, TypeError) as error:
+                                record("prepared_metric_failed", agent="Cherry", **error_summary(error))
+                                continue
+                            record("prepared_metric", agent="Cherry", metric_id=request["metric"], remaining=self.budget.remaining())
+                prepared = list(self.prepared_metrics.values())
+            result = child.run(question, initial_evidence=prepared)
         except AgentRunError as error:
             result = error.result
             self.child_results.append(asdict(result))
             return {"agent": name, "status": "failed", "error": "Specialist did not finish; use only available evidence and disclose the missing part.",
-                    "evidence": result.evidence, "failure": result.failure}
+                    "evidence": result.evidence, "failure": result.failure,
+                    "numeric_coverage": child.numeric_coverage(result.evidence) if name == "Cherry" else []}
         self.child_results.append(asdict(result))
-        return {"agent": name, "answer": result.answer, "scope": result.scope, "evidence": result.evidence}
+        return {"agent": name, "answer": result.answer, "scope": result.scope, "evidence": result.evidence,
+                "numeric_coverage": child.numeric_coverage(result.evidence) if name == "Cherry" else []}
 
     def run(self, question):
         # A fresh workflow prevents artifacts from earlier questions entering the answer.
@@ -185,7 +207,7 @@ class OriginalAgent(Specialist):
         self.budget = RunBudget(model_limit=self.model_call_limit,
             tool_limit=48 + 2 * max(0, self.model_call_limit - 32), seconds=self.run_seconds)
         self.last_result, self.last_verdict = None, None
-        self.planned_metric, self.repair_round = None, 0
+        self.planned_metrics, self.prepared_metrics, self.repair_round = [], {}, 0
         self.attempt_reviews, self.drafts = [], []
         try:
             return self.workflow(question)
@@ -229,8 +251,9 @@ class OriginalAgent(Specialist):
         if not isinstance(question, str) or not question.strip() or len(question) > 4000:
             raise ValueError("Question must contain 1 to 4,000 characters.")
         plan = self.plan(question)
-        if plan["metric"] != "none":
-            self.planned_metric = (plan["metric"], plan["dimension"] if plan["metric"] == "survey_trend" else None)
+        self.planned_metrics = plan["metrics"]
+        if "Cherry" in self.specialists:
+            self.specialists["Cherry"].required_metrics = self.planned_metrics
         if plan["clarification_question"]:
             q = plan["clarification_question"]
             return AgentResult("Original", question, "Clarification needed: " + q, self.scope.__dict__,
@@ -248,10 +271,15 @@ class OriginalAgent(Specialist):
             if attempt and targets == {"Lime"}:
                 record("repair_reuse", agent="Original", reason="chart_only_repair")
             else:
-                candidate = super().run(question, initial_evidence=evidence, context=context)
+                numeric_child = self.specialists.get("Cherry")
+                pending_coverage = numeric_child.numeric_coverage(evidence) if numeric_child else [
+                    {**request, "status": "pending", "citation_id": None} for request in self.planned_metrics]
+                task_context = [{"role": "user", "content": json.dumps({"numeric_coverage": pending_coverage})}]
+                candidate = super().run(question, initial_evidence=evidence, context=context + task_context)
                 coordinator_trace.extend(candidate.tool_trace)
             candidates.append(candidate.answer)
             self.drafts = candidates
+            self.last_result = candidate
             cherry = self.specialists.get("Cherry")
             vanilla = self.specialists.get("Vanilla")
             lookup = {doc["citation_id"]: doc for doc in vanilla.searcher.documents} if vanilla else None
@@ -282,7 +310,11 @@ class OriginalAgent(Specialist):
                 candidate.visualization = {"charts": [], "reason": "No chart needed by the analysis plan.", "mode": self.mode, "tool_trace": []}
             candidate.rag = {"specialist_runs": [child["rag"] for child in self.child_results if child.get("rag")],
                 "note": "RAG is recorded only when Vanilla runs; numerical-only questions may use Cherry alone."}
-            verdict = verifier.review(question, candidate.answer, candidate.evidence, candidate.visualization)
+            coverage = cherry.numeric_coverage(candidate.evidence) if cherry else [
+                {**request, "status": "pending", "citation_id": None} for request in self.planned_metrics]
+            candidate.diagnostics["numeric_coverage"] = coverage
+            verdict = verifier.review(question, candidate.answer, candidate.evidence, candidate.visualization,
+                                      numeric_coverage=coverage)
             if chart_failure:
                 verdict.decision = "revise"
                 verdict.repair_targets = sorted(set(verdict.repair_targets) | {"Lime"})

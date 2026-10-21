@@ -7,9 +7,11 @@ comparative provider benchmark.
 ## 3. Validated recurring metrics and exploratory SQL
 
 Cherry has `run_metric(metric, dimension)` alongside `describe_schema` and `execute_sql`.
-When Original selects a catalog metric for the numeric part, the application executes it
-before Cherry interprets the result, without an exploratory tool loop. New calculations
-retain generated SQL; a calculation repair can leave the prepared route when necessary.
+Original's live plan lists all required catalog metrics, including one request per survey
+dimension in a comparison. The application prepares these metrics before Cherry interprets
+them. Cherry retains `run_metric`, `describe_schema` and `execute_sql` to complete missing
+or custom calculations. Identical metric arguments reuse the original result/citation ID
+within the workflow. Single-metric selection no longer disables Cherry's tools.
 The catalog runs read-only SQL on the physically scoped in-memory copy:
 
 | Metric | Definition |
@@ -31,11 +33,18 @@ replays both SQL and metric definition. Custom SQL remains available. A conserva
 rejects the known contribution/feedback JOIN + COUNT(*) mistake; it does not prove the
 semantics of every generated query.
 
+Code-generated `numeric_coverage` records each planned request as `pending`, `error`,
+`no_rows` or `with_results`, with its citation ID where available. Original uses these
+states to coordinate pending work without recalculating metrics; ZeroSugar receives them
+for independent review. Unqueried data is not absent data. The model must still map the
+original question to the right plan, and ZeroSugar must check for omissions in that plan.
+
 ## 4. Bounded closure and reuse
 
 The final turn has no tools and asks for an evidence-based answer or explicit limitation.
 Each turn states the remaining allowance. Identical tool requests reuse their result within
-that run and trigger closure. Global call/tool/time limits still apply. A failed or
+that run and trigger closure only when no planned Cherry metrics remain unresolved.
+Hard turn/tool/time limits still force bounded closure with explicit limitations. A failed or
 noncompliant model produces an explicit failure instead of invented conclusions.
 
 ## 5. Selective roles
@@ -94,6 +103,19 @@ employee records, credentials and provider payloads. Optional local artifacts re
 detailed evidence and `diagnostics.last_unverified_text` after a formatting failure; this
 diagnostic text is never a released finding. Known citation wrappers are normalized without
 creating new source records. Provider null sentinels are handled as absent values, not questions. All reports/logs remain ignored by Git.
+
+Structured validation errors additionally record a stable validation code, field path,
+record index and known source/finding ID where applicable. Literal quote mismatch and
+quote length are separate failures. Reviews report missing rubric dimensions, finding
+coverage, invalid fields and changed citations through separate codes. No rejected quote
+text or arbitrary provider exception is written to the execution log.
+
+Vanilla permits exact contiguous quote excerpts of 1-400 characters; 400 is a maximum,
+not a requested length. Explanations remain capped at 160 characters. Classification uses
+20-comment batches and at most two attempts per batch. Valid records are retained while
+only unresolved comments and bounded error reasons are sent in a fresh repair request.
+No partial sentiment percentages are produced. Local schema/quote checks establish
+provenance and completeness, not semantic label accuracy.
 
 Behavioral tests cover duplicates, parameter binding, closure, reuse, role selection,
 localized correction, finding coverage and safe partial release. These implementation
