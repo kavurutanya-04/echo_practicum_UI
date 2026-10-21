@@ -1,0 +1,213 @@
+// Typed client for the local Echo UI backend (Echo_UI/backend/app.py).
+
+export type Profile = {
+  name: string
+  provider: string
+  model: string
+  description: string
+  key_configured: boolean
+}
+
+export type Meta = {
+  profiles: Profile[]
+  default_profile: string
+  local_split: Record<string, string> | null
+  scope_min: string
+  scope_max: string
+  suggested_questions: string[]
+}
+
+export type Manager = {
+  Manager_ID: string
+  Manager_Name: string
+  Primary_Department: string
+  Primary_Team: string
+  Pilot_Assigned_Employees: number
+}
+
+export type SurveyRow = {
+  Survey_Date: string
+  Team: string
+  Dimension: string
+  Responses: number
+  Eligible_Employees: number
+  Mean_Score: number | null
+  Favorable_Percent: number | null
+  eNPS_Score: number | null
+}
+
+export type Overview = {
+  manager: { Manager_ID: string; Manager_Name: string }
+  teams: string[]
+  scope: Scope
+  headcount: number
+  contributions: number
+  comments: number
+  survey: SurveyRow[]
+}
+
+export type Scope = { manager_id: string; start_date: string; end_date: string }
+
+export type RunMeta = {
+  id: string
+  question: string
+  typed_question: string
+  manager_id: string
+  start_date: string
+  end_date: string
+  mode: 'demo' | 'live'
+  profile: string
+  created_at: string
+  finished_at?: string
+  state: string
+  exit_code?: number
+  result_status?: string
+  verification?: string
+  api_calls?: number
+  charts?: number
+}
+
+export type SqlEvidence = {
+  citation_id: string
+  producer: string
+  sql: string
+  rows: Record<string, unknown>[]
+  truncated: boolean
+}
+
+export type TextEvidence = {
+  citation_id: string
+  source: string
+  record_id: string
+  team?: string
+  date?: string
+  dimension?: string
+  anonymous?: boolean
+  text: string
+}
+
+export type Evidence = SqlEvidence | TextEvidence | (Record<string, unknown> & { citation_id: string })
+
+export type Finding = {
+  finding_id: string
+  text: string
+  citation_ids: string[]
+  status: string
+  reason: string
+  deterministic_issues: unknown[]
+}
+
+export type Review = {
+  decision: string
+  ratings: Record<string, { score: number; rationale: string }>
+  issues: unknown[]
+  uncertainty: string
+  deterministic_issues: unknown[]
+  mode: string
+  findings: Finding[]
+  repair_targets: unknown[]
+  clarification_question: string | null
+}
+
+export type ChartSpec = {
+  source_id: string
+  kind: string
+  x: string
+  y: string
+  series?: string
+  title: string
+  x_label: string
+  y_label: string
+  unit?: string
+  denominator?: string
+}
+
+export type Artifact = {
+  agent: string
+  question: string
+  answer: string
+  scope: Scope
+  evidence: Evidence[]
+  mode: string
+  status: string
+  verification: { decision?: string; reviews?: Review[]; drafts_checked?: number }
+  delegations: { agent: string; question: string; answer: string; evidence: Evidence[] }[]
+  visualization: { charts?: ChartSpec[]; reason?: string; files?: { source_id: string; svg: string; csv: string; metadata: string }[] }
+  rag: Record<string, unknown>
+  execution: { generation_api_calls?: number; successful_generation_api_calls?: number; profiles_used?: Record<string, { model: string; api_calls: number }> }
+  sentiment: Record<string, unknown>
+  findings: Finding[]
+  limitations: string[]
+  next_steps: string[]
+  clarification_questions: string[]
+  failure: Record<string, unknown>
+}
+
+export type RunDetail = { meta: RunMeta; artifact: Artifact | null; console: string }
+
+export type LogEvent = {
+  time_utc: string
+  run_id: string
+  elapsed_seconds: number
+  event: string
+  agent?: string
+  profile?: string
+  tool?: string
+  tools?: string[]
+  error_category?: string
+  http_status?: number
+  status?: string
+  [key: string]: unknown
+}
+
+export type Quota = {
+  limit_per_model: number
+  resets_at: string
+  models: { model: string; calls: number; quota_errors: number }[]
+  note: string
+}
+
+export type TableInfo = {
+  name: string
+  rows: number
+  columns: { Column: string; Meaning: string; Primary_Key: string; References: string; Nullable: string }[]
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...init })
+  if (!response.ok) {
+    let detail = response.statusText
+    try {
+      detail = (await response.json()).detail ?? detail
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail))
+  }
+  return response.json()
+}
+
+export const api = {
+  meta: () => request<Meta>('/api/meta'),
+  managers: () => request<Manager[]>('/api/managers'),
+  overview: (id: string, start: string, end: string) =>
+    request<Overview>(`/api/managers/${encodeURIComponent(id)}/overview?start=${start}&end=${end}`),
+  tables: () => request<TableInfo[]>('/api/data/tables'),
+  quota: () => request<Quota>('/api/quota'),
+  runs: () => request<RunMeta[]>('/api/runs'),
+  run: (id: string) => request<RunDetail>(`/api/runs/${id}`),
+  managerRun: (id: string) => request<RunDetail>(`/api/runs/${id}?view=manager`),
+  lookupManager: (code: string) => request<Manager>(`/api/manager/${encodeURIComponent(code)}`),
+  startRun: (body: Record<string, unknown>) => request<RunMeta>('/api/runs', { method: 'POST', body: JSON.stringify(body) }),
+  cancelRun: (id: string) => request<unknown>(`/api/runs/${id}/cancel`, { method: 'POST' }),
+  deleteRun: (id: string) => request<unknown>(`/api/runs/${id}`, { method: 'DELETE' }),
+  fileUrl: (id: string, path: string) => `/api/runs/${id}/files/${path.split('/').pop()}`,
+}
+
+export function isSql(evidence: Evidence): evidence is SqlEvidence {
+  return typeof (evidence as SqlEvidence).sql === 'string'
+}
+
+export function isText(evidence: Evidence): evidence is TextEvidence {
+  return typeof (evidence as TextEvidence).text === 'string'
+}
