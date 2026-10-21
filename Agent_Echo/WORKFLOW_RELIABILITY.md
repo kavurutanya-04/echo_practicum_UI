@@ -63,6 +63,13 @@ Sources and the final package are still reviewed. Nothing is cached across execu
 
 ## 7. Review by finding
 
+For current live Original/Cherry/Vanilla runs, [SOURCE_GROUNDING.md](SOURCE_GROUNDING.md)
+supersedes paragraph splitting: `submit_grounded_answer` selects reproducible facts and
+returns explicit individual claims, with tables and their source citations kept together.
+ZeroSugar receives those claims directly; Python independently rebuilds their numeric
+content before accepting any model verdict. The paragraph path below remains for older
+artifacts and scripted fixtures, not a guarantee of semantic correctness.
+
 Each substantive paragraph/block, including uncited blocks, receives an independent
 review with its original ID and citation IDs. When evidence is available, uncited blocks
 are withheld until explicitly grounded. Plain headings and standalone Markdown separators

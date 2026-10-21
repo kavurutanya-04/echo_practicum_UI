@@ -18,6 +18,18 @@ Without credentials you cannot evaluate a real LLM answer. Live commands fail wi
 
 ## 1. Run offline engineering checks
 
+The current live answer contract and historical-output audit are documented in
+[SOURCE_GROUNDING.md](SOURCE_GROUNDING.md). Focused regression checks use no provider:
+
+```powershell
+python -m unittest discover -s tests -p test_grounded_claims.py -v
+python audit_grounding.py reports/apinex_prueba_media_actualizada.json --output reports/grounding_review.json
+```
+
+The audit packet requires human review of entailment, query meaning and label semantics;
+it does not report accuracy from an unannotated sample. Live runs now require a final
+`submit_grounded_answer` selection from the source catalog instead of free-form factual prose.
+
 ```powershell
 python -m unittest discover -s tests -v
 python .\run_agent.py original --manager M14 --demo --output .\reports\offline_workflow.json

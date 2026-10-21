@@ -119,6 +119,10 @@ Omit `--profile` to use those assignments. Supplying it forces the selected prof
 
 ## Primary final connection: GW Azure AI Foundry
 
+Live output uses the [source-bound fact and claim contract](SOURCE_GROUNDING.md).
+Models select recorded facts; Python renders numerical claims and tables, while text
+interpretations remain explicitly provisional and subject to independent review.
+
 Use only your group's assigned Azure resource and deployment. In `connections.json`, fill `profiles.gw_azure.endpoint` and `profiles.gw_azure.model` with the actual resource URL and Responses-capable deployment name. The JSON `api_version` retains the professor's `2025-03-01-preview` setting. Configure the separate `gw_embeddings` endpoint and embedding deployment in JSON only if semantic retrieval is needed. Keep unavailable fields empty rather than inventing values.
 
 Store only `GW_AZURE_OPENAI_KEY` in the private `.env` or process environment. The endpoint format for the legacy client is `https://YOUR-ASSIGNED-RESOURCE.openai.azure.com/`. Do not share the key or commit it. Echo validates the JSON connection before loading credentials and never falls back to a test provider when GW settings are missing.

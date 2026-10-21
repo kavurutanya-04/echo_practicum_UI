@@ -5,6 +5,8 @@ execution and all-or-nothing release described below: Original now plans require
 Cherry offers validated metrics, ZeroSugar reviews cited blocks, and only supported blocks
 can appear in a partial answer. Output is English. Lime runs only when a chart is planned.
 
+Live Original, Cherry and Vanilla answers now follow the [source-bound claim contract](SOURCE_GROUNDING.md): models select existing facts, code renders numeric statements/tables, and ZeroSugar reviews explicit claims. Text interpretations and sentiment labels remain provisional rather than semantically certified by citation checks.
+
 Updated 2026-10-16. Five roles share configurable model adapters; each has its own instructions and history. This is a terminal/local-file prototype. All employee data is synthetic. Descriptions below complement the executable `INSTRUCTIONS` in each agent file.
 
 ## Original — coordination, synthesis and supervised revision

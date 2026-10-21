@@ -55,22 +55,34 @@ Numeric task status is supplied by code in numeric_coverage. A pending/error req
 not evidence of absent data. Ask Cherry only for missing work and reuse completed results.
 You coordinate these tasks and synthesize their evidence; do not repeat Cherry's calculations
 or replace ZeroSugar's independent review. Cite each substantive block using [citation_id].
+In live mode the final answer selects source-bound fact IDs through submit_grounded_answer;
+do not write factual prose yourself. Use task_type=numeric for Cherry and task_type=text
+or sentiment for Vanilla. A numerical survey comparison does not require comment
+classification; do not delegate sentiment to Cherry or substitute scores for text labels.
+Include source tables when asked. Select code-computed differences/comparison coverage
+instead of inventing terms such as improved, declined, always or every quarter in prose.
+Prefer the combined survey comparison table when available; do not duplicate it with
+the individual source tables. Select the relevant date-to-date changes and cross-dimension
+coverage facts needed for the question rather than repeating every numeric cell.
 """
 
 
 class OriginalAgent(Specialist):
+    source_grounding = True
     def __init__(self, database, scope, model_factory, mode="live", retrieval="lexical", embedding_model=None, cache_root=None, connections=None, model_call_limit=32, run_seconds=300):
         self.database, self.model_factory = database, model_factory
         self.retrieval, self.embedding_model, self.cache_root = retrieval, embedding_model, cache_root
         self.specialists, self.child_results = {}, []
         self.connection_summary = connections or {}
         self.model_call_limit, self.run_seconds = model_call_limit, run_seconds
-        definitions = [function_tool(name, description, {"question": {"type": "string"}}) for name, description in (
+        definitions = [function_tool(name, description, {"question": {"type": "string"},
+            **({"task_type": {"type": "string", "enum": ["numeric"] if name == "ask_cherry" else ["text", "sentiment"]}}
+               if mode == "live" else {})}) for name, description in (
             ("ask_cherry", "Ask Cherry a bounded question about structured evidence and calculations."),
             ("ask_vanilla", "Ask Vanilla for relevant textual evidence and a cited interpretation."))]
         super().__init__("Original", INSTRUCTIONS, model_factory("Original"), scope, definitions,
-            {"ask_cherry": lambda question: self.delegate("Cherry", question),
-             "ask_vanilla": lambda question: self.delegate("Vanilla", question)}, mode)
+            {"ask_cherry": lambda question, task_type=None: self.delegate("Cherry", question, task_type),
+             "ask_vanilla": lambda question, task_type=None: self.delegate("Vanilla", question, task_type)}, mode)
         self.all_definitions = definitions
         self.allowed_delegations = {"Cherry", "Vanilla"}
 
@@ -169,9 +181,11 @@ class OriginalAgent(Specialist):
             self.specialists[name] = child
         return self.specialists[name]
 
-    def delegate(self, name, question):
+    def delegate(self, name, question, task_type=None):
         if name not in self.allowed_delegations:
             raise ValueError("This repair/plan does not require that specialist. Use the supplied evidence.")
+        if self.mode == "live" and task_type not in ({"numeric"} if name == "Cherry" else {"text", "sentiment"}):
+            raise ValueError("Delegation task_type must match the specialist: Cherry=numeric, Vanilla=text/sentiment.")
         try:
             child = self.specialist(name)
             prepared = []
@@ -198,6 +212,7 @@ class OriginalAgent(Specialist):
                     "numeric_coverage": child.numeric_coverage(result.evidence) if name == "Cherry" else []}
         self.child_results.append(asdict(result))
         return {"agent": name, "answer": result.answer, "scope": result.scope, "evidence": result.evidence,
+                "claims": result.claims,
                 "numeric_coverage": child.numeric_coverage(result.evidence) if name == "Cherry" else []}
 
     def run(self, question):
@@ -251,6 +266,7 @@ class OriginalAgent(Specialist):
         if not isinstance(question, str) or not question.strip() or len(question) > 4000:
             raise ValueError("Question must contain 1 to 4,000 characters.")
         plan = self.plan(question)
+        self.numeric_requested = plan["needs_numbers"]
         self.planned_metrics = plan["metrics"]
         if "Cherry" in self.specialists:
             self.specialists["Cherry"].required_metrics = self.planned_metrics
@@ -314,7 +330,8 @@ class OriginalAgent(Specialist):
                 {**request, "status": "pending", "citation_id": None} for request in self.planned_metrics]
             candidate.diagnostics["numeric_coverage"] = coverage
             verdict = verifier.review(question, candidate.answer, candidate.evidence, candidate.visualization,
-                                      numeric_coverage=coverage)
+                                      numeric_coverage=coverage, claims=candidate.claims or None,
+                                      grounding=candidate.grounding or None)
             if chart_failure:
                 verdict.decision = "revise"
                 verdict.repair_targets = sorted(set(verdict.repair_targets) | {"Lime"})

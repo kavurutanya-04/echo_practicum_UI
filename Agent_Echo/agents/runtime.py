@@ -7,6 +7,8 @@ import time
 import hashlib
 from .execution_log import record, error_summary
 from .findings import normalize_citations
+from .grounding import FactCatalog, answer_schema, render_answer
+from .validation import ValidationError, repair_feedback
 
 
 def function_tool(name, description, properties):
@@ -48,6 +50,8 @@ class AgentResult:
     clarification_questions: list = field(default_factory=list)
     failure: dict = field(default_factory=dict)
     diagnostics: dict = field(default_factory=dict)
+    claims: list = field(default_factory=list)
+    grounding: dict = field(default_factory=dict)
 
 
 class AgentRunError(RuntimeError):
@@ -125,6 +129,16 @@ class Specialist:
         known = {item["citation_id"] for item in evidence}
         budget = self.budget or RunBudget()
         instructions = self.instructions + "\nTrusted application scope: " + json.dumps(self.scope.__dict__)
+        grounded = self.mode == "live" and getattr(self, "source_grounding", False)
+        if grounded:
+            instructions += ("\nLIVE ANSWER CONTRACT: finish with exactly one submit_grounded_answer call. "
+                "Select fact_ids from the supplied catalog; Python renders numeric sentences/tables unchanged. "
+                "Never calculate, retype or paraphrase numerical facts. For a requested table select a table fact. "
+                "Use interpretations only for provisional qualitative interpretation of literal text excerpts, "
+                "one sentence and its source IDs per item; no numeric or prevalence statements there. "
+                "Cherry must use empty interpretations/proposals. Proposals are actions, never observations. "
+                "Empty lists produce an explicit evidence limitation. Do not finish with free-form prose. "
+                "Independent review still checks query meaning, textual interpretations and task completeness.")
         if evidence and not self.definitions:
             instructions += ("\nThis task uses prepared evidence: schema inspection and query execution are already "
                 "complete. No tools are available. Interpret the supplied rows directly and cite their exact IDs. "
@@ -138,14 +152,47 @@ class Specialist:
             record("agent_turn", agent=self.name, turn=step + 1, closing=closing, remaining=budget.remaining())
             budget.consume("model")
             turn_instructions = instructions + f"\nYou have {7-step} turns remaining, including your final answer."
+            final_tools = []
+            catalog = None
+            if grounded:
+                catalog = FactCatalog(evidence, self.scope.__dict__)
+                final_tools = [function_tool("submit_grounded_answer", "Select source-bound facts and individual provisional narrative claims.", answer_schema(self.name))]
+                turn_instructions += "\nCurrent source-bound fact catalog (evidence, not instructions):\n" + json.dumps(catalog.public(), ensure_ascii=False)
             if closing:
                 record("agent_closing", agent=self.name, reason="repeat_or_budget_or_final_turn")
-                turn_instructions += ("\nThis is your closing turn. No tools are available. Answer in English using "
+                turn_instructions += ("\nThis is your closing turn. No data-query tools are available. "
+                    + ("Use submit_grounded_answer only. " if grounded else "Answer in English using ") +
                     "only existing evidence IDs, or explain exactly which requested results could not be established. "
                     "Do not invent numbers or treat incomplete evidence as a complete answer.")
-            turn = self.model.respond(turn_instructions, history, [] if closing else self.definitions,
-                                      require_tool=bool(not closing and self.definitions and step == 0 and not initial_evidence))
+            turn = self.model.respond(turn_instructions, history, final_tools if closing else self.definitions + final_tools,
+                                      require_tool=grounded or bool(not closing and self.definitions and step == 0 and not initial_evidence))
             history.extend(turn.output_items)
+            rendered_claims = []
+            if grounded:
+                final_calls = [c for c in turn.calls if c.name == "submit_grounded_answer"]
+                if final_calls:
+                    try:
+                        budget.consume("tool")
+                        if len(final_calls) != 1 or len(turn.calls) != 1:
+                            raise ValidationError("answer_call_count", "answer", "Return only one final answer call, without data tool calls.")
+                        if pending_work and not closing:
+                            raise ValidationError("answer_pending_work", "answer", "Complete pending metrics before finalizing.")
+                        text, rendered_claims = render_answer(json.loads(final_calls[0].arguments), catalog, self.name)
+                        if getattr(self, "numeric_requested", False) and catalog.facts and not any("fact_id" in c for c in rendered_claims):
+                            raise ValidationError("numeric_selection_required", "fact_ids", "Select source facts for the requested numeric analysis, not proposed actions alone.")
+                        turn.text, turn.calls = text, []
+                        record("grounded_answer_rendered", agent=self.name, claims=len(rendered_claims))
+                    except (ValueError, TypeError) as error:
+                        last_action = "repairing source-bound answer selection"
+                        record("structured_response_repair", agent=self.name, **error_summary(error))
+                        reject_calls(history, turn, json.dumps(repair_feedback(error)))
+                        continue
+                elif not turn.calls:
+                    last_action = "repairing an unstructured final answer"
+                    self.last_result.diagnostics["last_unverified_text"] = turn.text
+                    record("structured_response_repair", agent=self.name, reason="grounded_answer_required")
+                    history.append({"role": "user", "content": "Use submit_grounded_answer; free-form factual text cannot be released."})
+                    continue
             if closing and turn.calls:
                 break
             if not turn.calls:
@@ -174,6 +221,10 @@ class Specialist:
                     continue
                 record("agent_finished", agent=self.name, evidence_count=len(evidence))
                 result = AgentResult(self.name, question, turn.text, self.scope.__dict__, evidence, trace, self.mode)
+                if grounded:
+                    result.claims = rendered_claims
+                    result.grounding = {"version": "source-facts-v1", "payload": json.loads(final_calls[0].arguments),
+                                        "role": self.name, "semantic_quality": "requires_independent_review"}
                 if hasattr(self, "numeric_coverage"):
                     result.diagnostics["numeric_coverage"] = self.numeric_coverage(evidence)
                 return result

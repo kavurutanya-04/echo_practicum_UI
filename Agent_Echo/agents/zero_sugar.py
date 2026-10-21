@@ -10,6 +10,7 @@ from .tools import SQLReader
 from .execution_log import record, error_summary
 from .findings import cited_findings, clarification_question
 from .validation import ValidationError, repair_feedback
+from .grounding import FactCatalog, audit_claims
 
 DIMENSIONS = ("Accuracy", "Relevance", "Completeness", "Clarity", "Instruction Following", "Usefulness", "Safety / Appropriateness")
 INSTRUCTIONS = """You are ZeroSugar, Echo's independent verifier. Evaluate the candidate
@@ -58,6 +59,13 @@ Only propose clarification of the task or metric; never ask for wider access or 
 numeric_coverage contains code-generated task states. Pending/error is unqueried or unresolved,
 not proof that data does not exist. Check the original question for omitted comparisons even
 if the plan itself omitted a needed dimension. Route missing numerical work to Cherry.
+For source-facts-v1 answers, review each supplied claim independently; tables are controlled
+source renderings and calculated facts have explicit operations, dates and units. Code replay
+cannot prove that exploratory SQL has the right metric grain, denominator or question mapping:
+explain those semantic checks in your reason. Interpretations are provisional hypotheses,
+not observations, and a literal excerpt alone does not entail the interpretation. Check
+negation, contradictions, missing context, quantifiers, numerical direction and periods.
+Proposed actions are not measured outcomes. Never mark validated semantic accuracy.
 """
 
 
@@ -231,13 +239,18 @@ class ZeroSugarAgent:
             seen.add(key)
         return checked
 
-    def review(self, question, answer, evidence, visualization=None, numeric_coverage=None):
+    def review(self, question, answer, evidence, visualization=None, numeric_coverage=None, claims=None, grounding=None):
         checks = self.audit(answer, evidence, visualization)
         unresolved_numeric = any(item["status"] in {"pending", "error"} for item in numeric_coverage or [])
-        blocks = cited_findings(answer)
+        if claims is not None:
+            checks.extend(audit_claims(claims, answer, FactCatalog(evidence, self.scope.__dict__), grounding))
+            blocks = claims
+        else:
+            blocks = cited_findings(answer)
         payload = json.dumps({"question": question, "candidate_answer": answer,
             "evidence": evidence, "visualization": visualization, "deterministic_issues": checks,
-            "findings": blocks, "numeric_coverage": numeric_coverage or []}, ensure_ascii=False)
+            "findings": blocks, "numeric_coverage": numeric_coverage or [],
+            "grounding_contract": grounding.get("version") if grounding else "legacy narrative; no deterministic claim guarantee"}, ensure_ascii=False)
         if len(payload) > 150_000:
             raise ValueError("Review evidence is too large; narrow the question or query results.")
         history = [{"role": "user", "content": payload}]
@@ -292,7 +305,8 @@ class ZeroSugarAgent:
                 self.sentiment_reports = artifact.get("sentiment", {})
             finally:
                 backend.close()
-        review = self.review(artifact["question"], artifact["answer"], artifact["evidence"], artifact.get("visualization") or None)
+        review = self.review(artifact["question"], artifact["answer"], artifact["evidence"], artifact.get("visualization") or None,
+                             claims=artifact.get("claims") or None, grounding=artifact.get("grounding") or None)
         return AgentResult(self.name, artifact["question"], "Review decision: " + review.decision,
                            self.scope.__dict__, artifact["evidence"], mode=self.mode, verification=asdict(review))
 

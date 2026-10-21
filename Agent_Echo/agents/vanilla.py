@@ -60,6 +60,11 @@ analyze_survey_sentiment with dimension="Recognition", cite its SENTIMENT ID and
 that the denominator is all eligible comments, including mixed/indeterminate labels.
 If the scope exceeds the call budget, request a narrower period/dimension or an explicit
 larger caller budget. Never substitute top-k examples or report partial classification.
+In live mode finish with submit_grounded_answer. Use table/observed facts for complete
+classification summaries and individual interpretations with literal source excerpts for
+qualitative text. Each interpretation remains a provisional hypothesis about its cited
+source, never a population finding or validated semantic accuracy. Cite counterevidence
+when available; separate observations, interpretations and proposed manager actions.
 """
 
 SENTIMENT_LABELS = ("positive", "negative", "neutral", "mixed", "indeterminate")
@@ -175,6 +180,7 @@ def sentiment_summary(report, documents):
 
 
 class VanillaAgent(Specialist):
+    source_grounding = True
     def __init__(self, database, scope, model, mode="live", retrieval="lexical", embedding_model=None, cache_root=None, budget=None):
         budget = budget or RunBudget()
         backend = ScopedData(database, scope)

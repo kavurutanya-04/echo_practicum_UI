@@ -55,6 +55,7 @@ Do not render charts or choose presentation layouts; those belong to Lime.
 
 
 class CherryAgent(Specialist):
+    source_grounding = True
     def __init__(self, database, scope, model, mode="live", budget=None):
         backend = ScopedData(database, scope)
         try:

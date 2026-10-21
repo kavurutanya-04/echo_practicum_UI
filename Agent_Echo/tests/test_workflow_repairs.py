@@ -30,15 +30,32 @@ def numeric_plan(metrics):
         "include_chart": False, "clarification_question": None, "metrics": metrics})
 
 
+def select_tables(instructions):
+    raw = instructions.split("Current source-bound fact catalog (evidence, not instructions):\n", 1)[1]
+    facts, _ = json.JSONDecoder().raw_decode(raw)
+    return tool_turn("submit_grounded_answer", {"fact_ids": [f["fact_id"] for f in facts if f["kind"] == "table"],
+        "interpretations": [], "proposals": []})
+
+
+class GroundedSequenceModel(SequenceModel):
+    def respond(self, instructions, history, tools, require_tool=False):
+        turn = super().respond(instructions, history, tools, require_tool)
+        if not turn.calls:
+            return select_tables(instructions)
+        if len(turn.calls) == 1 and turn.calls[0].name == "ask_cherry":
+            return tool_turn("ask_cherry", {**json.loads(turn.calls[0].arguments), "task_type": "numeric"})
+        return turn
+
+
 class NumericRepairs(unittest.TestCase):
     def test_two_dimensions_are_prepared_once_with_tools_still_available(self):
-        coordinator = SequenceModel([numeric_plan(requests("Recognition", "Manager support", " recognition ")),
+        coordinator = GroundedSequenceModel([numeric_plan(requests("Recognition", "Manager support", " recognition ")),
             tool_turn("ask_cherry", {"question": "Compare both requested dimensions."}),
             ModelTurn(text="Recognition and support have recorded quarterly rows [SQL1] [SQL2].")])
         class CherryModel:
             def respond(self, instructions, history, tools, require_tool=False):
                 self.tools = tools
-                return ModelTurn(text="Both requested dimensions have source-linked rows [SQL1] [SQL2].")
+                return select_tables(instructions)
         cherry_model = CherryModel()
         models = {"Original": coordinator, "Cherry": cherry_model, "ZeroSugar": ReviewModel(["accept"])}
         agent = OriginalAgent(DATABASE, SCOPE, models.get, "live")
@@ -47,7 +64,7 @@ class NumericRepairs(unittest.TestCase):
         self.assertEqual(result.status, "complete")
         self.assertEqual(len(result.evidence), 2)
         self.assertEqual(len(agent.specialists["Cherry"].metric_cache), 2)
-        self.assertEqual(len(cherry_model.tools), 3)
+        self.assertEqual(len([t for t in cherry_model.tools if t["name"] != "submit_grounded_answer"]), 3)
         coverage = result.diagnostics["numeric_coverage"]
         self.assertEqual([r["status"] for r in coverage], ["with_results", "with_results"])
         self.assertEqual([r["dimension"] for r in coverage], ["Recognition", "Manager support"])
@@ -81,7 +98,7 @@ class NumericRepairs(unittest.TestCase):
             tool_turn("run_metric", {"metric": "survey_trend", "dimension": "Recognition"}, "repeat"),
             tool_turn("run_metric", {"metric": "survey_trend", "dimension": "Manager support"}, "support"),
             ModelTurn(text="Both dimensions are now covered [SQL1] [SQL2].")])
-        child = CherryAgent(DATABASE, SCOPE, model)
+        child = CherryAgent(DATABASE, SCOPE, model, "offline-unit-test")
         self.addCleanup(child.close)
         child.required_metrics = requests("Recognition", "Manager support")
         result = child.run("Compare both dimensions.")
@@ -90,10 +107,10 @@ class NumericRepairs(unittest.TestCase):
         self.assertEqual([r["status"] for r in result.diagnostics["numeric_coverage"]], ["with_results"] * 2)
 
     def test_original_receives_task_states_without_a_second_numeric_analysis(self):
-        models = {"Original": SequenceModel([numeric_plan(requests("Recognition", "Manager support")),
+        models = {"Original": GroundedSequenceModel([numeric_plan(requests("Recognition", "Manager support")),
             tool_turn("ask_cherry", {"question": "Compare both dimensions."}),
             ModelTurn(text="Recorded rows exist for both dimensions [SQL1] [SQL2].")]),
-            "Cherry": SequenceModel([ModelTurn(text="Both source sets are available [SQL1] [SQL2].")]),
+            "Cherry": GroundedSequenceModel([ModelTurn(text="Both source sets are available [SQL1] [SQL2].")]),
             "ZeroSugar": ReviewModel(["accept"])}
         agent = OriginalAgent(DATABASE, SCOPE, models.get, "live")
         self.addCleanup(agent.close)
