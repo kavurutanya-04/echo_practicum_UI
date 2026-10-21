@@ -189,6 +189,21 @@ terminal process per key because pacing is shared within a process.
 
 ### Next live test: sixth Luna run
 
+Status update, 2026-10-21: the user executed the historical command below. The saved run
+failed after complete classification, before ZeroSugar. Preserve that sixth-run artifact;
+use a new output filename for any future authorized repeat. The current repair runs only
+focused offline checks, with no full-suite rerun or provider requests. APInex remains at
+6000 output tokens; raising limits and changing provider configuration are out of scope.
+
+Focused repair verification: **75 offline tests passed** across
+`test_recovery_feedback.py` (8), `test_rejection_diagnostics.py` (15),
+`test_workflow_repairs.py` (10), `test_grounded_claims.py` (20), and
+`test_sentiment_workflow_repairs.py` (22). These check temporal references, numeric
+restrictions, citation positions/privacy, repeated feedback, Cherry/Vanilla evidence
+recovery through review, failed/unexecuted reviews, Lime repair and truncated-output
+counter logging. No full-suite baseline rerun or live API call was made. Scripted
+responses establish these software contracts, not future model compliance or label quality.
+
 Open `Final_Project` in VS Code. In a terminal at that repository root, with the existing
 Conda environment available, run this block. If the terminal is already inside
 `Agent_Echo`, omit the `Set-Location` line. A new clone can use the virtual environment
@@ -202,7 +217,7 @@ python run_agent.py original --manager M14 --start 2026-07-01 --end 2026-09-30 -
 
 The question, manager and dates match run five; only the output filename changes. Check
 whether this file already exists before a later repeat, since `--output` overwrites it.
-This documentation review did not run the command and found no saved sixth-run result.
+The earlier documentation review had not found the sixth-run result; it has now been inspected.
 Inspect both the JSON and the exact `.jsonl` path printed at startup; a complete result
 still does not measure human-validated sentiment accuracy.
 

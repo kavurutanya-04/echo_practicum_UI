@@ -49,6 +49,9 @@ review. Multi-sentence text is separated into individual review units. Quantifie
 population claims must use source facts, not interpretation prose. Proposed actions
 are labeled as proposals rather than observed outcomes; invented numerical targets
 are not allowed in that field. Literal quotes alone do not prove entailment.
+The 2026-10-21 repair permits quarter/year references and valid ISO dates in these
+sentences; it does not permit analytic quantities or certify temporal meaning. Missing,
+malformed and unknown citation references now receive separate field/index errors.
 
 Complete sentiment summaries also expose their publishable example responses as separate
 `survey_response` evidence. These use the existing comment citation ID, canonical response
@@ -114,8 +117,8 @@ attempts required correction. The subsequent diagnostic update preserves minimiz
 rejected-only records in `diagnostics.rejected_attempts`, without full rejected prose or
 tool payloads; its exact retention/privacy boundaries are in
 [WORKFLOW_RELIABILITY.md](WORKFLOW_RELIABILITY.md#rejected-source-answer-diagnostics-2026-10-21).
-The proposal digit rule remains unchanged and is reported as a syntactic restriction,
-not proof of hallucination. Diagnostic-only replay preserved the fourth accepted answer
+At that diagnostic-only stage the proposal digit rule was unchanged and reported as a
+syntactic restriction, not proof of hallucination. Diagnostic-only replay preserved the fourth accepted answer
 and claims exactly, without another provider call.
 
 The fifth Luna run then failed before ZeroSugar: complete labels existed inside a Vanilla
@@ -123,6 +126,6 @@ delegation, but canonical comment evidence was not available to the final respon
 The subsequent source bridge described above exposes individual response text without
 relaxing literal-quote validation or reclassifying the population. Three bounded batch
 attempts and retained same-workflow progress address retries separately from claim review.
-The current implementation passed 207 offline tests; real behavior after these repairs is
-pending the sixth run. See [current results](PROJECT_CONTEXT.md),
+That implementation passed 207 offline tests. The sixth run later failed during final
+response construction; the subsequent repair has focused offline coverage only. See [current results](PROJECT_CONTEXT.md),
 [testing directions](TESTING_AND_RAG.md) and the [reference map](DOCUMENTATION_MAP.md).

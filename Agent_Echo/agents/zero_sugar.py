@@ -9,7 +9,7 @@ from .data_access import ScopedData
 from .tools import SQLReader
 from .execution_log import record, error_summary
 from .findings import cited_findings, clarification_question
-from .validation import ValidationError, repair_feedback
+from .validation import ValidationError, repair_feedback, rejection_diagnostic
 from .grounding import FactCatalog, audit_claims
 from .policies import with_policies
 
@@ -73,6 +73,10 @@ Incomplete classification cannot support percentages. Previously failed attempts
 invalidate a later complete, source-verified classification for the same authorized scope.
 Literal excerpts support provenance, not automatic semantic approval; check whether each
 quoted response actually supports the assigned sentiment and interpretation.
+An interrupted specialist may retain complete source evidence even when its presentation
+failed. Evaluate the candidate and the remaining task coverage, not that failure flag
+alone. Approve recovered work only if the requested parts are addressed and all source
+checks pass. A missing result or incomplete review is not approval.
 """
 
 
@@ -97,6 +101,7 @@ class ZeroSugarAgent:
         self.budget = budget
         self.sql_reader, self.document_lookup = sql_reader, document_lookup
         self.database, self.owned_reader = database, None
+        self.diagnostics = {"rejected_attempts": []}
         self.sentiment_reports = sentiment_reports or {}
         self.sentiment_documents = sentiment_documents
         rating = {"type": "object", "properties": {
@@ -252,6 +257,7 @@ class ZeroSugarAgent:
         return checked
 
     def review(self, question, answer, evidence, visualization=None, numeric_coverage=None, claims=None, grounding=None, task_outcomes=None, require_sentiment=False):
+        self.diagnostics["rejected_attempts"] = []
         checks = self.audit(answer, evidence, visualization)
         unresolved_numeric = any(item["status"] in {"pending", "error"} for item in numeric_coverage or [])
         if claims is not None:
@@ -268,7 +274,7 @@ class ZeroSugarAgent:
             raise ValueError("Review evidence is too large; narrow the question or query results.")
         history = [{"role": "user", "content": payload}]
         budget = self.budget or RunBudget()
-        for _ in range(3):
+        for attempt in range(3):
             budget.consume("model")
             turn = self.model.respond(with_policies(INSTRUCTIONS) + "\nAuthorized scope: " + json.dumps(self.scope.__dict__), history, self.tools, True)
             history.extend(turn.output_items)
@@ -283,6 +289,8 @@ class ZeroSugarAgent:
                 findings = self.validate_findings(report, blocks, evidence)
             except (ValueError, TypeError) as error:
                 record("structured_response_repair", agent="ZeroSugar", **error_summary(error))
+                self.diagnostics["rejected_attempts"].append(
+                    rejection_diagnostic(error, "ZeroSugar", "submit_review", attempt + 1, attempt + 1))
                 history.append({"type": "function_call_output", "call_id": call.call_id,
                                 "output": json.dumps(repair_feedback(error))})
                 continue
@@ -301,6 +309,8 @@ class ZeroSugarAgent:
             must_revise = must_revise or report["ratings"]["Accuracy"]["score"] < 3 or report["ratings"]["Safety / Appropriateness"]["score"] < 3
             must_revise = must_revise or any(f["status"] != "supported" for f in findings)
             decision = "revise" if must_revise else report["decision"]
+            for entry in self.diagnostics["rejected_attempts"]:
+                entry.update(resolution="accepted_review_submission", accepted_model_turn=attempt + 1)
             record("verification_finished", agent="ZeroSugar", decision=decision,
                    deterministic_issues=len(checks), model_issues=len(report["issues"]))
             targets = report.get("repair_targets", [])

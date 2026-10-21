@@ -267,14 +267,22 @@ class OriginalAgent(Specialist):
                                 continue
                             record("prepared_metric", agent="Cherry", metric_id=request["metric"], remaining=self.budget.remaining())
                 prepared = list(self.prepared_metrics.values())
+            previous = next((item for item in reversed(self.child_results) if item["agent"] == name), None)
+            if previous and previous.get("scope") == self.scope.__dict__:
+                # Context reuse within this workflow, not a claim that the new task is done.
+                retained = {item["citation_id"]: item for item in previous.get("evidence", [])}
+                retained.update({item["citation_id"]: item for item in prepared})
+                prepared = list(retained.values())
             context = ([{"role": "user", "content": json.dumps({"original_request": self.original_request,
                         "note": "Context for this delegated task; preserve the application scope and your specialist role."})}]
                        if getattr(self, "original_request", None) else [])
             result = child.run(question, initial_evidence=prepared, context=context)
         except AgentRunError as error:
             result = error.result
+            result.diagnostics["numeric_coverage"] = child.numeric_coverage(result.evidence) if name == "Cherry" else []
             self.child_results.append(asdict(result))
-            return {"agent": name, "status": "failed", "error": "Specialist did not finish; use only available evidence and disclose the missing part.",
+            return {"agent": name, "status": "failed", "error": "Specialist execution did not finish; see failure.stage. Retained evidence is available, not independently approved. Reuse it, resolve missing work and submit a candidate for review.",
+                    "task_outcome": result.task_outcome,
                     "evidence": result.evidence, "failure": result.failure,
                     "numeric_coverage": child.numeric_coverage(result.evidence) if name == "Cherry" else []}
         self.child_results.append(asdict(result))
@@ -302,15 +310,19 @@ class OriginalAgent(Specialist):
         self.coordinator_diagnostics = {}
         self.declined_requests = {}
         self.attempt_reviews, self.drafts = [], []
+        self.active_stage, self.verification_diagnostics = "planning", {}
         try:
             return self.workflow(question)
         except (RuntimeError, ValueError) as error:
             candidate = self.last_result or AgentResult("Original", question, "", self.scope.__dict__, mode=self.mode)
             candidate.failure = error_summary(error)
+            candidate.failure["stage"] = candidate.diagnostics.get("stage", self.active_stage) if self.active_stage == "coordination" else self.active_stage
+            candidate.diagnostics["verification"] = self.verification_diagnostics
             candidate.delegations = self.child_results
             candidate.sentiment = {key: value for child in self.child_results for key, value in child.get("sentiment", {}).items()}
             candidate.connections = self.connection_summary
-            candidate.verification = {"decision": "revise", "reviews": self.attempt_reviews,
+            candidate.verification = {"decision": "revise", "status": "failed" if self.active_stage == "verification" else
+                                      "completed" if self.attempt_reviews else "not_run", "reviews": self.attempt_reviews,
                                       "drafts_checked": len(self.drafts), "rejected_drafts": self.drafts}
             record("workflow_failed", agent="Original", **candidate.failure, remaining=self.budget.remaining())
             return self.incomplete(candidate, self.last_verdict)
@@ -371,6 +383,7 @@ class OriginalAgent(Specialist):
                 pending_coverage = numeric_child.numeric_coverage(evidence) if numeric_child else [
                     {**request, "status": "pending", "citation_id": None} for request in self.planned_metrics]
                 task_context = [{"role": "user", "content": json.dumps({"numeric_coverage": pending_coverage})}]
+                self.active_stage = "coordination"
                 candidate = super().run(question, initial_evidence=evidence, context=context + task_context,
                                         diagnostics=self.coordinator_diagnostics)
                 coordinator_trace.extend(candidate.tool_trace)
@@ -397,11 +410,14 @@ class OriginalAgent(Specialist):
                 else:
                     lime = LimeAgent(self.scope, self.model_factory("Lime"), self.mode, self.budget)
                     try:
+                        self.active_stage = "chart_planning"
                         candidate.visualization = asdict(lime.plan(question, candidate.answer, candidate.evidence,
                                                   feedback=reviews[-1] if reviews else None))
                         prior_visuals, prior_fingerprint = candidate.visualization, fingerprint
                     except (RuntimeError, ValueError) as error:
                         chart_failure = error_summary(error)
+                        chart_failure["stage"] = "chart_planning"
+                        candidate.diagnostics["Lime"] = lime.diagnostics
                         record("chart_planning_failed", agent="Lime", **chart_failure)
                         candidate.visualization = {"charts": [], "reason": "The planned chart could not be completed.", "mode": self.mode, "tool_trace": []}
                 if (candidate.visualization.get("task_outcome") or {}).get("status") == "declined":
@@ -414,6 +430,8 @@ class OriginalAgent(Specialist):
                 {**request, "status": "pending", "citation_id": None} for request in self.planned_metrics]
             candidate.diagnostics["numeric_coverage"] = coverage
             candidate.diagnostics["requires_sentiment"] = plan["needs_sentiment"]
+            self.active_stage = "verification"
+            self.verification_diagnostics = verifier.diagnostics
             verdict = verifier.review(question, candidate.answer, candidate.evidence, candidate.visualization,
                                       numeric_coverage=coverage, claims=candidate.claims or None,
                                       grounding=candidate.grounding or None,
@@ -425,15 +443,18 @@ class OriginalAgent(Specialist):
                 verdict.issues.append("The planned chart could not be completed.")
                 candidate.failure = chart_failure
             reviews.append(asdict(verdict))
+            candidate.diagnostics["verification"] = verifier.diagnostics
             self.last_verdict, self.attempt_reviews = verdict, reviews
+            self.active_stage = "release"
             candidate.findings = verdict.findings
             if verdict.decision == "accept":
-                candidate.verification = {"decision": "accept", "reviews": reviews, "drafts_checked": len(candidates)}
+                candidate.verification = {"decision": "accept", "status": "completed", "reviews": reviews, "drafts_checked": len(candidates)}
                 candidate.delegations = self.child_results
                 candidate.tool_trace = coordinator_trace
                 candidate.connections = self.connection_summary
                 latest_children = {c["agent"]: c for c in self.child_results}
-                unresolved_child = any(c.get("status") in {"failed", "incomplete"} or
+                unresolved_child = any(c.get("status") == "incomplete" or
+                    (c.get("status") == "failed" and not c.get("task_outcome", {}).get("evidence_retained")) or
                     (c.get("status") == "declined" and c.get("task_outcome", {}).get("reason_code") != "out_of_role")
                     for c in latest_children.values())
                 if unresolved_child:
@@ -441,6 +462,10 @@ class OriginalAgent(Specialist):
                     verdict.repair_targets = [name for name, child in latest_children.items() if child.get("status") in {"failed", "incomplete", "declined"}]
                     candidate.failure = next((child.get("failure") for child in latest_children.values() if child.get("status") == "failed" and child.get("failure")), {})
                     return self.incomplete(candidate, verdict)
+                recovered = [name for name, child in latest_children.items() if child.get("status") == "failed"]
+                if recovered:
+                    candidate.diagnostics["recovered_specialists"] = recovered
+                    record("specialist_evidence_recovered", agents=recovered, review_status="completed")
                 candidate.status = "complete"
                 return candidate
             evidence = candidate.evidence
@@ -456,7 +481,7 @@ class OriginalAgent(Specialist):
                 {"role": "user", "content": "Repair only the specified targets. Keep supported blocks unchanged, reuse existing evidence, and answer in English. " +
                  json.dumps({"review": asdict(verdict), "evidence": evidence}, ensure_ascii=False)}]
         # Rejected drafts are preserved in the local artifact, never released as findings.
-        candidate.verification = {"decision": "revise", "reviews": reviews, "drafts_checked": len(candidates), "rejected_drafts": candidates}
+        candidate.verification = {"decision": "revise", "status": "completed", "reviews": reviews, "drafts_checked": len(candidates), "rejected_drafts": candidates}
         candidate.delegations, candidate.tool_trace = self.child_results, coordinator_trace
         candidate.connections = self.connection_summary
         return self.incomplete(candidate, verdict)

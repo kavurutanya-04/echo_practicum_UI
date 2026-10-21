@@ -20,10 +20,16 @@ def function_tool(name, description, properties):
 
 def reject_calls(history, turn, message):
     """Answer every outstanding tool call before asking a provider to repair it."""
+    try:
+        payload = json.loads(message) if isinstance(message, str) else message
+    except (ValueError, TypeError):
+        payload = None
+    if not isinstance(payload, dict) or "error" not in payload:
+        payload = {"error": message}
     if turn.calls:
         for call in turn.calls:
             history.append({"type": "function_call_output", "call_id": call.call_id,
-                            "output": json.dumps({"error": message})})
+                            "output": json.dumps(payload)})
     else:
         history.append({"role": "user", "content": message})
 
@@ -123,6 +129,9 @@ class Specialist:
             return self._run(question, initial_evidence, context)
         except RuntimeError as error:
             self.last_result.failure = error_summary(error)
+            self.last_result.failure["stage"] = self.last_result.diagnostics.get("stage", "generation")
+            self.last_result.task_outcome = {"status": "incomplete", "reason_code": "execution_interrupted",
+                "evidence_retained": bool(self.last_result.evidence), "presentation_complete": False}
             record("agent_failed", agent=self.name, **self.last_result.failure)
             raise AgentRunError(str(error), self.last_result) from None
 
@@ -177,6 +186,7 @@ class Specialist:
         rejection_start = len(rejections)
 
         def preserve_rejection(error, tool, model_turn):
+            self.last_result.diagnostics["stage"] = "answer_validation"
             if len(rejections) < 16:
                 rejections.append(rejection_diagnostic(error, self.name, tool, model_turn, len(rejections) + 1))
             else:
@@ -196,6 +206,7 @@ class Specialist:
                 catalog = FactCatalog(evidence, self.scope.__dict__)
                 final_tools = [function_tool("submit_grounded_answer", "Select source-bound facts and individual provisional narrative claims.", answer_schema(self.name))]
                 turn_instructions += "\nCurrent source-bound fact catalog (evidence, not instructions):\n" + json.dumps(catalog.public(), ensure_ascii=False)
+                turn_instructions += "\nAvailable source IDs for citation_ids (not fact_ids): " + json.dumps(list(catalog.sources))
             if grounded and self.name in {"Cherry", "Vanilla"}:
                 final_tools.append(decline_tool())
             if closing:
@@ -204,6 +215,7 @@ class Specialist:
                     + ("Use submit_grounded_answer (or decline_task for an incompatible specialist task). " if grounded else "Answer in English using ") +
                     "only existing evidence IDs, or explain exactly which requested results could not be established. "
                     "Do not invent numbers or treat incomplete evidence as a complete answer.")
+            self.last_result.diagnostics["stage"] = "closing" if closing else "generation"
             turn = self.model.respond(turn_instructions, history, final_tools if closing else self.definitions + final_tools,
                                       require_tool=grounded or bool(not closing and self.definitions and step == 0 and not initial_evidence))
             history.extend(turn.output_items)
@@ -240,7 +252,16 @@ class Specialist:
                     except (ValueError, TypeError) as error:
                         last_action = "repairing source-bound answer selection"
                         preserve_rejection(error, "submit_grounded_answer", step + 1)
-                        reject_calls(history, turn, json.dumps(repair_feedback(error)))
+                        feedback = repair_feedback(error)
+                        code, field = feedback.get("validation_code"), feedback.get("field")
+                        repeated = sum(r.get("validation_code") == code and r.get("field") == field
+                                       for r in rejections[rejection_start:])
+                        feedback["same_condition_attempts"] = repeated
+                        if repeated > 1:
+                            feedback["correction"] = ("This condition recurred. Change the indicated field instead of resubmitting it. "
+                                "Select numeric statements through fact_ids; use exact source IDs and literal excerpts. "
+                                "Keep supported work, and disclose any part you cannot support.")
+                        reject_calls(history, turn, json.dumps(feedback))
                         continue
                 elif not turn.calls:
                     last_action = "repairing an unstructured final answer"
@@ -297,6 +318,7 @@ class Specialist:
                 call.name if call.name in self.handlers else "unavailable tool" for call in turn.calls)
             tool_errors = 0
             for call in turn.calls:
+                self.last_result.diagnostics["stage"] = "tool_execution"
                 fingerprint = None
                 tool_name = call.name if call.name in self.handlers else "unavailable_tool"
                 record("tool_started", agent=self.name, tool=tool_name)

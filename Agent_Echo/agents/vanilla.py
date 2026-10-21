@@ -366,6 +366,9 @@ class VanillaAgent(Specialist):
         result.diagnostics["sentiment_rejected_attempts_omitted"] = self.sentiment_diagnostics_omitted
         incomplete = [self.progress_outcome(self.sentiment_progress[key]) for key in self.active_progress
                       if not self.sentiment_progress[key]["report_id"]]
+        if result.status == "failed":
+            result.task_outcome.update(completed_classifications=list(self.sentiment_reports),
+                                       pending_classifications=bool(incomplete))
         if incomplete:
             result.diagnostics["sentiment_progress"] = incomplete
             if result.status != "failed":

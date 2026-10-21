@@ -10,6 +10,24 @@ class ConfigurationError(RuntimeError):
     pass
 
 
+def record_response_usage(response, adapter, output_limit):
+    """Log provider counters only, including responses rejected before rendering."""
+    usage = getattr(response, "usage", None)
+    counts = {"output_limit": output_limit}
+    for name, alternatives in {"input_tokens": ("input_tokens", "prompt_tokens"),
+                               "output_tokens": ("output_tokens", "completion_tokens"),
+                               "total_tokens": ("total_tokens",)}.items():
+        value = next((getattr(usage, key, None) for key in alternatives
+                      if type(getattr(usage, key, None)) is int), None)
+        if type(value) is int and value >= 0:
+            counts[name] = value
+    details = getattr(usage, "output_tokens_details", None) or getattr(usage, "completion_tokens_details", None)
+    reasoning = getattr(details, "reasoning_tokens", None)
+    if type(reasoning) is int and reasoning >= 0:
+        counts["reasoning_tokens"] = reasoning
+    record("model_response_usage", adapter=adapter, **counts)
+
+
 def request_failure(error):
     """Explain public error categories without echoing provider payloads or keys."""
     status = getattr(error, "status_code", None)
@@ -74,7 +92,13 @@ class ResponsesModel:
         except Exception as error:
             # Provider errors can contain request data. Do not print their raw payload.
             raise request_failure(error) from None
+        record_response_usage(response, "responses", 3500)
         if response.status != "completed":
+            reason = getattr(getattr(response, "incomplete_details", None), "reason", None)
+            record("model_response_rejected", adapter="responses",
+                   finish_reason=reason if reason in {"max_output_tokens", "content_filter"} else "incomplete")
+            if reason == "max_output_tokens":
+                raise RuntimeError("Model output token budget exhausted before completion; no answer was accepted.")
             raise RuntimeError("Model response did not complete; no answer was accepted.")
         self.successful_requests += 1
         calls = [ToolCall(item.call_id, item.name, item.arguments)
@@ -138,6 +162,7 @@ class ChatModel:
                 if attempt == self.rate_limit_retries:
                     raise request_failure(error) from None
                 record("request_rate_limit_retry", retry=attempt + 1, seconds=round(delay, 3), http_status=429)
+        record_response_usage(response, "chat", self.max_output_tokens)
         finish_reason = response.choices[0].finish_reason if response.choices else "no_choices"
         if finish_reason not in {"stop", "tool_calls"}:
             safe_reason = finish_reason if finish_reason in {

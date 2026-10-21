@@ -1,6 +1,6 @@
 """Lime: an independent model chooses evidence-bound indicator charts."""
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from datetime import date
 import json
 import math
@@ -9,6 +9,7 @@ import re
 from .runtime import RunBudget, function_tool, reject_calls, decline_tool, parse_decline
 from .execution_log import record, error_summary
 from .policies import with_policies
+from .validation import ValidationError, repair_feedback, rejection_diagnostic
 
 INSTRUCTIONS = """You are Lime, Echo's indicator-visualization specialist.
 Use decline_task for a non-chart task or a requested chart outside the supported source
@@ -61,6 +62,7 @@ class VisualizationResult:
     mode: str
     tool_trace: list
     task_outcome: dict = None
+    diagnostics: dict = field(default_factory=dict)
 
 
 def validate_visuals(plan, evidence, scope):
@@ -72,7 +74,7 @@ def validate_visuals(plan, evidence, scope):
     if not isinstance(plan["charts"], list) or len(plan["charts"]) > 3:
         raise ValueError("Choose at most three charts.")
     sources = {item.get("citation_id"): item for item in evidence}
-    for chart in plan["charts"]:
+    for index, chart in enumerate(plan["charts"]):
         if not isinstance(chart, dict) or set(chart) != CHART_FIELDS:
             raise ValueError("Chart fields differ from the required schema.")
         if chart["kind"] not in {"bar", "line"}:
@@ -85,13 +87,13 @@ def validate_visuals(plan, evidence, scope):
                 raise ValueError("Series/denominator must be a column name or null.")
         source = sources.get(chart["source_id"])
         if source is None or "sql" not in source or source.get("producer") != "Cherry" or source.get("scope") != scope.__dict__:
-            raise ValueError("Charts require existing SQL evidence produced by Cherry in the authorized scope.")
+            raise ValidationError("visual_source", f"charts[{index}].source_id", "Select existing SQL evidence produced by Cherry in the authorized scope.", item_index=index)
         rows = source.get("rows")
         if source.get("truncated") or not isinstance(rows, list) or not 1 <= len(rows) <= 48:
             raise ValueError("Charts require 1-48 complete rows; ask Cherry to aggregate larger results.")
         columns = [chart[key] for key in ("x", "y", "series", "denominator") if chart[key] is not None]
         if any(not isinstance(row, dict) or any(col not in row for col in columns) for row in rows):
-            raise ValueError("Every chart column must exist in every source row.")
+            raise ValidationError("visual_columns", f"charts[{index}]", "Every chart column must exist in every source row. Select columns from the supplied source.", item_index=index)
         values, keys, groups, categories = [], set(), set(), set()
         for row in rows:
             x = row[chart["x"]]
@@ -136,11 +138,13 @@ class LimeAgent:
     def __init__(self, scope, model, mode="live", budget=None):
         self.scope, self.model, self.mode = scope, model, mode
         self.budget = budget or RunBudget()
+        self.diagnostics = {"rejected_attempts": []}
         self.tools = [function_tool("submit_visuals", "Choose relevant charts using exact SQL sources and columns; explain no-chart decisions.", {
             "charts": {"type": "array", "items": chart_schema, "maxItems": 3},
             "reason": {"type": "string"}}), decline_tool()]
 
     def plan(self, question, answer, evidence, feedback=None):
+        self.diagnostics["rejected_attempts"] = []
         # Do not supply raw passages, retrieval scores or other agents' data to Lime.
         evidence = [item for item in evidence if item.get("producer") == "Cherry" and "sql" in item]
         payload = json.dumps({"question": question, "answer": answer, "evidence": evidence,
@@ -148,7 +152,7 @@ class LimeAgent:
         if len(payload) > 150_000:
             raise ValueError("Visualization evidence is too large; narrow the query.")
         history, trace = [{"role": "user", "content": payload}], []
-        for _ in range(3):
+        for attempt in range(3):
             self.budget.consume("model")
             turn = self.model.respond(with_policies(INSTRUCTIONS), history, self.tools, True)
             history.extend(turn.output_items)
@@ -173,13 +177,18 @@ class LimeAgent:
                 plan = validate_visuals(json.loads(call.arguments), evidence, self.scope)
             except (ValueError, TypeError, KeyError) as error:
                 record("structured_response_repair", agent="Lime", **error_summary(error))
-                trace.append({"tool": call.name, "error": str(error)})
+                diagnostic = rejection_diagnostic(error, "Lime", call.name, attempt + 1, attempt + 1)
+                self.diagnostics["rejected_attempts"].append(diagnostic)
+                trace.append({"tool": call.name, "diagnostic": diagnostic})
                 history.append({"type": "function_call_output", "call_id": call.call_id,
-                                "output": json.dumps({"error": str(error)})})
+                                "output": json.dumps(repair_feedback(error) if isinstance(error, (ValidationError, json.JSONDecodeError)) else
+                                                     {"error": str(error)})})
                 continue
             trace.append({"tool": call.name, "result": plan})
             record("visual_plan_validated", agent="Lime", charts=len(plan["charts"]))
-            return VisualizationResult(plan["charts"], plan["reason"], self.mode, trace)
+            for entry in self.diagnostics["rejected_attempts"]:
+                entry.update(resolution="accepted_visual_submission", accepted_model_turn=attempt + 1)
+            return VisualizationResult(plan["charts"], plan["reason"], self.mode, trace, diagnostics=self.diagnostics)
         raise RuntimeError("Lime did not return a valid evidence-bound chart plan.")
 
     @staticmethod

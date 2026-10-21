@@ -56,17 +56,11 @@ class RejectionDiagnosticTests(unittest.TestCase):
         self.assertEqual(item["detail"]["safe_fragment"], "FACT_000000000000")
         self.assertNotIn("safe_fragment", error_summary(error))
 
-    def test_q4_is_described_as_a_syntactic_trigger_not_an_invented_target(self):
-        error = self.caught(payload(self.good["fact_ids"], proposals=[proposal("Recheck the survey in Q4.")]))
-        item = rejection_diagnostic(error, "Original", "submit_grounded_answer", 2, 1)
-        self.assertEqual(item["validation_code"], "numeric_proposal")
-        self.assertEqual(item["field"], "proposals[0].text")
-        self.assertEqual(item["item_index"], 0)
-        self.assertEqual(item["detail"]["safe_fragment"], "Q4")
-        self.assertEqual(item["detail"]["match_kind"], "digit")
-        self.assertIn("does not establish an invented target", item["reason"])
-        # The existing acceptance rule remains unchanged.
-        self.assertEqual(item["status"], "rejected_unverified")
+    def test_quarter_reference_is_allowed_but_numeric_target_is_rejected(self):
+        text, _ = render_answer(payload(self.good["fact_ids"], proposals=[proposal("Recheck the survey in Q4.")]), self.catalog, "Original")
+        self.assertIn("Q4", text)
+        error = self.caught(payload(self.good["fact_ids"], proposals=[proposal("Recheck Q4 with a target of 99 percent.")]))
+        self.assertEqual(error.details["validation_code"], "numeric_proposal")
 
     def test_sensitive_proposal_content_is_not_added_to_logs_or_local_diagnostic(self):
         secret = "sk-" + "fakecredential" * 4
@@ -77,7 +71,7 @@ class RejectionDiagnosticTests(unittest.TestCase):
         serialized = json.dumps(item)
         for value in (secret, private, "Example Person", "private@example.invalid", "confidential health detail"):
             self.assertNotIn(value, serialized)
-        self.assertEqual(item["detail"]["safe_fragment"], "Q4")
+        self.assertNotIn("safe_fragment", item["detail"])
         self.assertTrue(item["detail"]["content_omitted"])
         with TemporaryDirectory() as directory:
             with RunLog(directory) as log:

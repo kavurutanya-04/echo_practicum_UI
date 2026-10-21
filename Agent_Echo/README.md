@@ -24,6 +24,10 @@ bounded closure, selective roles, localized repairs and independent finding revi
 returns `complete`, `partial`, `needs_clarification` or `failed`; partial output contains only
 independently supported blocks. All output is English. `--output` also preserves known
 failures as explicitly failed artifacts, rather than silently omitting the file.
+`verification.status` distinguishes a review that was `not_run`, `failed`, or `completed`;
+the terminal no longer presents an unexecuted review as a ZeroSugar revision verdict.
+Interrupted specialists may retain evidence for independent review; preserved work is
+not automatically published. See [repair and recovery](WORKFLOW_RELIABILITY.md#repair-feedback-and-retained-evidence-2026-10-21).
 
 Every `run_agent.py` execution (including connection checks and runs launched by
 `evaluate_live.py`) automatically creates a unique local `reports/logs/*.jsonl` log.

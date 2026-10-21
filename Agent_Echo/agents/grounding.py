@@ -5,6 +5,7 @@ model interpretations. Those still need independent review and human evaluation.
 """
 
 from decimal import Decimal
+from datetime import date
 import hashlib
 import itertools
 import json
@@ -199,6 +200,22 @@ def answer_schema(role):
             "interpretations": narrative, "proposals": narrative}
 
 
+def narrative_number(text, proposal=False):
+    """Skip quarter/ISO-date references, not analytic quantities; meaning is reviewed."""
+    temporal = []
+    for match in re.finditer(r"\b(?:\d{4}-\d{2}-\d{2}|\d{4}-Q[1-4]|Q[1-4](?:\s+\d{4})?)\b", text, re.I):
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", match.group()):
+            try:
+                date.fromisoformat(match.group())
+            except ValueError:
+                continue
+        temporal.append(match.span())
+    pattern = r"\d|\b(?:percent|percentage points)\b" if proposal else \
+        r"\d|\b(?:percent|percentage|majority|minority|all employees|everyone|every quarter|always|never)\b"
+    return next((match for match in re.finditer(pattern, text, re.I)
+                 if not any(start <= match.start() < end for start, end in temporal)), None)
+
+
 def render_answer(payload, catalog, role):
     if role not in {"Original", "Cherry", "Vanilla"}:
         fail("answer_role", "role", "Only Original, Cherry and Vanilla use this answer contract.")
@@ -248,15 +265,22 @@ def render_answer(payload, catalog, role):
             if not isinstance(text, str) or not 1 <= len(text.strip()) <= 600 or "\n" in text:
                 fail("narrative_text", path + ".text", "Use one short sentence per narrative claim (1-600 characters, no newline).",
                      item_index=index, local_details={"expected": "1-600 characters, no newline", **minimal_value(text)})
-            if not isinstance(refs, list) or not refs or any(not isinstance(k, str) or k not in catalog.sources for k in refs):
-                fail("narrative_sources", path + ".citation_ids", "Every narrative claim needs existing source IDs.", item_index=index)
+            if not isinstance(refs, list):
+                fail("narrative_sources_type", path + ".citation_ids", "Use a list of source IDs, without citation brackets.", item_index=index)
+            if not refs:
+                fail("narrative_sources_empty", path + ".citation_ids", "Select an existing source ID for this narrative item.", item_index=index)
+            for source_index, identity in enumerate(refs):
+                if not isinstance(identity, str):
+                    fail("narrative_source_type", path + f".citation_ids[{source_index}]", "Each source ID must be a string.", item_index=index, source_index=source_index)
+                if identity not in catalog.sources:
+                    fail("narrative_source_unknown", path + f".citation_ids[{source_index}]", "Replace this ID with an available source ID, exactly as supplied and without brackets. Fact IDs belong in fact_ids.", item_index=index, source_index=source_index)
             # No source IDs embedded in model prose: code owns citation placement.
             if re.search(r"\[[^\]]+\]", text):
                 fail("embedded_citation", path + ".text", "Put source identifiers in citation_ids, not in the text.", item_index=index)
             if kind == "interpretations":
                 if len(refs) != 1:
                     fail("interpretation_scope", path + ".citation_ids", "Use one source excerpt per individual interpretation; do not infer a population theme.", item_index=index)
-                match = re.search(r"\d|\b(?:percent|percentage|majority|minority|all employees|everyone|every quarter|always|never)\b", text, re.I)
+                match = narrative_number(text)
                 if match:
                     fail("numeric_interpretation", path + ".text", "A digit or quantifier keyword triggered the interpretation rule; this alone does not prove a false claim. Select numerical comparisons as catalog facts.",
                          item_index=index, local_details=numeric_fragment(text, match))
@@ -277,7 +301,7 @@ def render_answer(payload, catalog, role):
             else:
                 if quote is not None:
                     fail("proposal_quote", path + ".quote", "Proposals use quote=null and are not observed outcomes.", item_index=index)
-                match = re.search(r"\d|\b(?:percent|percentage points)\b", text, re.I)
+                match = narrative_number(text, proposal=True)
                 if match:
                     fail("numeric_proposal", path + ".text", "A digit or percentage keyword triggered the proposal rule; this alone does not establish an invented target. Select numeric facts separately.",
                          item_index=index, local_details=numeric_fragment(text, match))

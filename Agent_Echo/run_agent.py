@@ -176,7 +176,10 @@ def execute(args, parser):
             for files in result.visualization.get("files", []):
                 print("Chart: " + files["svg"])
         if result.verification:
-            print("Verification: " + result.verification["decision"] + (" (scripted fixture, not LLM judgment)" if args.demo else ""))
+            review_status = result.verification.get("status", "completed")
+            print("Verification: " + ("not run" if review_status == "not_run" else
+                "failed to finish" if review_status == "failed" else result.verification["decision"]) +
+                (" (scripted fixture, not LLM judgment)" if args.demo else ""))
         if args.output:
             print(f"Evidence artifact: {args.output.resolve()}")
         if result.status == "failed":

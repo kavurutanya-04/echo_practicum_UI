@@ -30,7 +30,7 @@ def safe_validation_details(error):
                    if key in {"source_id", "finding_id"} else r"[A-Za-z0-9_.\[\] /:-]+")
         if isinstance(value, str) and len(value) <= 160 and re.fullmatch(pattern, value):
             result[key] = value
-    for key in ("item_index", "expected_count", "actual_count", "max_characters", "actual_characters", "line", "column", "unexpected_field_count"):
+    for key in ("item_index", "source_index", "expected_count", "actual_count", "max_characters", "actual_characters", "line", "column", "unexpected_field_count"):
         if type(details.get(key)) is int and details[key] >= 0:
             result[key] = details[key]
     if isinstance(details.get("missing_fields"), list):
@@ -41,8 +41,15 @@ def safe_validation_details(error):
 
 def repair_feedback(error):
     # Only known application messages are echoed; arbitrary exceptions may hold data.
-    return {"error": str(error) if isinstance(error, ValidationError) else "Return valid tool arguments.",
-            **validation_details(error)}
+    feedback = {"error": str(error) if isinstance(error, ValidationError) else "Return valid tool arguments.",
+                **validation_details(error)}
+    if isinstance(error, ValidationError):
+        # Only minimized/allowlisted fragments may reach model repair, never raw prose.
+        detail = rejection_diagnostic(error, "repair", "repair", 0, 0)["detail"]
+        if detail:
+            feedback["condition"] = detail
+        feedback["correction"] = "Correct the indicated field in your previous submission; preserve already valid fields."
+    return feedback
 
 
 def minimal_value(value):

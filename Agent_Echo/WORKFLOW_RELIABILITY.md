@@ -179,9 +179,9 @@ free-form answer attempts in the ignored local JSON artifact, including after su
 or exhaustion. Each entry identifies agent, tool, model turn, rejection index, field,
 element index when relevant, stable code and a fixed application explanation. Type,
 count and unknown-ID errors are distinct, as are quote type, length and literal mismatch.
-The existing acceptance predicates are unchanged. A digit/keyword rejection explicitly
-does not establish an invented target or a false claim; a valid calendar reference such
-as Q4 still triggers the current proposal rule and now has an actionable explanation.
+At that diagnostic-only revision the acceptance predicates were unchanged. The later
+[repair and recovery update](#repair-feedback-and-retained-evidence-2026-10-21) permits
+quarter/ISO-date references; analytic quantities and prevalence claims still require facts.
 
 The new diagnostic deliberately omits full arguments, rejected prose, source quotes,
 names, contact details and credentials. It keeps only types/counts/positions and
@@ -270,3 +270,38 @@ interruption/reuse, incomplete coverage, role declines/reassignment, privacy, CL
 canonical sources and Original -> Vanilla -> ZeroSugar integration. Scripted labels test
 software contracts, not Luna's semantic accuracy. No real provider request was made for
 this update; the next live run must test the repaired behavior.
+
+## Repair feedback and retained evidence (2026-10-21)
+
+The saved sixth run (`apinex_prueba_vanilla_6.json`, log
+`20261021_140043_cc88dedfe33b.jsonl`) failed after completing 13 labels. Vanilla's later
+generation hit its output limit; six Original submissions failed validation, including
+two digit matches in `Q3`. No ZeroSugar review ran. This observation motivates these
+changes; it does not validate the sentiment labels.
+
+- Source-bound interpretations/proposals permit Q1-Q4, quarter/year forms and valid ISO
+  dates. Other digits and the existing quantitative keywords remain restricted. Temporal
+  meaning and authorized-period correspondence still require independent review.
+- Citation errors distinguish list type, empty references, element type and unknown ID,
+  with field and element position. Every grounded turn supplies available source IDs
+  separately from fact IDs. Repair feedback is a structured object, not JSON nested inside
+  an error string. It retains only allowlisted condition metadata and explicitly marks
+  repeated conditions; it does not add retries or guarantee the model will correct them.
+- An interrupted specialist retains evidence and reports `presentation_complete=false`.
+  Original reuses its prior specialist evidence within the same scoped workflow. Vanilla
+  also reports completed classifications and whether classifications remain pending.
+  ZeroSugar assesses the candidate and requested coverage, not the failure flag alone.
+  A completed independent review may accept recovered evidence; incomplete classification,
+  missing evidence or failed integrity checks cannot be treated as completed work.
+- Lime keeps its existing valid-plan reuse in Original. Chart source/column errors now
+  identify their field; minimized Lime/ZeroSugar rejection histories survive correction
+  or failure. Plans are still exported only after acceptance, never from partial packages.
+- `verification.status` distinguishes `not_run`, `failed` and `completed` while retaining
+  the existing decision field. The CLI displays that distinction. Failure metadata names
+  the interrupted stage. Logs record configured output limits and available provider token
+  counters before rejecting a truncated response; absent counters remain absent.
+
+The five roles, tools, scope/privacy controls, 6000-token APInex output allowance, other
+provider limits, pacing and call/turn/time budgets are unchanged. No persistent cross-run
+cache, new agent or new tool is introduced. Focused offline checks are recorded in
+[TESTING_AND_RAG.md](TESTING_AND_RAG.md); the full suite and live calls were not requested.

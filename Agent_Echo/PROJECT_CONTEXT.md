@@ -51,11 +51,20 @@ the observed live runs are recorded separately below.
 | Task outcomes | Cherry, Vanilla and Lime can decline incompatible work in an existing turn. Original can correct routing and reuses identical closed-task outcomes. Missing evidence, incomplete work and failure stay distinct. No new agent or mandatory preflight call. | [Workflow repairs](WORKFLOW_RELIABILITY.md#sentiment-routing-retained-progress-and-task-declines-2026-10-21) |
 | Diagnostics and release | Minimized answer/batch rejections preserve condition, field/index, source IDs and attempt metadata without rejected prose/quotes or keys. Authorized source text remains in local evidence. ZeroSugar reviews claims; incomplete work cannot be labeled complete, and only eligible supported claims can be partial. | [Diagnostics](WORKFLOW_RELIABILITY.md#rejected-source-answer-diagnostics-2026-10-21), [CLI guide](README.md) |
 
-The latest implementation check passed **207 offline tests on 2026-10-21**, including
+The earlier full implementation check passed **207 offline tests on 2026-10-21**, including
 22 [sentiment workflow regressions](tests/test_sentiment_workflow_repairs.py), without
 provider requests. Scripted labels test contracts, not model quality. The current
 documentation review did not rerun that suite. Live confirmation of the fifth-run repairs
 and independently measured sentiment quality remain pending.
+
+Later repair, 2026-10-21: permit quarter/ISO-date references, provide precise structured
+citation feedback and repeated-error guidance, reuse retained specialist evidence for
+independent review, and distinguish failed/unexecuted reviews. Lime and ZeroSugar retain
+minimized repair diagnostics; provider token counters and failure stages improve local
+diagnosis. Roles, tools, APInex's 6000 tokens and all execution budgets are unchanged.
+The 75 focused offline checks listed in TESTING_AND_RAG.md passed; the full suite was
+not rerun and live confirmation remains pending. See
+[repair and recovery](WORKFLOW_RELIABILITY.md#repair-feedback-and-retained-evidence-2026-10-21).
 
 ## What is implemented versus demonstrated
 
@@ -74,7 +83,15 @@ Live testing has already begun. The following existing local artifacts were insp
 | `apinex_prueba_media_4.json` | User's fourth live run: `complete`, 9 successful Luna calls, verifier `accept`, 14 reviewed units, 168.718 seconds. Original 4 calls, Cherry 4, ZeroSugar 1; Vanilla/Lime skipped. Source aggregates and numerical changes independently matched. Four source submissions were corrected; their exact rejected arguments were not preserved and cannot be recovered. The gateway file reports 71,630 actual tokens and 214,890 quota units (x3). Final prose is repetitive, changing response denominators deserve fuller explanation, and one ZeroSugar rationale has a reversed comparison sign despite the correct coverage count. This is an observed numeric success, not general model/text quality validation. |
 | `apinex_prueba_vanilla_5.json` | User's fifth live run: `failed`, 28 successful Luna calls, 545.36 seconds; Original 8 calls, Vanilla 13, Cherry 7, ZeroSugar 0. Incorrect routing, repeated classification and missing individual text sources exhausted the workflow. The third Vanilla delegation retained 13 complete labels (8 positive, 3 negative, 2 mixed), but no independent review occurred and no answer was released. Gateway usage: 151,229 actual tokens / 453,687 quota units (x3); no HTTP 429 observed. The repairs above follow this failure and have not yet been tested live. |
 
-These files are ignored local artifacts and may be absent in another checkout. Their metadata was checked; this documentation task did not rerun them or certify the findings. Do not describe all live evaluation as unstarted. A comparative winner remains unestablished.
+Sixth-run observation, 2026-10-21: `apinex_prueba_vanilla_6.json` and
+`logs/20261021_140043_cc88dedfe33b.jsonl` record 14 generation attempts, 13 successful calls,
+270.188 seconds and final `failed`. Thirteen provisional labels were retained (9 positive,
+2 negative, 2 mixed). Vanilla's later generation hit the output limit; Original exhausted
+seven turns after six validation rejections, including two `Q3` matches. ZeroSugar made
+zero calls; `revise` was the failure default, not an independent verdict. Semantic label
+quality and live confirmation of the new repair remain pending.
+
+These files are ignored local artifacts and may be absent in another checkout. Their metadata was checked; this maintenance task did not rerun them or certify the findings. Do not describe all live evaluation as unstarted. A comparative winner remains unestablished.
 
 Offline historical audit: four local artifacts, 13 role executions across Original/Cherry/Vanilla, zero API calls; source review packet at `reports/grounding_audit_before_upgrade.json`. No complete classification labels were preserved in those files, so semantic classifier accuracy is unavailable. Human query/entailment review remains pending; no old narrative result was retroactively certified.
 
@@ -90,12 +107,10 @@ The latter two list configuration/cases without making model requests. Live eval
 
 ## Decisions, proposals, and pending work
 
-- Immediate next step: repeat run five's exact Recognition-comment question and M14/Q3
-  2026 scope with `--profile apinex_test --run-seconds 1000`, saving
-  `reports/apinex_prueba_vanilla_6.json`. No saved sixth-run result was present at this
-  documentation review. The [complete terminal command](TESTING_AND_RAG.md#next-live-test-sixth-luna-run)
-  does not establish that a run was executed. Inspect actual citations, retained retries,
-  task routing, ZeroSugar review, minimized diagnostics and gateway token/quota usage.
+- The sixth run was inspected and motivated the repair above. The user deferred live
+  repeats, the full suite, token-limit increases and new agents. Any later authorized live
+  comparison must preserve run six and use a fresh artifact filename. The
+  [historical command](TESTING_AND_RAG.md#next-live-test-sixth-luna-run) remains a reference.
 
 - Preserve the five-role baseline while evaluating answer quality, usefulness, and provider/model fit.
 - The user wants evidence-grounded conclusions and useful partial results when independent findings survive a component failure.

@@ -87,6 +87,13 @@ Example rejection: a title claiming causal engagement improvement from synthetic
 
 One localized correction round is allowed. A rejected full draft is withheld; independently supported blocks can be released as a partial answer. Charts remain withheld for incomplete packages. Model judgment remains fallible. ZeroSugar reviews structured specs and data, not a rendered image; human visual inspection is separate.
 
+Recovery update, 2026-10-21: interrupted Cherry/Vanilla executions can retain evidence
+without a completed presentation. Original supplies that outcome to ZeroSugar, which
+must review the candidate and remaining coverage before release. A failure flag alone
+does not invalidate complete evidence; neither retained evidence nor a literal quote is
+approval. Lime keeps valid-plan reuse, and Lime/ZeroSugar now retain minimized repair
+diagnostics. See [the shared contract](WORKFLOW_RELIABILITY.md#repair-feedback-and-retained-evidence-2026-10-21).
+
 ## Workflow
 
 ```mermaid
