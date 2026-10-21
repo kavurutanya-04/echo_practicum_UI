@@ -32,9 +32,10 @@ def tables():
     }
 
 
-def plan(numbers=True, text=False, chart=False, question=None, metric="none", dimension=""):
+def plan(numbers=True, text=False, chart=False, question=None, metric="none", dimension="", basis=None):
     return tool_turn("submit_plan", {"needs_numbers": numbers, "needs_text": text,
                                     "include_chart": chart, "clarification_question": question,
+                                    "clarification_basis": basis,
                                     "metrics": [] if metric == "none" else [{"metric": metric, "dimension": dimension or None}]})
 
 
@@ -360,7 +361,11 @@ class OutcomeTests(unittest.TestCase):
             finally: agent.close()
 
     def test_clarification_has_no_specialist_calls(self):
-        model = SequenceModel([plan(False, False, False, "Should recognition mean manager recognition or any feedback?")])
+        clarification = plan(False, False, False, "Should recognition mean manager recognition or any feedback?",
+                             basis={"missing_field": "metric", "missing_detail": "Recognition definition",
+                                    "blocking_reason": "Different recognition definitions produce different counts.",
+                                    "request_excerpt": "Check recognition."})
+        model = SequenceModel([clarification, clarification])
         requested = []
         def factory(name):
             requested.append(name)

@@ -101,6 +101,45 @@ sentiment percentages. Charts are withheld for incomplete packages. Known failur
 write an explicitly failed artifact when `--output` is supplied; successful artifacts are
 saved before printing. Cancellation remains exit 130 with an incremental execution log.
 
+### Shared rules and initial planning clarifications (2026-10-21)
+
+[policies.py](agents/policies.py) contains six short instruction rules: evidence,
+uncertainty, authorized scope, clarification, untrusted content and execution limits.
+The existing runtime composes them with Original/Cherry/Vanilla role instructions;
+Original's separate planning call, Vanilla's sentiment batches, ZeroSugar and Lime
+compose the same rules directly. Connection probes remain minimal diagnostic calls.
+General duplicate instructions were removed; role-specific tools, privacy restrictions,
+source checks, source-bound rendering and independent verification stay in their modules.
+This is prompt/configuration engineering, not model training or a new policy agent.
+
+Initial plans now require nullable `clarification_basis` alongside
+`clarification_question`. A proposed question identifies a missing field/detail, its
+blocking reason and an exact excerpt from the original request. Code rejects invented
+excerpts, incomplete justification and requests for already supplied scope fields.
+Before showing an otherwise valid planning clarification, Original must reconsider the
+complete original question and scope in its existing two-attempt planning loop. It can
+remove the question and continue, or confirm a necessary ambiguity. A plan without a
+clarification needs no extra call. Exhausted retries/budgets fail explicitly; the system
+does not assume a missing answer or repeatedly question the user. The two attempts are
+shared with schema repair; a late clarification has no additional retry allowance.
+
+These observable checks are not a general semantic detector: a literal excerpt and
+plausible justification can still misinterpret the request. Reconsideration uses the
+same model, not an independent reviewer. Review-driven clarification retains the existing
+ZeroSugar/Original release gates and now receives the common instructions too.
+Delegated Cherry/Vanilla tasks include the full original request as context while keeping
+their bounded specialist task and fixed access scope. Resolved information is reused only
+within supplied context; there is no persisted conversation between terminal invocations.
+
+Planning diagnostics log validation codes/field names, not prompt or justification text.
+The optional ignored JSON artifact records the accepted clarification basis. Regression
+checks in [test_clarification_policy.py](tests/test_clarification_policy.py) exercise these
+paths using scripted responses, not provider reasoning. The user's third APInex run
+(`reports/apinex_prueba_media_3.json`) stopped after one planning call with an unnecessary
+clarification; this update has not yet been evaluated in another live run. Interactive
+terminal continuation, natural-language date resolution and authenticated manager selection
+remain deferred; `run_agent.py`, connections and request pacing are unchanged.
+
 ## 9. Diagnostics
 
 Automatic local JSONL logs include plan choices, skipped roles, remaining budgets,

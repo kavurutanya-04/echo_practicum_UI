@@ -27,7 +27,7 @@ def requests(*dimensions):
 
 def numeric_plan(metrics):
     return tool_turn("submit_plan", {"needs_numbers": True, "needs_text": False,
-        "include_chart": False, "clarification_question": None, "metrics": metrics})
+        "include_chart": False, "clarification_question": None, "clarification_basis": None, "metrics": metrics})
 
 
 def select_tables(instructions):

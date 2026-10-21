@@ -1,6 +1,6 @@
 # What can be tested without an API, and how to verify RAG
 
-Updated 2026-10-20. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
+Updated 2026-10-21. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
 
 ## Three different activities
 
@@ -23,12 +23,25 @@ The current live answer contract and historical-output audit are documented in
 
 ```powershell
 python -m unittest discover -s tests -p test_grounded_claims.py -v
+python -m unittest discover -s tests -p test_clarification_policy.py -v
 python audit_grounding.py reports/apinex_prueba_media_actualizada.json --output reports/grounding_review.json
 ```
 
 The audit packet requires human review of entailment, query meaning and label semantics;
 it does not report accuracy from an unannotated sample. Live runs now require a final
 `submit_grounded_answer` selection from the source catalog instead of free-form factual prose.
+
+Shared-rule and clarification regressions cover the complete medium question, unnecessary
+clarification repair, genuine ambiguity, already supplied scope, invalid quoted request
+excerpts, bounded failures, shared budgets, safe diagnostics and every analysis call path.
+They also check that a normal plan adds no reconsideration call. These are scripted
+engineering checks, not proof that Luna always recognizes ambiguity correctly. See
+[shared rules and clarification handling](WORKFLOW_RELIABILITY.md#shared-rules-and-initial-planning-clarifications-2026-10-21).
+The latest local suite passed 170 tests on 2026-10-21, including 16 new policy/clarification
+regressions, with zero generation API calls. A real follow-up still needs to exercise the
+updated plan schema and inspect the final answer. Preserve the third run's artifact;
+use a new output filename for the next live test. Terminal clarification still prints
+the question and exits; interactive continuation is deferred.
 
 ```powershell
 python -m unittest discover -s tests -v
