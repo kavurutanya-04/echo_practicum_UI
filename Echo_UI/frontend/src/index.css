@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Agent identity colors (each Echo agent is named after a soda flavor). */
+  --color-original: #7c3aed;
+  --color-cherry: #e11d48;
+  --color-vanilla: #d97706;
+  --color-lime: #65a30d;
+  --color-zerosugar: #0891b2;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+}
+
+::selection { @apply bg-indigo-500/25; }
+
+/* Thin, theme-aware scrollbars for panels. */
+* { scrollbar-width: thin; scrollbar-color: rgb(148 163 184 / 0.4) transparent; }
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); }
+  100% { box-shadow: 0 0 0 10px transparent; }
+}
+.pulse-ring { animation: pulse-ring 1.4s ease-out infinite; }
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.slide-in { animation: slide-in 0.25s ease-out both; }
+
+/* Short windows (small laptop panes, split screens): let the chat page scroll as a whole
+   instead of squeezing the message area between the agent strip and the composer. */
+@media (max-height: 640px) {
+  .chat-shell { height: auto; min-height: 100%; }
+  .chat-shell main { overflow: visible; }
+  /* Keep the agent strip visible while it lights up, and trim the extras to save height. */
+  .chat-shell header { position: sticky; top: 0; z-index: 20; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .chat-shell .short-hide { display: none; }
+  .chat-shell header > div + div { margin-top: 0.5rem; }
+  .chat-shell footer { position: sticky; bottom: 0; z-index: 20; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+}
