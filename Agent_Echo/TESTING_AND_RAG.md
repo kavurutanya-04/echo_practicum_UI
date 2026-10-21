@@ -6,6 +6,18 @@ Use [DOCUMENTATION_MAP.md](DOCUMENTATION_MAP.md) to navigate all references and
 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for dated observations. The 207-test result
 below belongs to the latest implementation check, not a new run for this documentation review.
 
+Synthesis/presentation update, 2026-10-21: only focused final offline checks are requested.
+The new cases in `tests/test_synthesis_presentation.py` cover multi-source synthesis,
+individual literal quotes, retained numeric restrictions, table/cell repetition, v1
+replay, optional suggestions and mandatory/source-integrity failures. Existing focused
+grounding/recovery checks remain applicable. No initial baseline, full suite or live call
+is part of this update; scripted reviewers do not establish real model quality.
+Final checks passed: **36 focused offline tests** (`test_synthesis_presentation.py`: 8;
+`test_grounded_claims.py`: 20; `test_recovery_feedback.py`: 8). A read-only replay of run
+seven's saved v1 candidate reported no claim-audit issues. Rendering its same selection
+through v2 reduced 21 blocks to 10 by removing the 11 repeated cells; this is a renderer
+check, not a new model answer or live approval. No original artifact was overwritten.
+
 ## Three different activities
 
 For evaluating intelligence, use the live evaluation cases after configuring a provider. Running Python locally can still call a cloud LLM; the decisive distinction is live API responses versus programmed fixtures. The demo is an optional engineering diagnostic, not a reasoning benchmark. Provider access and analytic quality require separate checks; see the NVIDIA/OpenCode access findings below.

@@ -151,6 +151,11 @@ Omit `--profile` to use those assignments. Supplying it forces the selected prof
 Live output uses the [source-bound fact and claim contract](SOURCE_GROUNDING.md).
 Models select recorded facts; Python renders numerical claims and tables, while text
 interpretations remain explicitly provisional and subject to independent review.
+Current answers use `source-facts-v2`: several cited text sources may support a qualitative
+synthesis, individual examples keep literal excerpts, and a selected source table is not
+repeated as individual numeric-cell sentences. Original can revise presentation while
+preserving facts/provenance. ZeroSugar's optional `suggestions` are separate from mandatory
+`issues`. Saved v1 answers remain reviewable through their original rendering contract.
 
 Use only your group's assigned Azure resource and deployment. In `connections.json`, fill `profiles.gw_azure.endpoint` and `profiles.gw_azure.model` with the actual resource URL and Responses-capable deployment name. The JSON `api_version` retains the professor's `2025-03-01-preview` setting. Configure the separate `gw_embeddings` endpoint and embedding deployment in JSON only if semantic retrieval is needed. Keep unavailable fields empty rather than inventing values.
 

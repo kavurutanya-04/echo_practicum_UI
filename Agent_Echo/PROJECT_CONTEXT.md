@@ -38,6 +38,21 @@ instruction file and local historical reference. `AGENTS.md` guides project main
 
 ## Current implemented contracts
 
+Synthesis/presentation update, 2026-10-21: new answers use `source-facts-v2`; several cited
+text sources may support a provisional synthesis with `quote=null`, while individual
+examples still need literal excerpts. Exact source tables suppress repeated cell sentences,
+and narrative labels are grouped. Original preserves facts/meaning/provenance during
+repair without freezing the previous layout. ZeroSugar checks all cited sources and
+separates mandatory `issues` from optional `suggestions`. Stored v1 answers retain their
+original replay contract. Five roles, existing tools, scope/privacy gates and 6000 APInex
+output tokens are unchanged. Only focused final offline checks are authorized; no initial,
+general or live test is part of this update. See
+[the contract](SOURCE_GROUNDING.md) and [workflow](WORKFLOW_RELIABILITY.md#cited-synthesis-and-presentation-2026-10-21).
+Final evidence: 36 focused offline tests passed. The saved seventh-run v1 candidate still
+passes source-claim replay; its same selection renders as 10 blocks in v2 instead of 21,
+without the repeated cell sentences. No saved artifact was overwritten or live model run
+performed. These checks do not certify future agent compliance or sentiment semantics.
+
 The approved updates on 2026-10-20/21 preserve the five roles, source restrictions and
 independent review. Detailed change history belongs in the linked operating guides;
 the observed live runs are recorded separately below.
@@ -92,6 +107,15 @@ zero calls; `revise` was the failure default, not an independent verdict. Semant
 quality and live confirmation of the new repair remain pending.
 
 These files are ignored local artifacts and may be absent in another checkout. Their metadata was checked; this maintenance task did not rerun them or certify the findings. Do not describe all live evaluation as unstarted. A comparative winner remains unestablished.
+
+Seventh-run observation: `apinex_prueba_vanilla_7.json` and
+`logs/20261021_151118_6e9a78baa4d6.jsonl` record `partial`, 18 successful calls and 349.719
+seconds (Original 7, Vanilla 6, ZeroSugar 5). The 13 labels cover unchanged sources:
+8 positive, 2 negative and 3 mixed. CMT27512 changed from positive to mixed. Quotes,
+hashes and aggregation matched the scoped source in a read-only audit; semantic accuracy
+remains unvalidated. Both reviews supported all 21 blocks with no deterministic issues,
+but requested synthesis/presentation repair. The old format repeated 11 numeric cells
+after the table. Current changes follow this observation; no live confirmation is claimed.
 
 Offline historical audit: four local artifacts, 13 role executions across Original/Cherry/Vanilla, zero API calls; source review packet at `reports/grounding_audit_before_upgrade.json`. No complete classification labels were preserved in those files, so semantic classifier accuracy is unavailable. Human query/entailment review remains pending; no old narrative result was retroactively certified.
 

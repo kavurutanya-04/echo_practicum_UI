@@ -86,7 +86,7 @@ class GroundedClaimTests(unittest.TestCase):
         text, claims = render_answer(payload, self.catalog, "Original")
         claims[0]["text"] = "Manager support increased by 9 points [SQL2]."
         bad_text = "\n\n".join(c["text"] for c in claims)
-        grounding = {"version": "source-facts-v1", "role": "Original", "payload": payload}
+        grounding = {"version": "source-facts-v2", "role": "Original", "payload": payload}
         verifier = ZeroSugarAgent(SCOPE, ReviewModel(["accept"]), "live", sql_reader=self.child.reader)
         result = verifier.review("Compare dimensions", bad_text, self.evidence, claims=claims, grounding=grounding)
         self.assertEqual(result.decision, "revise")
@@ -101,7 +101,7 @@ class GroundedClaimTests(unittest.TestCase):
         text, claims = render_answer(payload, catalog, "Original")
         verifier = ZeroSugarAgent(SCOPE, ReviewModel(["accept"]), "live", sql_reader=self.child.reader)
         result = verifier.review("Review numeric evidence", text, evidence, claims=claims,
-            grounding={"version":"source-facts-v1","role":"Original","payload":payload})
+            grounding={"version":"source-facts-v2","role":"Original","payload":payload})
         self.assertEqual(result.decision, "revise")
         self.assertTrue(any("replay" in issue for issue in result.deterministic_issues))
 
@@ -120,7 +120,7 @@ class GroundedClaimTests(unittest.TestCase):
         self.assertIn("Provisional interpretation", text)
         self.assertEqual(claims[0]["validation"], "provisional_semantics")
         self.assertEqual(audit_claims(claims, text, catalog,
-            {"version": "source-facts-v1", "role": "Vanilla", "payload": payload}), [])
+            {"version": "source-facts-v2", "role": "Vanilla", "payload": payload}), [])
 
     def test_fake_quote_and_numeric_text_prevalence_are_rejected(self):
         catalog = FactCatalog([{"citation_id": "CMT1", "text": "Helpful manager."}], SCOPE.__dict__)
@@ -163,7 +163,7 @@ class GroundedClaimTests(unittest.TestCase):
         claims[0]["text"] = claims[0]["text"].replace("3.53", "9.99")
         altered = "\n\n".join(c["text"] for c in claims)
         self.assertTrue(audit_claims(claims, altered, self.catalog,
-            {"version":"source-facts-v1","role":"Original","payload":payload}))
+            {"version":"source-facts-v2","role":"Original","payload":payload}))
 
     def test_conflicting_source_rows_are_rejected_instead_of_chosen_by_model(self):
         bad = deepcopy(self.evidence[0]); bad["citation_id"] = "SQL3"; bad["rows"][0]["Mean_Score"] = 1.0
@@ -206,7 +206,7 @@ class GroundedClaimTests(unittest.TestCase):
         self.addCleanup(agent.close)
         result = agent.run("Compare Recognition and manager support with a table.")
         self.assertEqual(result.status, "complete")
-        self.assertEqual(result.grounding["version"], "source-facts-v1")
+        self.assertEqual(result.grounding["version"], "source-facts-v2")
         self.assertEqual(len(result.claims), len(result.findings))
         self.assertTrue(all(c["status"] == "supported" for c in result.findings))
 

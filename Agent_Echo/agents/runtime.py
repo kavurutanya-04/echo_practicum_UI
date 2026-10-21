@@ -7,7 +7,7 @@ import time
 import hashlib
 from .execution_log import record, error_summary
 from .findings import normalize_citations
-from .grounding import FactCatalog, answer_schema, render_answer
+from .grounding import FactCatalog, answer_schema, render_answer, GROUNDING_VERSION
 from .validation import ValidationError, repair_feedback, rejection_diagnostic, minimal_value
 from .policies import with_policies
 
@@ -170,8 +170,11 @@ class Specialist:
             instructions += ("\nLIVE ANSWER CONTRACT: finish with exactly one submit_grounded_answer call. "
                 "Select fact_ids from the supplied catalog; Python renders numeric sentences/tables unchanged. "
                 "Never calculate, retype or paraphrase numerical facts. For a requested table select a table fact. "
-                "Use interpretations only for provisional qualitative interpretation of literal text excerpts, "
-                "one sentence and its source IDs per item; no numeric or prevalence statements there. "
+                "Use interpretations for provisional qualitative analysis: individual examples require a literal quote; "
+                "a synthesis may cite multiple text sources with quote=null. State shared patterns and disagreements "
+                "only when supported by those sources; selected examples cannot establish population prevalence. "
+                "Use one concise claim and its source IDs per item; no numeric statements there. "
+                "Choose a compact set of facts: a source table already displays its numeric cells. "
                 "Cherry must use empty interpretations/proposals. Proposals are actions, never observations. "
                 "Empty lists produce an explicit evidence limitation. Do not finish with free-form prose. "
                 "Independent review still checks query meaning, textual interpretations and task completeness.")
@@ -307,7 +310,7 @@ class Specialist:
                     for entry in rejections[rejection_start:]:
                         entry.update(resolution="accepted_source_submission", accepted_model_turn=step + 1)
                     result.claims = rendered_claims
-                    result.grounding = {"version": "source-facts-v1", "payload": json.loads(final_calls[0].arguments),
+                    result.grounding = {"version": GROUNDING_VERSION, "payload": json.loads(final_calls[0].arguments),
                                         "role": self.name, "semantic_quality": "requires_independent_review"}
                 if hasattr(self, "numeric_coverage"):
                     result.diagnostics["numeric_coverage"] = self.numeric_coverage(evidence)

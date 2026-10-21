@@ -72,6 +72,9 @@ candidate and calculations. Unchanged chart plans are reused when another role i
 Sources and the final package are still reviewed. Tool/classification progress is not
 reused across independent workflows. Optional persistent embedding caches are separate
 and scoped to source/provider/model identity, as described in TESTING_AND_RAG.md.
+Preserve supported facts, meaning and provenance during repair, rather than freezing
+their previous wording or block layout. Original may reorganize, synthesize cited text
+and remove redundant presentation. The revised candidate is independently reviewed again.
 
 ## 7. Review by finding
 
@@ -87,7 +90,8 @@ review with its original ID and citation IDs. When evidence is available, uncite
 are withheld until explicitly grounded. Plain headings and standalone Markdown separators
 (`---`, `***`, `___`) are excluded. Blocks containing substantive text remain reviewable,
 including uncited claims. All claims in a block must be supported; one unsupported claim withholds that block.
-The reviewer cannot rewrite the text into a new claim. Missing/repeated findings or changed
+The reviewer cannot rewrite the text into a new claim. IDs refer to the candidate currently
+being reviewed, not a frozen layout across revisions. Missing/repeated findings or changed
 source IDs invalidate the review. Source checks also run per block. A safety failure or
 deterministic package error prevents partial release. English is the application policy.
 
@@ -305,3 +309,24 @@ The five roles, tools, scope/privacy controls, 6000-token APInex output allowanc
 provider limits, pacing and call/turn/time budgets are unchanged. No persistent cross-run
 cache, new agent or new tool is introduced. Focused offline checks are recorded in
 [TESTING_AND_RAG.md](TESTING_AND_RAG.md); the full suite and live calls were not requested.
+
+## Cited synthesis and presentation (2026-10-21)
+
+Run seven reached two complete reviews, with all 21 blocks supported but a final `partial`
+decision for redundant presentation, weak synthesis and indirect follow-up questions.
+The candidate repeated a table through 11 cell sentences. Attempts to cite multiple
+comments in an interpretation were rejected by the old individual-source rule. Repair
+instructions also froze supported blocks, conflicting with the requested presentation repair.
+
+The approved update uses the existing tools and five roles: `source-facts-v2` permits
+qualitative synthesis across cited text sources, keeps individual excerpts literal, groups
+narrative labels and removes exact table/cell repetition. Numeric calculations remain
+source-bound and no prevalence is inferred from selected excerpts. The v1 replay path
+preserves older artifacts. Original's repair instructions preserve facts/provenance while
+allowing rephrasing and restructuring; no additional writing agent or post-review rewrite
+is introduced. ZeroSugar checks all cited sources and separates mandatory `issues` from
+optional `suggestions`. Existing source, completeness and safety gates still force revision.
+Old review payloads without suggestions remain readable; the live tool requests the new field.
+
+Only focused final offline checks are authorized. There is no initial baseline rerun,
+full-suite run or live API call, and no change to tokens, pacing or execution budgets.

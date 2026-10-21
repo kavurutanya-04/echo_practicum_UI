@@ -14,6 +14,8 @@ import re
 
 from .validation import ValidationError, minimal_value, numeric_fragment
 
+GROUNDING_VERSION = "source-facts-v2"
+
 
 def fail(code, field, message, **details):
     raise ValidationError(code, field, message, **details)
@@ -194,7 +196,8 @@ def answer_schema(role):
     narrative = {"type": "array", "maxItems": 12, "items": {"type": "object", "properties": {
         "text": {"type": "string", "minLength": 1, "maxLength": 600},
         "citation_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-        "quote": {"type": ["string", "null"], "maxLength": 400}},
+        "quote": {"type": ["string", "null"], "maxLength": 400,
+                  "description": "Literal excerpt for an individual interpretation; null is allowed for a synthesis citing multiple text sources. Proposals use null."}},
         "required": ["text", "citation_ids", "quote"], "additionalProperties": False}}
     return {"fact_ids": {"type": "array", "maxItems": 24, "items": {"type": "string"}},
             "interpretations": narrative, "proposals": narrative}
@@ -216,7 +219,10 @@ def narrative_number(text, proposal=False):
                  if not any(start <= match.start() < end for start, end in temporal)), None)
 
 
-def render_answer(payload, catalog, role):
+def render_answer(payload, catalog, role, version=GROUNDING_VERSION):
+    if version not in {"source-facts-v1", GROUNDING_VERSION}:
+        fail("answer_version", "grounding.version", "Unsupported source-bound answer version.")
+    legacy = version == "source-facts-v1"
     if role not in {"Original", "Cherry", "Vanilla"}:
         fail("answer_role", "role", "Only Original, Cherry and Vanilla use this answer contract.")
     if not isinstance(payload, dict) or set(payload) != {"fact_ids", "interpretations", "proposals"}:
@@ -237,6 +243,11 @@ def render_answer(payload, catalog, role):
         if key not in catalog.facts:
             fail("fact_id_unknown", "fact_ids", "The selected identifier is absent from the supplied fact catalog.",
                  item_index=index, local_details={"expected": "existing catalog fact ID", **minimal_value(key)})
+    # Suppress only cells already fully displayed by an exact source table. Keep
+    # calculated comparisons and all provenance; this makes no analytic selection.
+    covered = {source_id for key in chosen if catalog.facts[key]["kind"] == "table"
+               for source_id in catalog.facts[key]["citation_ids"]
+               if catalog.facts[key]["operation"].get("rows") == catalog.sources[source_id].get("rows")}
     claims = []
     for key in dict.fromkeys(chosen):
         fact = catalog.facts[key]
@@ -245,6 +256,8 @@ def render_answer(payload, catalog, role):
             fail("fact_role", "fact_ids", "Cherry may select only its numeric source facts.")
         if role == "Vanilla" and any(s.get("producer") == "Cherry" for s in sources):
             fail("fact_role", "fact_ids", "Vanilla may select text or sentiment sources, not Cherry's SQL facts.")
+        if not legacy and fact["kind"] == "observed" and set(fact["citation_ids"]).issubset(covered):
+            continue
         claims.append({**fact, "validation": "source_reproducible"})
     for kind in ("interpretations", "proposals"):
         items = payload[kind]
@@ -278,26 +291,31 @@ def render_answer(payload, catalog, role):
             if re.search(r"\[[^\]]+\]", text):
                 fail("embedded_citation", path + ".text", "Put source identifiers in citation_ids, not in the text.", item_index=index)
             if kind == "interpretations":
-                if len(refs) != 1:
+                if legacy and len(refs) != 1:
                     fail("interpretation_scope", path + ".citation_ids", "Use one source excerpt per individual interpretation; do not infer a population theme.", item_index=index)
                 match = narrative_number(text)
                 if match:
                     fail("numeric_interpretation", path + ".text", "A digit or quantifier keyword triggered the interpretation rule; this alone does not prove a false claim. Select numerical comparisons as catalog facts.",
                          item_index=index, local_details=numeric_fragment(text, match))
                 texts = [catalog.sources[k].get("text", "") for k in refs]
-                if not any(texts):
+                if not any(texts) or (not legacy and not all(isinstance(t, str) and t.strip() for t in texts)):
                     fail("interpretation_source_not_text", path + ".citation_ids", "The selected source has no text for a qualitative interpretation.", item_index=index)
-                if not isinstance(quote, str):
+                synthesis = not legacy and len(set(refs)) > 1
+                if quote is None and synthesis:
+                    excerpt = ""
+                elif not isinstance(quote, str):
                     fail("interpretation_quote_type", path + ".quote", "The source excerpt must be a string.",
                          item_index=index, local_details=minimal_value(quote))
-                if not 1 <= len(quote) <= 400:
+                elif not 1 <= len(quote) <= 400:
                     fail("interpretation_quote_length", path + ".quote", "The source excerpt must contain 1-400 characters.",
                          item_index=index, max_characters=400, actual_characters=len(quote))
-                if not any(quote in source for source in texts):
+                elif not any(quote in source for source in texts):
                     fail("interpretation_quote_not_literal", path + ".quote", "The proposed excerpt does not occur literally in the selected source text.",
                          item_index=index, local_details=minimal_value(quote))
-                prefix = "Provisional interpretation for manager review: "
-                excerpt = ' Source excerpt: "' + cell(quote) + '".'
+                else:
+                    excerpt = (' Source excerpt: "' if legacy else ' Excerpt: "') + cell(quote) + '".'
+                prefix = "Provisional interpretation for manager review: " if legacy else \
+                    ("Provisional interpretation:\n\n" if not any(c["kind"] == "interpretation" for c in claims) else "")
             else:
                 if quote is not None:
                     fail("proposal_quote", path + ".quote", "Proposals use quote=null and are not observed outcomes.", item_index=index)
@@ -305,7 +323,10 @@ def render_answer(payload, catalog, role):
                 if match:
                     fail("numeric_proposal", path + ".text", "A digit or percentage keyword triggered the proposal rule; this alone does not establish an invented target. Select numeric facts separately.",
                          item_index=index, local_details=numeric_fragment(text, match))
-                prefix, excerpt = "Proposed action for manager review (not an observed outcome): ", ""
+                prefix = "Proposed action for manager review (not an observed outcome): " if legacy else \
+                    ("Proposed actions / questions (for manager review, not observed outcomes):\n\n"
+                     if not any(c["kind"] == "proposal" for c in claims) else "")
+                excerpt = ""
             # Split model prose into individual review units, retaining its source anchor.
             units = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text.strip())
             for unit in units:
@@ -313,6 +334,8 @@ def render_answer(payload, catalog, role):
                 claims.append({"kind": "interpretation" if kind == "interpretations" else "proposal",
                     "text": rendered, "citation_ids": sorted(set(refs)), "scope": catalog.scope,
                     "quote": quote, "validation": "provisional_semantics"})
+                if not legacy:
+                    prefix = ""
     if not claims:
         if catalog.facts:
             fail("answer_omitted_facts", "fact_ids", "Source facts are available; select the relevant facts instead of claiming missing evidence.")
@@ -349,9 +372,9 @@ def audit_claims(claims, answer, catalog, grounding=None):
     if "\n\n".join(c.get("text", "") for c in claims) != answer:
         issues.append("Answer text differs from its source-bound claims.")
     try:
-        if not grounding or grounding.get("version") != "source-facts-v1" or grounding.get("role") not in {"Original", "Cherry", "Vanilla"}:
+        if not grounding or grounding.get("version") not in {"source-facts-v1", GROUNDING_VERSION} or grounding.get("role") not in {"Original", "Cherry", "Vanilla"}:
             raise ValueError("Missing grounded answer contract.")
-        expected_text, expected_claims = render_answer(grounding["payload"], catalog, grounding["role"])
+        expected_text, expected_claims = render_answer(grounding["payload"], catalog, grounding["role"], grounding["version"])
         if answer != expected_text or claims != expected_claims:
             issues.append("Answer/claims differ from the controlled renderer output.")
     except (ValueError, KeyError, TypeError):

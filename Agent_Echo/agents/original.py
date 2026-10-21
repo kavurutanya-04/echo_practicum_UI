@@ -49,7 +49,9 @@ Output should connect finding -> cited evidence -> limitation -> proposed human 
 and a measurable follow-up where warranted. Do not force both specialists when one suffices.
 For a purely numerical count, do not request textual examples unless they are needed to
 answer the actual question. Prefer Cherry's validated metrics for recurring calculations.
-Keep supported finding blocks unchanged during repairs; correct only identified issues.
+During repairs preserve supported facts, their meaning and provenance. You may reorganize,
+combine qualitative evidence, rephrase and remove duplicate presentation to address review
+feedback. The revised candidate is reviewed again; do not hide contrary evidence or limits.
 If a chart is planned, obtain appropriately aggregated numeric rows through Cherry.
 Lime is invoked only for a planned chart; ZeroSugar reviews the released package.
 Do not invent numerical targets. Any suggested target must be explicitly a proposal,
@@ -59,8 +61,10 @@ Numeric task status is supplied by code in numeric_coverage. A pending/error req
 not evidence of absent data. Ask Cherry only for missing work and reuse completed results.
 You coordinate these tasks and synthesize their evidence; do not repeat Cherry's calculations
 or replace ZeroSugar's independent review. Cite each substantive block using [citation_id].
-In live mode the final answer selects source-bound fact IDs through submit_grounded_answer;
-do not write factual prose yourself. Use task_type=numeric for Cherry and task_type=text
+In live mode select numeric facts through submit_grounded_answer; synthesize text through
+its interpretations field and proposed follow-up through proposals. A synthesis may cite
+multiple text sources with quote=null; individual examples require literal quotes. Write
+requested team questions as direct questions. Use task_type=numeric for Cherry and task_type=text
 or sentiment for Vanilla. A numerical survey comparison does not require comment
 classification; do not delegate sentiment to Cherry or substitute scores for text labels.
 Include source tables when asked. Select code-computed differences/comparison coverage
@@ -68,6 +72,8 @@ instead of inventing terms such as improved, declined, always or every quarter i
 Prefer the combined survey comparison table when available; do not duplicate it with
 the individual source tables. Select the relevant date-to-date changes and cross-dimension
 coverage facts needed for the question rather than repeating every numeric cell.
+For any source table, do not also select its individual cells unless a distinct calculation
+adds needed information. Explain the main qualitative patterns, not merely a list of examples.
 """
 
 
@@ -346,6 +352,8 @@ class OriginalAgent(Specialist):
         else:
             candidate.status = "partial" if supported else "failed"
         candidate.answer = ("Partial analysis — independently supported findings:\n\n"+"\n\n".join(supported)) if supported else "No verified answer was produced in this run."
+        if supported and any(f["status"] == "supported" and f.get("kind") in {"interpretation", "proposal"} for f in candidate.findings):
+            candidate.answer += "\n\nInterpretations remain provisional. Proposed actions/questions are for manager review, not observed outcomes."
         candidate.answer += "\n\nUnresolved: " + " ".join(candidate.limitations)
         if question:
             candidate.answer += "\n\nClarification needed: " + question
@@ -478,7 +486,9 @@ class OriginalAgent(Specialist):
                 break
             self.set_delegations(targets & {"Cherry", "Vanilla"})
             context = [{"role": "assistant", "content": candidate.answer},
-                {"role": "user", "content": "Repair only the specified targets. Keep supported blocks unchanged, reuse existing evidence, and answer in English. " +
+                {"role": "user", "content": "Repair the specified mandatory issues. Preserve supported facts, meaning and sources, "
+                 "while allowing rephrasing, reordering, qualitative synthesis and removal of redundant presentation. "
+                 "Reuse existing evidence; the revised candidate will be reviewed again. Answer in English. " +
                  json.dumps({"review": asdict(verdict), "evidence": evidence}, ensure_ascii=False)}]
         # Rejected drafts are preserved in the local artifact, never released as findings.
         candidate.verification = {"decision": "revise", "status": "completed", "reviews": reviews, "drafts_checked": len(candidates), "rejected_drafts": candidates}

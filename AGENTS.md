@@ -6,6 +6,7 @@ Read this guidance and [Agent_Echo/PROJECT_CONTEXT.md](Agent_Echo/PROJECT_CONTEX
 
 - Verify current code/configuration before changing behavior. Do not reread the entire repository for each question.
 - Keep implemented behavior, observed results, proposals, and unresolved decisions distinct.
+- When changing synthesis or presentation, preserve facts and provenance without freezing wording. Keep the role instructions, answer/replay contract and review schema aligned; distinguish mandatory corrections from optional suggestions, and retain compatibility for saved answer versions.
 - Preserve the existing five roles unless the user requests a role change. Echo is the overall system, not an additional agent.
 - Preserve manager/date scoping, read-only data tools, citations, independent finding review, and withholding of unsupported output.
 - Do not invent numbers, missing coverage, causal effects, benchmark results, or successful provider access. Demo and connection tests do not establish analytical quality.

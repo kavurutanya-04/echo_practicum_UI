@@ -60,7 +60,7 @@ Only propose clarification of the task or metric; never ask for wider access or 
 numeric_coverage contains code-generated task states. Pending/error is unqueried or unresolved,
 not proof that data does not exist. Check the original question for omitted comparisons even
 if the plan itself omitted a needed dimension. Route missing numerical work to Cherry.
-For source-facts-v1 answers, review each supplied claim independently; tables are controlled
+For source-bound answers, review each supplied claim independently; tables are controlled
 source renderings and calculated facts have explicit operations, dates and units. Code replay
 cannot prove that exploratory SQL has the right metric grain, denominator or question mapping:
 explain those semantic checks in your reason. Interpretations are provisional hypotheses,
@@ -77,6 +77,16 @@ An interrupted specialist may retain complete source evidence even when its pres
 failed. Evaluate the candidate and the remaining task coverage, not that failure flag
 alone. Approve recovered work only if the requested parts are addressed and all source
 checks pass. A missing result or incomplete review is not approval.
+Review qualitative syntheses against ALL cited text sources, including disagreements;
+literal examples and synthesis are different claims. Selected excerpts do not establish
+population prevalence. Sentiment labels are assigned by Vanilla's model, not respondents.
+Put only mandatory corrections in issues; put optional improvements in suggestions.
+Missing requested synthesis/questions, unsupported meaning or unusable presentation need
+an issue and repair target. Optional stylistic preferences alone do not require revision.
+Accept when required work is addressed and only optional suggestions remain. Controlled
+tables, source citations and provisional-label disclosure are legitimate report elements;
+evaluate actual redundancy and readability, not their mere presence. Do not require an
+excerpt for every classified comment when the user asks only for illustrative examples.
 """
 
 
@@ -91,6 +101,7 @@ class VerificationResult:
     findings: list = field(default_factory=list)
     repair_targets: list = field(default_factory=list)
     clarification_question: str | None = None
+    suggestions: list = field(default_factory=list)
 
 
 class ZeroSugarAgent:
@@ -112,6 +123,7 @@ class ZeroSugarAgent:
             "ratings": {"type": "object", "properties": {name: rating for name in DIMENSIONS},
                         "required": list(DIMENSIONS), "additionalProperties": False},
             "issues": {"type": "array", "items": {"type": "string"}},
+            "suggestions": {"type": "array", "items": {"type": "string"}},
             "uncertainty": {"type": "string"},
             "finding_reviews": {"type": "array", "items": {"type": "object", "properties": {
                 "finding_id": {"type": "string"},
@@ -195,7 +207,7 @@ class ZeroSugarAgent:
     def validate(report):
         basic = {"decision", "ratings", "issues", "uncertainty"}
         extended = basic | {"finding_reviews", "repair_targets", "clarification_question"}
-        if not isinstance(report, dict) or set(report) not in (basic, extended):
+        if not isinstance(report, dict) or set(report) not in (basic, extended, basic | {"suggestions"}, extended | {"suggestions"}):
             raise ValidationError("review_fields", "review", "Review fields differ from the required review schema.")
         if not isinstance(report["decision"], str) or report["decision"] not in {"accept", "revise"} or not isinstance(report["uncertainty"], str):
             raise ValidationError("review_decision", "decision/uncertainty", "Invalid review decision or uncertainty.")
@@ -208,6 +220,8 @@ class ZeroSugarAgent:
                 raise ValidationError("rating_value", "ratings." + name, "Scores must be integers from 1 to 3, with a rationale.")
         if not isinstance(report["issues"], list) or any(not isinstance(issue, str) for issue in report["issues"]):
             raise ValidationError("review_issues", "issues", "Review issues must be a list of strings.")
+        if not isinstance(report.get("suggestions", []), list) or any(not isinstance(item, str) for item in report.get("suggestions", [])):
+            raise ValidationError("review_suggestions", "suggestions", "Optional suggestions must be a list of strings.")
         return report
 
     def validate_findings(self, report, blocks, evidence):
@@ -317,7 +331,7 @@ class ZeroSugarAgent:
             if decision == "revise" and not targets:
                 targets = ["Original"]
             return VerificationResult(decision, report["ratings"], report["issues"], report["uncertainty"], checks, self.mode,
-                                      findings, targets, report.get("clarification_question"))
+                                      findings, targets, report.get("clarification_question"), report.get("suggestions", []))
         raise RuntimeError("Verifier did not return a valid structured verdict.")
 
     def run(self, artifact):

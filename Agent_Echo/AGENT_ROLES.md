@@ -6,6 +6,10 @@ Cherry offers validated metrics, ZeroSugar reviews cited blocks, and only suppor
 can appear in a partial answer. Output is English. Lime runs only when a chart is planned.
 
 Live Original, Cherry and Vanilla answers now follow the [source-bound claim contract](SOURCE_GROUNDING.md): models select existing facts, code renders numeric statements/tables, and ZeroSugar reviews explicit claims. Text interpretations and sentiment labels remain provisional rather than semantically certified by citation checks.
+The current `source-facts-v2` contract permits a qualitative synthesis across several cited
+text sources. Individual examples still require literal excerpts. Original may revise
+wording/layout while preserving facts, meaning and provenance; every candidate is reviewed.
+Exact source tables replace repeated individual-cell sentences, and labels are grouped.
 
 Updated 2026-10-21. Five roles share configurable model adapters; each has its own instructions and history. This is a terminal/local-file prototype. All employee data is synthetic. Descriptions below complement the executable `INSTRUCTIONS` in each agent file.
 
@@ -82,6 +86,10 @@ Lime still accepts only Cherry's SQL evidence. It therefore does not chart these
 **Input:** question, candidate answer, original evidence, Lime plan and scope. **Tool:** `submit_review` with rubric ratings, per-block finding decisions, repair targets and an optional clarification question. **Output:** seven independent 1–3 ratings, rationale, uncertainty, issues and accept/revise decision.
 
 ZeroSugar checks citations, manager/date scope, anonymous identity fields, SQL replay, text/source correspondence and chart schema. Its model checks whether claims and chart labels are supported, whether the indicator addresses the question and whether units/denominators match. It does not write the answer or generate new metrics. Code forces revision for deterministic failures even if the model accepts.
+For a synthesis it checks all cited text sources, including contrary evidence. Mandatory
+corrections belong in `issues`, optional improvements in `suggestions`; optional suggestions
+alone do not block acceptance. Missing requested synthesis/questions remain mandatory.
+Lime's SQL-only input, Cherry's calculations and Vanilla's classification tools are unchanged.
 
 Example rejection: a title claiming causal engagement improvement from synthetic associations; an average labeled as a percentage; a chart built from truncated rows; invented sentiment prevalence from selected comments. Example acceptance: supported findings with source references, an appropriate chart and honest limitations, or a justified no-chart result.
 

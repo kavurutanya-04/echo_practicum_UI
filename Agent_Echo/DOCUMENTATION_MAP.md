@@ -1,7 +1,7 @@
 # Echo documentation map
 
-Reviewed: 2026-10-21 (America/New_York), against the local implementation at `5174d75`
-and the available execution artifacts. This is an index and maintenance guide, not an
+Reviewed: 2026-10-21 (America/New_York), against the current local implementation
+and the saved sixth/seventh-run artifacts. This is an index and maintenance guide, not an
 additional runtime policy or a benchmark. No new provider request was made for this review.
 
 ## Current entry points and responsibilities
@@ -15,7 +15,7 @@ additional runtime policy or a benchmark. No new provider request was made for t
 | [Application README](README.md) | Running Echo, configuration, artifacts, statuses and data access. |
 | [AGENT_ROLES.md](AGENT_ROLES.md) | Responsibilities, tools, inputs/outputs and boundaries of all five roles. |
 | [WORKFLOW_RELIABILITY.md](WORKFLOW_RELIABILITY.md) | Planning, bounded retries, declines, retained evidence, structured repair feedback, independent review, release gates and minimized diagnostics. |
-| [SOURCE_GROUNDING.md](SOURCE_GROUNDING.md) | Source-bound numeric facts, canonical comment evidence, literal quotes and claim verification. |
+| [SOURCE_GROUNDING.md](SOURCE_GROUNDING.md) | Source-bound numeric facts, cited synthesis, literal examples, v2 presentation and v1 replay compatibility. |
 | [TESTING_AND_RAG.md](TESTING_AND_RAG.md) | Offline checks, provider probes, live evaluation, pacing and retrieval inspection. Latest suite result is dated there; a test count is not classifier accuracy. |
 | [REFERENCE_VALIDATION.md](REFERENCE_VALIDATION.md) | Historical classroom comparison with current implementation corrections. Historical source-review dates are distinct from the current documentation review. |
 | [Dataset README](../files_update/README.md) | Synthetic source definitions, periods, denominators and privacy assumptions; runtime behavior belongs to the code and application guides. |

@@ -9,7 +9,7 @@ not a measured quality result.
 ## Live answer contract
 
 Original, Cherry and Vanilla now finish live runs through `submit_grounded_answer`.
-The model selects existing `fact_ids` and supplies individual provisional interpretations
+The model selects existing `fact_ids` and supplies provisional individual interpretations or cited syntheses
 or proposed actions. Free-form final answers, invented IDs, changed values and numerical
 claims in interpretation fields are rejected locally, with bounded repair attempts.
 Scripted demos retain their fixture path and are not live quality evidence.
@@ -36,6 +36,12 @@ its read-only metric/schema/SQL tools and selects only numeric source facts. Typ
 delegation restricts Cherry to `numeric` and Vanilla to `text`/`sentiment`; it does not
 make arbitrary natural-language task interpretation infallible.
 
+New answers use `source-facts-v2`. If an exact source table and its individual numeric
+cells are selected together, the renderer displays the table and omits only the repeated
+cell sentences. Calculated comparisons remain separate. Numeric facts, operations and
+source IDs remain unchanged. Stored `source-facts-v1` answers replay with their original
+format and individual-source rules; new formatting is not imposed on older artifacts.
+
 ## Text and proposed actions
 
 Vanilla's complete-population sentiment classifications remain provisional. Python
@@ -43,12 +49,20 @@ checks unique source coverage, exact excerpts up to 400 characters and recompute
 counts/percentages; those checks do not establish label semantics. Ranked passages
 still cannot support prevalence estimates.
 
-Qualitative interpretations require actual supplied text evidence, literal excerpts
-and one explicit source ID per interpretation. They are rendered as provisional interpretations for manager
+Individual examples require a literal excerpt and its text source. A qualitative synthesis
+may cite several existing text sources with `quote=null`; every cited source must contain
+text. A supplied illustrative quote must still occur literally in a cited source. A repeated
+copy of one source ID does not qualify as multiple-source synthesis. ZeroSugar reviews the
+meaning against all cited sources, including disagreement. These are provisional interpretations for manager
 review. Multi-sentence text is separated into individual review units. Quantified
 population claims must use source facts, not interpretation prose. Proposed actions
 are labeled as proposals rather than observed outcomes; invented numerical targets
 are not allowed in that field. Literal quotes alone do not prove entailment.
+Interpretation and proposed-action/question labels appear once per section. Requested
+follow-up questions are authored as direct questions by the model. The same rendered
+candidate is reviewed and released; there is no second unreviewed writing pass.
+Partial output retains the provisional/proposal disclosure even if the first block carrying
+a section label is withheld; that disclosure adds no new analytical claim.
 The 2026-10-21 repair permits quarter/year references and valid ISO dates in these
 sentences; it does not permit analytic quantities or certify temporal meaning. Missing,
 malformed and unknown citation references now receive separate field/index errors.
@@ -70,6 +84,10 @@ independently rebuilds the catalog and rendered answer, detecting altered cells,
 dates, units, source IDs or text before a model approval can release them. ZeroSugar
 still reviews task completeness, SQL semantics, interpretation, uncertainty, omissions
 and safety. Each claim has its own finding decision; the verifier cannot rewrite it.
+Original may rewrite, reorder or remove duplicate presentation while preserving supported
+facts, meaning and provenance; each revised candidate goes through review again. The
+review's `issues` are mandatory corrections; `suggestions` are optional and do not alone
+force revision. Missing requested synthesis/questions and unsupported meaning remain issues.
 
 The existing partial-release gates remain: only independently supported claims may be
 released, incomplete sentiment never yields percentages, and a deterministic integrity
