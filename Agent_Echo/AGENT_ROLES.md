@@ -91,6 +91,16 @@ corrections belong in `issues`, optional improvements in `suggestions`; optional
 alone do not block acceptance. Missing requested synthesis/questions remain mandatory.
 Lime's SQL-only input, Cherry's calculations and Vanilla's classification tools are unchanged.
 
+First-stage v3 update, 2026-10-21: Original/Vanilla may interpret cited text or numeric
+rows with `quote=null`, including a single source. A supplied example quote remains literal.
+Narrative digits/quantifiers become nonblocking review signals; ZeroSugar explains their
+support, units, denominator, period and population in the affected finding reason. Relevant
+computed comparisons are supplied, so the reviewer need not reconstruct inequality chains.
+Code checks structure, provenance, coverage and structured arithmetic, not whether an
+opinion is positive or a conclusion is meaningful. Bounded redacted rejection/normalization
+context and warning assessments remain local. No tests or API calls were run for this
+update. The separate proposal to remove mandatory specialist presentation is not implemented.
+
 Example rejection: a title claiming causal engagement improvement from synthetic associations; an average labeled as a percentage; a chart built from truncated rows; invented sentiment prevalence from selected comments. Example acceptance: supported findings with source references, an appropriate chart and honest limitations, or a justified no-chart result.
 
 One localized correction round is allowed. A rejected full draft is withheld; independently supported blocks can be released as a partial answer. Charts remain withheld for incomplete packages. Model judgment remains fallible. ZeroSugar reviews structured specs and data, not a rendered image; human visual inspection is separate.

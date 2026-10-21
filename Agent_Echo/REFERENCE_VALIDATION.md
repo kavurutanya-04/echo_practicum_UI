@@ -6,6 +6,13 @@ not claim that classroom notebooks, external documentation or provider access we
 tested. [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) records observed live outcomes;
 [DOCUMENTATION_MAP.md](DOCUMENTATION_MAP.md) routes current and historical references.
 
+Current v3 addendum, 2026-10-21: narrative digits/quantifiers now flag semantic review
+instead of causing automatic rejection. Text or row interpretations may use quote=null
+with one or several sources; exact example quotes, scope, coverage and controlled
+arithmetic remain checked. Earlier test/pass descriptions below are historical and do
+not validate v3. No tests, classroom reinspection or API calls were run for this change.
+See [SOURCE_GROUNDING.md](SOURCE_GROUNDING.md) for the current executable contract.
+
 ## Findings and resulting implementation
 
 | Reference inspected | What the example demonstrates | Echo comparison and resulting behavior |

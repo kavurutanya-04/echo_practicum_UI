@@ -1,4 +1,4 @@
-"""Incremental local execution diagnostics, without prompts, records or credentials."""
+"""Local diagnostics; planning may include bounded, redacted clarification fields."""
 
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -42,7 +42,7 @@ def error_summary(error):
             break
     result = {"error_type": type(error).__name__, "error_category": category}
     if isinstance(error, (ValidationError, json.JSONDecodeError)):
-        # Local fragments, error messages and free-text details stay out of JSONL logs.
+        # General summaries stay minimized; Original adds sanitized planning fields separately.
         result.update(safe_validation_details(error))
     status = re.search(r"http ([1-5][0-9]{2})\b", message)
     if status:

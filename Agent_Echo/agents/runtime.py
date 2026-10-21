@@ -8,7 +8,8 @@ import hashlib
 from .execution_log import record, error_summary
 from .findings import normalize_citations
 from .grounding import FactCatalog, answer_schema, render_answer, GROUNDING_VERSION
-from .validation import ValidationError, repair_feedback, rejection_diagnostic, minimal_value
+from .validation import (ValidationError, repair_feedback, rejection_diagnostic, minimal_value,
+                         answer_context, diagnostic_feedback, planning_value)
 from .policies import with_policies
 
 
@@ -169,11 +170,15 @@ class Specialist:
         if grounded:
             instructions += ("\nLIVE ANSWER CONTRACT: finish with exactly one submit_grounded_answer call. "
                 "Select fact_ids from the supplied catalog; Python renders numeric sentences/tables unchanged. "
-                "Never calculate, retype or paraphrase numerical facts. For a requested table select a table fact. "
-                "Use interpretations for provisional qualitative analysis: individual examples require a literal quote; "
-                "a synthesis may cite multiple text sources with quote=null. State shared patterns and disagreements "
+                "Do not invent or recompute measurements in prose. For a requested table select a table fact. "
+                "A brief numerical reference must reuse cited source values or computed comparisons. "
+                "Use interpretations for provisional analysis of cited text or source rows. Supply a literal quote "
+                "for an illustrative example; use quote=null for other interpretations, even with one source. State shared patterns and disagreements "
                 "only when supported by those sources; selected examples cannot establish population prevalence. "
-                "Use one concise claim and its source IDs per item; no numeric statements there. "
+                "Use one concise reviewable item and its source IDs. Keep tables/calculations in fact_ids. "
+                "Numbers and quantifiers in narrative trigger review attention, not automatic rejection: "
+                "tie any quantity to its cited evidence, preserve units/denominators and distinguish comments from people. "
+                "Dates and proposed follow-up intervals are allowed; a proposed number is not an observed result. "
                 "Choose a compact set of facts: a source table already displays its numeric cells. "
                 "Cherry must use empty interpretations/proposals. Proposals are actions, never observations. "
                 "Empty lists produce an explicit evidence limitation. Do not finish with free-form prose. "
@@ -188,14 +193,20 @@ class Specialist:
         rejections = self.last_result.diagnostics.setdefault("rejected_attempts", [])
         rejection_start = len(rejections)
 
-        def preserve_rejection(error, tool, model_turn):
+        def preserve_rejection(error, tool, model_turn, submitted=None, feedback=None):
             self.last_result.diagnostics["stage"] = "answer_validation"
+            diagnostic = rejection_diagnostic(error, self.name, tool, model_turn, len(rejections) + 1)
+            if submitted is not None:
+                diagnostic["received"] = answer_context(submitted, diagnostic.get("field"))
+            if feedback is not None:
+                diagnostic["feedback"] = diagnostic_feedback(feedback)
+                diagnostic["feedback_retry_available"] = model_turn < 7
             if len(rejections) < 16:
-                rejections.append(rejection_diagnostic(error, self.name, tool, model_turn, len(rejections) + 1))
+                rejections.append(diagnostic)
             else:
                 key = "rejected_attempts_omitted"
                 self.last_result.diagnostics[key] = self.last_result.diagnostics.get(key, 0) + 1
-            record("structured_response_repair", agent=self.name, **error_summary(error))
+            record("structured_response_repair", **{**diagnostic, **error_summary(error)})
 
         for step in range(7):
             pending_work = getattr(self, "has_pending_work", lambda evidence: False)(evidence)
@@ -241,29 +252,49 @@ class Specialist:
             if grounded:
                 final_calls = [c for c in turn.calls if c.name == "submit_grounded_answer"]
                 if final_calls:
+                    submitted, normalizations = None, []
                     try:
                         budget.consume("tool")
                         if len(final_calls) != 1 or len(turn.calls) != 1:
                             raise ValidationError("answer_call_count", "answer", "Return only one final answer call, without data tool calls.")
                         if pending_work and not closing:
                             raise ValidationError("answer_pending_work", "answer", "Complete pending metrics before finalizing.")
-                        text, rendered_claims = render_answer(json.loads(final_calls[0].arguments), catalog, self.name)
+                        submitted = json.loads(final_calls[0].arguments)
+                        text, rendered_claims = render_answer(submitted, catalog, self.name,
+                                                              normalizations=normalizations)
                         if getattr(self, "numeric_requested", False) and catalog.facts and not any("fact_id" in c for c in rendered_claims):
                             raise ValidationError("numeric_selection_required", "fact_ids", "Select source facts for the requested numeric analysis, not proposed actions alone.")
                         turn.text, turn.calls = text, []
+                        for change in normalizations:
+                            entry = {"agent": self.name, "model_turn": step + 1, "field": change["field"],
+                                     "code": change["code"], "status": "normalized",
+                                     "received": answer_context(submitted, change["field"]),
+                                     "normalized_text": planning_value(change["text_after"]),
+                                     "normalized_citation_ids": [planning_value(ref) for ref in change["citation_ids_after"]]}
+                            self.last_result.diagnostics.setdefault("answer_normalizations", []).append(entry)
+                            record("answer_presentation_normalized", **entry)
+                        signals = []
+                        for claim in rendered_claims:
+                            for warning in claim.get("review_warnings", []):
+                                entry = {"finding_id": claim["finding_id"], **warning,
+                                         "received": answer_context(submitted, warning["field"]),
+                                         "status": "pending_semantic_review"}
+                                signals.append(entry)
+                                record("answer_review_warning", agent=self.name, **entry)
+                        self.last_result.diagnostics["review_warnings"] = signals
                         record("grounded_answer_rendered", agent=self.name, claims=len(rendered_claims))
                     except (ValueError, TypeError) as error:
                         last_action = "repairing source-bound answer selection"
-                        preserve_rejection(error, "submit_grounded_answer", step + 1)
                         feedback = repair_feedback(error)
                         code, field = feedback.get("validation_code"), feedback.get("field")
-                        repeated = sum(r.get("validation_code") == code and r.get("field") == field
-                                       for r in rejections[rejection_start:])
+                        repeated = 1 + sum(r.get("validation_code") == code and r.get("field") == field
+                                           for r in rejections[rejection_start:])
                         feedback["same_condition_attempts"] = repeated
                         if repeated > 1:
                             feedback["correction"] = ("This condition recurred. Change the indicated field instead of resubmitting it. "
-                                "Select numeric statements through fact_ids; use exact source IDs and literal excerpts. "
+                                "Use fact_ids for tables/calculations; use exact source IDs and literal excerpts when quoted. "
                                 "Keep supported work, and disclose any part you cannot support.")
+                        preserve_rejection(error, "submit_grounded_answer", step + 1, submitted, feedback)
                         reject_calls(history, turn, json.dumps(feedback))
                         continue
                 elif not turn.calls:
@@ -303,9 +334,10 @@ class Specialist:
                     continue
                 record("agent_finished", agent=self.name, evidence_count=len(evidence))
                 result = AgentResult(self.name, question, turn.text, self.scope.__dict__, evidence, trace, self.mode)
-                # Preserve only the minimized rejected-only history, not raw rejected prose.
+                # Preserve bounded diagnostics, including redacted narrative context and review signals.
                 result.diagnostics.update({key: value for key, value in self.last_result.diagnostics.items()
-                                           if key in {"rejected_attempts", "rejected_attempts_omitted"}})
+                                           if key in {"rejected_attempts", "rejected_attempts_omitted",
+                                                      "answer_normalizations", "review_warnings", "planning_attempts"}})
                 if grounded:
                     for entry in rejections[rejection_start:]:
                         entry.update(resolution="accepted_source_submission", accepted_model_turn=step + 1)

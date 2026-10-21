@@ -10,8 +10,9 @@ not a measured quality result.
 
 Original, Cherry and Vanilla now finish live runs through `submit_grounded_answer`.
 The model selects existing `fact_ids` and supplies provisional individual interpretations or cited syntheses
-or proposed actions. Free-form final answers, invented IDs, changed values and numerical
-claims in interpretation fields are rejected locally, with bounded repair attempts.
+or proposed actions. Free-form final answers, invented IDs and changed controlled facts
+are rejected locally, with bounded repair attempts. In v3, narrative quantities and
+quantifiers generate review signals rather than automatic rejection.
 Scripted demos retain their fixture path and are not live quality evidence.
 
 `agents/grounding.py` builds a fact catalog from the current scoped evidence. Each fact
@@ -31,16 +32,18 @@ claims including narrative and limitations. Overlarge requests fail explicitly r
 than silently dropping source records. One through six dimensions, including an eight-quarter
 scope, are covered by offline regression checks.
 
-Original selects these facts rather than recalculating or paraphrasing them. Cherry keeps
+Tables and measured comparisons select these facts rather than recomputing them in prose.
+Brief narrative references may reuse cited values and receive semantic review. Cherry keeps
 its read-only metric/schema/SQL tools and selects only numeric source facts. Typed
 delegation restricts Cherry to `numeric` and Vanilla to `text`/`sentiment`; it does not
 make arbitrary natural-language task interpretation infallible.
 
-New answers use `source-facts-v2`. If an exact source table and its individual numeric
+New answers use `source-facts-v3`. If an exact source table and its individual numeric
 cells are selected together, the renderer displays the table and omits only the repeated
 cell sentences. Calculated comparisons remain separate. Numeric facts, operations and
-source IDs remain unchanged. Stored `source-facts-v1` answers replay with their original
-format and individual-source rules; new formatting is not imposed on older artifacts.
+source IDs remain unchanged. Stored `source-facts-v1` and `source-facts-v2` answers replay
+with their original rendering and validation rules; new normalization and review signals
+are not imposed on older artifacts.
 
 ## Text and proposed actions
 
@@ -49,45 +52,69 @@ checks unique source coverage, exact excerpts up to 400 characters and recompute
 counts/percentages; those checks do not establish label semantics. Ranked passages
 still cannot support prevalence estimates.
 
-Individual examples require a literal excerpt and its text source. A qualitative synthesis
-may cite several existing text sources with `quote=null`; every cited source must contain
-text. A supplied illustrative quote must still occur literally in a cited source. A repeated
-copy of one source ID does not qualify as multiple-source synthesis. ZeroSugar reviews the
-meaning against all cited sources, including disagreement. These are provisional interpretations for manager
-review. Multi-sentence text is separated into individual review units. Quantified
-population claims must use source facts, not interpretation prose. Proposed actions
-are labeled as proposals rather than observed outcomes; invented numerical targets
-are not allowed in that field. Literal quotes alone do not prove entailment.
+In v3, a supplied `quote` explicitly represents a literal example and must occur exactly
+in a cited text source. An interpretation uses `quote=null`, with one or several sources
+containing text or source rows; a sentiment summary may be interpreted through its
+`SENTIMENTn` citation. Source count does not decide whether an excerpt is mandatory.
+ZeroSugar checks requested example coverage, meaning, disagreement and unsupported
+generalization. Each normalized narrative item is one review unit, including a short
+multi-sentence item. Tables/calculations still select source facts; quantities and
+quantifiers in prose are provisional statements for semantic review, not automatically
+reproducible calculations. Proposed intervals/targets remain proposals, never observations.
+Literal quotes alone do not prove entailment.
 Interpretation and proposed-action/question labels appear once per section. Requested
 follow-up questions are authored as direct questions by the model. The same rendered
 candidate is reviewed and released; there is no second unreviewed writing pass.
 Partial output retains the provisional/proposal disclosure even if the first block carrying
 a section label is withheld; that disclosure adds no new analytical claim.
-The 2026-10-21 repair permits quarter/year references and valid ISO dates in these
-sentences; it does not permit analytic quantities or certify temporal meaning. Missing,
-malformed and unknown citation references now receive separate field/index errors.
+V3 normalizes whitespace/newlines, known inline citations and source-ID wrappers without
+changing quoted source characters. Known inline citations move to the item's references.
+Ordinary prose brackets are escaped for display; explicit unknown source IDs still fail.
+Missing, malformed and unknown citation references retain field/index errors. The older
+v1/v2 numeric restrictions, including their date exceptions, remain on saved replay paths.
 
 Complete sentiment summaries also expose their publishable example responses as separate
 `survey_response` evidence. These use the existing comment citation ID, canonical response
 text (not the question plus a search excerpt), scope and anonymous provenance. A canonical
 response replaces an earlier search excerpt with the same ID, rather than creating two
 conflicting source records. Vanilla and Original cite that text for interpretations;
-the `SENTIMENTn` ID supports the aggregate table. ZeroSugar compares canonical evidence
+the `SENTIMENTn` ID supports the aggregate table and its provisional interpretation. ZeroSugar compares canonical evidence
 with the trusted scoped response and checks whether an excerpt entails its interpretation.
 Full labels/source hashes remain in the local sentiment report; this bridge neither
 reclassifies comments nor turns source integrity into semantic validation.
 
 ## Independent review and release
 
-ZeroSugar receives the explicit claims, original evidence and coverage metadata. Python
-independently rebuilds the catalog and rendered answer, detecting altered cells, signs,
-dates, units, source IDs or text before a model approval can release them. ZeroSugar
+ZeroSugar receives the explicit claims, original evidence, coverage metadata and v3
+`review_warnings`. Its payload also includes up to 64 relevant code-computed comparisons,
+prioritizing selected facts and reporting any omitted count; the full cited source rows
+remain evidence. Python independently rebuilds the catalog and rendered answer, detecting
+altered controlled cells, signs, dates, units, source IDs or claim text. Replay confirms
+reproducibility, not the truth of a model-authored numerical sentence. ZeroSugar
 still reviews task completeness, SQL semantics, interpretation, uncertainty, omissions
 and safety. Each claim has its own finding decision; the verifier cannot rewrite it.
 Original may rewrite, reorder or remove duplicate presentation while preserving supported
 facts, meaning and provenance; each revised candidate goes through review again. The
 review's `issues` are mandatory corrections; `suggestions` are optional and do not alone
 force revision. Missing requested synthesis/questions and unsupported meaning remain issues.
+
+Narrative warning markers never enter `deterministic_issues`. ZeroSugar explains the
+flagged claim's support or uncertainty in its existing per-finding reason, checking value,
+direction, unit, denominator, period and population as relevant. It uses computed facts
+instead of recreating inequality chains in free prose. Its judgment remains fallible;
+no further model automatically reviews an accepted verifier rationale. V3 records warning
+assessment outcomes, not a claim of validated semantic accuracy.
+
+Rejected narrative items now retain bounded redacted text/quote/reference context and the
+actual application feedback in local JSON/JSONL. Normalizations retain before/after context;
+warning records identify the phrase, trigger and review outcome. Recognizable credential
+and identifier patterns are redacted; unknown fields/full provider payloads are omitted.
+Pattern redaction is not comprehensive personal-data detection. Artifacts remain local.
+
+This first-stage update follows run nine's repeated answer-validation failures. No tests
+or model/API calls were run for it, by user instruction. Historical offline results below
+predate v3; successful live confirmation remains pending. Specialist handoff simplification
+is a separate second-stage proposal, not implemented by this update.
 
 The existing partial-release gates remain: only independently supported claims may be
 released, incomplete sentiment never yields percentages, and a deterministic integrity

@@ -63,12 +63,17 @@ If the scope exceeds the call budget, request a narrower period/dimension or an 
 larger caller budget. Never substitute top-k examples or report partial classification.
 In live mode finish with submit_grounded_answer. Use table/observed facts for complete
 classification summaries and literal excerpts for individual examples. For a qualitative
-synthesis cite multiple text sources with quote=null; describe only supported patterns and
-disagreements among those sources, without inferring population prevalence from examples.
+synthesis cite the relevant text sources with quote=null, even if there is only one source;
+interpret a sentiment summary through its SENTIMENT source with quote=null, and use the
+individual response IDs for literal examples. Narrative quantities/quantifiers receive
+semantic review; preserve comment denominators and never substitute employee prevalence.
+Describe only supported patterns and disagreements among those sources, without inferring
+population prevalence from examples.
 Each interpretation remains provisional, not validated semantic accuracy. Cite counterevidence
 when available; separate observations, interpretations and proposed manager actions.
 The sentiment tool supplies individual canonical comment passages alongside its summary.
-Use their citation IDs for literal excerpts and interpretations, not the SENTIMENT table ID.
+Use their citation IDs for literal excerpts. The SENTIMENT table ID supports aggregate
+interpretation; the individual response IDs support what particular comments express.
 """
 
 SENTIMENT_LABELS = ("positive", "negative", "neutral", "mixed", "indeterminate")

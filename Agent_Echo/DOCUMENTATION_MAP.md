@@ -1,7 +1,8 @@
 # Echo documentation map
 
 Reviewed: 2026-10-21 (America/New_York), against the current local implementation
-and the saved sixth/seventh-run artifacts. This is an index and maintenance guide, not an
+and the saved live artifacts through run nine. Current answers use source-facts-v3;
+historical test/replay counts below predate it. This is an index and maintenance guide, not an
 additional runtime policy or a benchmark. No new provider request was made for this review.
 
 ## Current entry points and responsibilities
@@ -57,13 +58,14 @@ them or approve their proposals.
 5. Generated Codex memory, classroom sources, source datasets and license text are not
    automatically edited by project-document maintenance.
 
-Current next test: repeat the fifth Recognition-comments question with the same M14/Q3
-2026 scope and `--profile apinex_test --run-seconds 1000`, saving
-`reports/apinex_prueba_vanilla_6.json`. No saved sixth-run result was present when this
-review began; a supplied command is not evidence that a run completed. Interactive chat,
-natural-language date resolution, authentication and enterprise writes remain deferred.
+Current next local attempt: repeat the Recognition-comments question with the same M14/Q3
+2026 scope and `--profile apinex_test --run-seconds 1000`, saving a fresh artifact such as
+`reports/apinex_prueba_vanilla_10.json`. Runs six through nine have saved observations in
+PROJECT_CONTEXT.md. Per user instruction, no tests or API calls were run for v3; a supplied
+command is not proof of completion. Interactive chat, natural-language date resolution,
+authentication and enterprise writes remain deferred.
 
-Review checks: 17 Markdown references and 147 relative file/heading links checked without
+Historical documentation review checks: 17 Markdown references and 147 relative file/heading links checked without
 errors; documented CLI options checked against `--help`. License text was unchanged.
 Only APInex's descriptive status label changed in `connections.json`; endpoints, keys,
 model assignments, limits and pacing settings were unchanged. The 207-test result belongs

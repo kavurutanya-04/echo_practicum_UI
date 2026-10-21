@@ -38,15 +38,41 @@ instruction file and local historical reference. `AGENTS.md` guides project main
 
 ## Current implemented contracts
 
-Synthesis/presentation update, 2026-10-21: new answers use `source-facts-v2`; several cited
-text sources may support a provisional synthesis with `quote=null`, while individual
+First-stage v3 update, 2026-10-21, after run nine: narrative quantities/quantifiers now
+produce nonblocking review warnings, not automatic answer rejection. Interpretations may
+cite text or source rows with `quote=null`, regardless of source count; supplied illustrative
+quotes remain literal. Whitespace and unambiguous known citations normalize without a
+repair turn. ZeroSugar receives flagged claims and available computed comparisons, and
+explains their support/uncertainty in per-finding reasons. Code still verifies scope,
+sources, exact excerpts, coverage and controlled calculations; it does not assign sentiment
+or prove prose meaning. Rejections/normalizations retain bounded redacted narrative context
+and feedback; warning assessments are logged. Saved v1/v2 rendering remains implemented.
+No tests, artifact replay or API calls were run, by user instruction; only static review.
+The next live attempt uses a fresh filename such as `apinex_prueba_vanilla_10.json`.
+A successful answer remains the goal, not a demonstrated outcome of these code changes.
+Specialist evidence-only handoff remains a separate second-stage proposal. See
+[v3 workflow](WORKFLOW_RELIABILITY.md#narrative-review-signals-and-presentation-v3-2026-10-21)
+and [source contract](SOURCE_GROUNDING.md).
+
+Planning update, 2026-10-21, after run eight: Original normalizes an unused clarification
+basis to null when no clarification question is proposed, preserving all other plan checks
+and the two-attempt limit. Rejected/normalized attempts retain bounded, redacted received
+clarification values, cause and feedback in JSONL and `diagnostics.planning_attempts`,
+including on failure. Real clarification requests still require a valid basis and
+reconsideration. Redaction covers recognizable patterns, not every possible personal
+detail; artifacts remain local. No tests or API calls were run, as requested. Prior test
+results predate this change; live confirmation is pending. See
+[planning normalization](WORKFLOW_RELIABILITY.md#planning-normalization-and-diagnostics-2026-10-21).
+
+Historical synthesis/presentation update, 2026-10-21: v2 allowed several cited
+text sources to support a provisional synthesis with `quote=null`, while individual
 examples still need literal excerpts. Exact source tables suppress repeated cell sentences,
 and narrative labels are grouped. Original preserves facts/meaning/provenance during
 repair without freezing the previous layout. ZeroSugar checks all cited sources and
 separates mandatory `issues` from optional `suggestions`. Stored v1 answers retain their
 original replay contract. Five roles, existing tools, scope/privacy gates and 6000 APInex
-output tokens are unchanged. Only focused final offline checks are authorized; no initial,
-general or live test is part of this update. See
+output tokens were unchanged. Only focused final offline checks were authorized; no initial,
+general or live test was part of that update. See
 [the contract](SOURCE_GROUNDING.md) and [workflow](WORKFLOW_RELIABILITY.md#cited-synthesis-and-presentation-2026-10-21).
 Final evidence: 36 focused offline tests passed. The saved seventh-run v1 candidate still
 passes source-claim replay; its same selection renders as 10 blocks in v2 instead of 21,
@@ -64,7 +90,7 @@ the observed live runs are recorded separately below.
 | Text classification | Original distinguishes full sentiment from SQL ratings. Vanilla uses batches of 20, three attempts per batch, retained valid records/counters within the same workflow, literal quotes up to 400 characters and separate explanations up to 160. No partial percentages. | [Role contract](AGENT_ROLES.md), [sentiment repairs](WORKFLOW_RELIABILITY.md#sentiment-routing-retained-progress-and-task-declines-2026-10-21) |
 | Individual text sources | Publishable summary examples also become canonical `survey_response` evidence for Vanilla/Original citations; ZeroSugar checks the actual scoped response, labels, hashes, coverage and aggregation. Labels/interpretations remain provisional. | [Source grounding](SOURCE_GROUNDING.md) |
 | Task outcomes | Cherry, Vanilla and Lime can decline incompatible work in an existing turn. Original can correct routing and reuses identical closed-task outcomes. Missing evidence, incomplete work and failure stay distinct. No new agent or mandatory preflight call. | [Workflow repairs](WORKFLOW_RELIABILITY.md#sentiment-routing-retained-progress-and-task-declines-2026-10-21) |
-| Diagnostics and release | Minimized answer/batch rejections preserve condition, field/index, source IDs and attempt metadata without rejected prose/quotes or keys. Authorized source text remains in local evidence. ZeroSugar reviews claims; incomplete work cannot be labeled complete, and only eligible supported claims can be partial. | [Diagnostics](WORKFLOW_RELIABILITY.md#rejected-source-answer-diagnostics-2026-10-21), [CLI guide](README.md) |
+| Diagnostics and release | V3 answer rejections/normalizations retain bounded redacted narrative context and feedback; batch diagnostics stay minimized. Narrative warnings reach ZeroSugar without becoming integrity errors. Unsupported findings stay withheld; complete status requires completed review and requested coverage. | [V3 diagnostics](WORKFLOW_RELIABILITY.md#narrative-review-signals-and-presentation-v3-2026-10-21), [CLI guide](README.md) |
 
 The earlier full implementation check passed **207 offline tests on 2026-10-21**, including
 22 [sentiment workflow regressions](tests/test_sentiment_workflow_repairs.py), without
@@ -116,6 +142,22 @@ hashes and aggregation matched the scoped source in a read-only audit; semantic 
 remains unvalidated. Both reviews supported all 21 blocks with no deterministic issues,
 but requested synthesis/presentation repair. The old format repeated 11 numeric cells
 after the table. Current changes follow this observation; no live confirmation is claimed.
+
+Eighth-run observation: `apinex_prueba_vanilla_8.json` and
+`logs/20261021_171341_9c0e36b4cea2.jsonl` record `failed`, two successful calls and
+25.187 seconds. Original's plans were rejected for `unexpected_clarification_basis` then
+`clarification_basis_required`. No specialist, data tool or independent review ran. The
+planning update above follows this failure; the saved run is preserved unchanged.
+
+Ninth-run observation: `apinex_prueba_vanilla_9.json` and
+`logs/20261021_182928_c61f05bcd469.jsonl` record `failed`, 17 successful calls
+(Original 8, Vanilla 9) and 328.235 seconds. Planning passed immediately without needing
+normalization. All 13 comments were classified (9 positive, 2 negative, 2 mixed; 0 neutral
+or indeterminate). A nonliteral excerpt was corrected on batch attempt two. Vanilla and
+Original each had six final-answer rejections and exhausted seven turns; nine of the
+twelve rejections were narrative digit matches. Complete evidence was retained but no
+independent review ran. These are provisional labels, not validated sentiment accuracy.
+The first-stage v3 change above follows this failure; the original artifacts are unchanged.
 
 Offline historical audit: four local artifacts, 13 role executions across Original/Cherry/Vanilla, zero API calls; source review packet at `reports/grounding_audit_before_upgrade.json`. No complete classification labels were preserved in those files, so semantic classifier accuracy is unavailable. Human query/entailment review remains pending; no old narrative result was retroactively certified.
 

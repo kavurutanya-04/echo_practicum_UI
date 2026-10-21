@@ -151,11 +151,16 @@ Omit `--profile` to use those assignments. Supplying it forces the selected prof
 Live output uses the [source-bound fact and claim contract](SOURCE_GROUNDING.md).
 Models select recorded facts; Python renders numerical claims and tables, while text
 interpretations remain explicitly provisional and subject to independent review.
-Current answers use `source-facts-v2`: several cited text sources may support a qualitative
-synthesis, individual examples keep literal excerpts, and a selected source table is not
+Current answers use `source-facts-v3`: interpretations may cite text or source rows with
+`quote=null`, regardless of source count; supplied examples keep literal excerpts. Digits
+and quantifiers in narrative are review warnings, not automatic errors. Known citation
+wrappers/inline references and whitespace are normalized. A selected source table is not
 repeated as individual numeric-cell sentences. Original can revise presentation while
 preserving facts/provenance. ZeroSugar's optional `suggestions` are separate from mandatory
-`issues`. Saved v1 answers remain reviewable through their original rendering contract.
+`issues`. Saved v1/v2 answers remain reviewable through their original rendering contracts.
+ZeroSugar receives warning context and available code-computed comparisons; its per-finding
+reason must address semantic support rather than reject typography. Counts, source integrity
+and scope remain code-checked. This does not guarantee a correct model review.
 
 Use only your group's assigned Azure resource and deployment. In `connections.json`, fill `profiles.gw_azure.endpoint` and `profiles.gw_azure.model` with the actual resource URL and Responses-capable deployment name. The JSON `api_version` retains the professor's `2025-03-01-preview` setting. Configure the separate `gw_embeddings` endpoint and embedding deployment in JSON only if semantic retrieval is needed. Keep unavailable fields empty rather than inventing values.
 
@@ -304,6 +309,13 @@ documentation-only review checked content/links; it did not rerun live or offlin
 retain their specialized duties; `AGENTS.md` guides coding work and is not loaded into
 Echo model calls. Minimized rejection diagnostics omit raw rejected prose/quotes and
 credentials, but normal local evidence artifacts can contain authorized source text.
+Planning and v3 answer diagnostics are targeted exceptions: rejected/normalized clarification
+fields and rejected narrative items retain bounded redacted context and feedback in JSONL
+and result diagnostics. `answer_normalizations` records presentation repair; `review_warnings`
+records narrative signals and ZeroSugar's assessment. Recognizable private identifiers are
+redacted, with no guarantee of detecting every personal detail. Full prompts/provider payloads
+are not added. See [planning diagnostics](WORKFLOW_RELIABILITY.md#planning-normalization-and-diagnostics-2026-10-21)
+and [v3 review signals](WORKFLOW_RELIABILITY.md#narrative-review-signals-and-presentation-v3-2026-10-21).
 
 ## Existing data utilities
 

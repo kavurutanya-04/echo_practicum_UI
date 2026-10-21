@@ -2,11 +2,27 @@
 
 Updated 2026-10-21. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
 
+Latest update: `source-facts-v3` turns narrative digit/quantifier rejections into review
+signals, normalizes unambiguous presentation, permits row/single-source interpretations
+without quotes, and retains bounded redacted diagnostic context. Per user instruction,
+no local tests, saved-artifact replay or live/provider calls were run for this update.
+Only static source/syntax/diff review is permitted in this task. All test counts below
+are historical and do not validate v3; existing assertions about default numeric rejection,
+single-source mandatory quotes and minimized narrative omission describe the old contract.
+Saved v1/v2 replay branches remain implemented. The next user-run live attempt must use
+a fresh filename, such as `reports/apinex_prueba_vanilla_10.json`, preserving runs 1-9.
+Completion requires an actual completed independent review and requested answer coverage,
+not merely successful provider calls. See
+[v3 workflow](WORKFLOW_RELIABILITY.md#narrative-review-signals-and-presentation-v3-2026-10-21).
+Static evidence for this task: Python's syntax parser accepted all seven changed Python
+files without importing the application; the staged whitespace/diff check was clean.
+Neither activity executes a test or demonstrates model behavior.
+
 Use [DOCUMENTATION_MAP.md](DOCUMENTATION_MAP.md) to navigate all references and
 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for dated observations. The 207-test result
-below belongs to the latest implementation check, not a new run for this documentation review.
+below belongs to an earlier implementation check, not the current v3 update.
 
-Synthesis/presentation update, 2026-10-21: only focused final offline checks are requested.
+Historical v2 synthesis/presentation update, 2026-10-21: only focused final offline checks were requested.
 The new cases in `tests/test_synthesis_presentation.py` cover multi-source synthesis,
 individual literal quotes, retained numeric restrictions, table/cell repetition, v1
 replay, optional suggestions and mandatory/source-integrity failures. Existing focused

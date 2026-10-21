@@ -13,8 +13,10 @@ import math
 import re
 
 from .validation import ValidationError, minimal_value, numeric_fragment
+from .findings import normalize_citations
 
-GROUNDING_VERSION = "source-facts-v2"
+GROUNDING_VERSION = "source-facts-v3"
+GROUNDING_VERSIONS = {"source-facts-v1", "source-facts-v2", GROUNDING_VERSION}
 
 
 def fail(code, field, message, **details):
@@ -197,7 +199,7 @@ def answer_schema(role):
         "text": {"type": "string", "minLength": 1, "maxLength": 600},
         "citation_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
         "quote": {"type": ["string", "null"], "maxLength": 400,
-                  "description": "Literal excerpt for an individual interpretation; null is allowed for a synthesis citing multiple text sources. Proposals use null."}},
+                  "description": "Supply a literal excerpt for an illustrative example. Use null for an interpretation of cited text or rows, regardless of source count. Proposals use null."}},
         "required": ["text", "citation_ids", "quote"], "additionalProperties": False}}
     return {"fact_ids": {"type": "array", "maxItems": 24, "items": {"type": "string"}},
             "interpretations": narrative, "proposals": narrative}
@@ -219,10 +221,45 @@ def narrative_number(text, proposal=False):
                  if not any(start <= match.start() < end for start, end in temporal)), None)
 
 
-def render_answer(payload, catalog, role, version=GROUNDING_VERSION):
-    if version not in {"source-facts-v1", GROUNDING_VERSION}:
+def normalize_narrative(text, refs, sources, path, normalizations):
+    """Normalize unambiguous presentation only; never invent a source or change a quote."""
+    original_text, original_refs = text, list(refs)
+    normalized_refs = []
+    for identity in refs:
+        if isinstance(identity, str):
+            candidate = identity.strip().strip("`")
+            if candidate.startswith("[") and candidate.endswith("]"):
+                candidate = candidate[1:-1].strip()
+            if candidate in sources:
+                identity = candidate
+        normalized_refs.append(identity)
+    text = normalize_citations(text, sources)
+
+    def inline_citation(match):
+        identity = match[1]
+        if identity in sources:
+            if identity not in normalized_refs:
+                normalized_refs.append(identity)
+            return ""
+        if re.fullmatch(r"(?:SQL\d+|SENTIMENT\d+|[A-Za-z_][A-Za-z0-9_]*:[A-Za-z0-9_-]+)", identity):
+            fail("narrative_source_unknown", path + ".text", "Replace the unknown inline source ID with an existing cited source.")
+        return match[0]
+
+    text = re.sub(r"\[([^\[\]\n]+)\]", inline_citation, text)
+    text = " ".join(text.split())
+    if text != original_text or normalized_refs != original_refs:
+        normalizations.append({"field": path, "code": "narrative_presentation_normalized",
+                               "text_before": original_text, "text_after": text,
+                               "citation_ids_before": original_refs, "citation_ids_after": normalized_refs})
+    return text, normalized_refs
+
+
+def render_answer(payload, catalog, role, version=GROUNDING_VERSION, normalizations=None):
+    if version not in GROUNDING_VERSIONS:
         fail("answer_version", "grounding.version", "Unsupported source-bound answer version.")
     legacy = version == "source-facts-v1"
+    review_signals = version == GROUNDING_VERSION
+    normalizations = normalizations if normalizations is not None else []
     if role not in {"Original", "Cherry", "Vanilla"}:
         fail("answer_role", "role", "Only Original, Cherry and Vanilla use this answer contract.")
     if not isinstance(payload, dict) or set(payload) != {"fact_ids", "interpretations", "proposals"}:
@@ -275,9 +312,12 @@ def render_answer(payload, catalog, role, version=GROUNDING_VERSION):
             if not isinstance(item, dict) or set(item) != {"text", "citation_ids", "quote"}:
                 fail("narrative_fields", path, "Each narrative claim requires text, citation_ids and quote.", item_index=index)
             text, refs, quote = item["text"], item["citation_ids"], item["quote"]
-            if not isinstance(text, str) or not 1 <= len(text.strip()) <= 600 or "\n" in text:
-                fail("narrative_text", path + ".text", "Use one short sentence per narrative claim (1-600 characters, no newline).",
-                     item_index=index, local_details={"expected": "1-600 characters, no newline", **minimal_value(text)})
+            if review_signals and isinstance(text, str) and isinstance(refs, list):
+                text, refs = normalize_narrative(text, refs, catalog.sources, path, normalizations)
+            if not isinstance(text, str) or not 1 <= len(text.strip()) <= 600 or (not review_signals and "\n" in text):
+                expected = "1-600 characters after whitespace normalization" if review_signals else "1-600 characters, no newline"
+                fail("narrative_text", path + ".text", "Use a short narrative item (" + expected + ").",
+                     item_index=index, local_details={"expected": expected, **minimal_value(text)})
             if not isinstance(refs, list):
                 fail("narrative_sources_type", path + ".citation_ids", "Use a list of source IDs, without citation brackets.", item_index=index)
             if not refs:
@@ -288,20 +328,32 @@ def render_answer(payload, catalog, role, version=GROUNDING_VERSION):
                 if identity not in catalog.sources:
                     fail("narrative_source_unknown", path + f".citation_ids[{source_index}]", "Replace this ID with an available source ID, exactly as supplied and without brackets. Fact IDs belong in fact_ids.", item_index=index, source_index=source_index)
             # No source IDs embedded in model prose: code owns citation placement.
-            if re.search(r"\[[^\]]+\]", text):
+            if not review_signals and re.search(r"\[[^\]]+\]", text):
                 fail("embedded_citation", path + ".text", "Put source identifiers in citation_ids, not in the text.", item_index=index)
+            warnings = []
+            match = narrative_number(text, proposal=kind == "proposals")
+            if review_signals and match:
+                end = match.end()
+                if match.group().isdigit():
+                    token = re.match(r"\d+(?:[.,]\d+)*(?:\s*%)?", text[match.start():])
+                    end = match.start() + token.end()
+                warnings.append({"code": "narrative_quantity_or_quantifier", "field": path + ".text",
+                    "match_start": match.start(), "match_end": end, "trigger": text[match.start():end],
+                    "review_focus": "Check the value, direction, unit, denominator, period and population against cited evidence; distinguish a proposal from an observation."})
             if kind == "interpretations":
                 if legacy and len(refs) != 1:
                     fail("interpretation_scope", path + ".citation_ids", "Use one source excerpt per individual interpretation; do not infer a population theme.", item_index=index)
-                match = narrative_number(text)
-                if match:
+                if match and not review_signals:
                     fail("numeric_interpretation", path + ".text", "A digit or quantifier keyword triggered the interpretation rule; this alone does not prove a false claim. Select numerical comparisons as catalog facts.",
                          item_index=index, local_details=numeric_fragment(text, match))
                 texts = [catalog.sources[k].get("text", "") for k in refs]
-                if not any(texts) or (not legacy and not all(isinstance(t, str) and t.strip() for t in texts)):
+                if not review_signals and (not any(texts) or (not legacy and not all(isinstance(t, str) and t.strip() for t in texts))):
                     fail("interpretation_source_not_text", path + ".citation_ids", "The selected source has no text for a qualitative interpretation.", item_index=index)
+                if review_signals and any(not isinstance(catalog.sources[k].get("text"), str)
+                        and not isinstance(catalog.sources[k].get("rows"), list) for k in refs):
+                    fail("interpretation_source_no_content", path + ".citation_ids", "Select sources containing text or source rows for interpretation.", item_index=index)
                 synthesis = not legacy and len(set(refs)) > 1
-                if quote is None and synthesis:
+                if quote is None and (synthesis or review_signals):
                     excerpt = ""
                 elif not isinstance(quote, str):
                     fail("interpretation_quote_type", path + ".quote", "The source excerpt must be a string.",
@@ -319,8 +371,7 @@ def render_answer(payload, catalog, role, version=GROUNDING_VERSION):
             else:
                 if quote is not None:
                     fail("proposal_quote", path + ".quote", "Proposals use quote=null and are not observed outcomes.", item_index=index)
-                match = narrative_number(text, proposal=True)
-                if match:
+                if match and not review_signals:
                     fail("numeric_proposal", path + ".text", "A digit or percentage keyword triggered the proposal rule; this alone does not establish an invented target. Select numeric facts separately.",
                          item_index=index, local_details=numeric_fragment(text, match))
                 prefix = "Proposed action for manager review (not an observed outcome): " if legacy else \
@@ -328,12 +379,15 @@ def render_answer(payload, catalog, role, version=GROUNDING_VERSION):
                      if not any(c["kind"] == "proposal" for c in claims) else "")
                 excerpt = ""
             # Split model prose into individual review units, retaining its source anchor.
-            units = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text.strip())
+            units = [text.strip()] if review_signals else re.split(r"(?<=[.!?])\s+(?=[A-Z])", text.strip())
             for unit in units:
-                rendered = prefix + unit + excerpt + " " + citations(refs)
+                prose = unit.replace("[", "&#91;").replace("]", "&#93;") if review_signals else unit
+                rendered = prefix + prose + excerpt + " " + citations(refs)
                 claims.append({"kind": "interpretation" if kind == "interpretations" else "proposal",
                     "text": rendered, "citation_ids": sorted(set(refs)), "scope": catalog.scope,
                     "quote": quote, "validation": "provisional_semantics"})
+                if warnings:
+                    claims[-1]["review_warnings"] = warnings
                 if not legacy:
                     prefix = ""
     if not claims:
@@ -372,7 +426,7 @@ def audit_claims(claims, answer, catalog, grounding=None):
     if "\n\n".join(c.get("text", "") for c in claims) != answer:
         issues.append("Answer text differs from its source-bound claims.")
     try:
-        if not grounding or grounding.get("version") not in {"source-facts-v1", GROUNDING_VERSION} or grounding.get("role") not in {"Original", "Cherry", "Vanilla"}:
+        if not grounding or grounding.get("version") not in GROUNDING_VERSIONS or grounding.get("role") not in {"Original", "Cherry", "Vanilla"}:
             raise ValueError("Missing grounded answer contract.")
         expected_text, expected_claims = render_answer(grounding["payload"], catalog, grounding["role"], grounding["version"])
         if answer != expected_text or claims != expected_claims:

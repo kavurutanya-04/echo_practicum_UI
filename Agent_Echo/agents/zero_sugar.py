@@ -9,7 +9,7 @@ from .data_access import ScopedData
 from .tools import SQLReader
 from .execution_log import record, error_summary
 from .findings import cited_findings, clarification_question
-from .validation import ValidationError, repair_feedback, rejection_diagnostic
+from .validation import ValidationError, repair_feedback, rejection_diagnostic, planning_value
 from .grounding import FactCatalog, audit_claims
 from .policies import with_policies
 
@@ -77,7 +77,7 @@ An interrupted specialist may retain complete source evidence even when its pres
 failed. Evaluate the candidate and the remaining task coverage, not that failure flag
 alone. Approve recovered work only if the requested parts are addressed and all source
 checks pass. A missing result or incomplete review is not approval.
-Review qualitative syntheses against ALL cited text sources, including disagreements;
+Review interpretations against ALL cited text or numeric row sources, including disagreements;
 literal examples and synthesis are different claims. Selected excerpts do not establish
 population prevalence. Sentiment labels are assigned by Vanilla's model, not respondents.
 Put only mandatory corrections in issues; put optional improvements in suggestions.
@@ -87,6 +87,18 @@ Accept when required work is addressed and only optional suggestions remain. Con
 tables, source citations and provisional-label disclosure are legitimate report elements;
 evaluate actual redundancy and readability, not their mere presence. Do not require an
 excerpt for every classified comment when the user asks only for illustrative examples.
+For source-facts-v3, review_warnings identify narrative quantities/quantifiers for attention,
+not deterministic errors. Do not reject a date, a supported quantity, or an explicitly
+proposed follow-up interval merely because it contains digits. In the corresponding
+finding_reviews.reason, address the flagged claim's value, unit, denominator, period,
+population and meaning where relevant. Distinguish comments from employees and proposed
+targets from observations; reject unsupported claims, not their typography. Use supplied
+computed_comparisons and source rows instead of reconstructing arithmetic or inequality
+chains in your rationale. A successful code replay confirms structure/provenance, not
+the meaning of free prose. Do not invent a missing comparison. If the evidence cannot
+settle a flagged claim, explain why and request a targeted correction.
+An interpretation with quote=null may cite one or several text/row sources. A supplied
+example quote must be literal; check its context and whether requested examples exist.
 """
 
 
@@ -274,14 +286,27 @@ class ZeroSugarAgent:
         self.diagnostics["rejected_attempts"] = []
         checks = self.audit(answer, evidence, visualization)
         unresolved_numeric = any(item["status"] in {"pending", "error"} for item in numeric_coverage or [])
+        catalog = None
         if claims is not None:
-            checks.extend(audit_claims(claims, answer, FactCatalog(evidence, self.scope.__dict__), grounding))
+            catalog = FactCatalog(evidence, self.scope.__dict__)
+            checks.extend(audit_claims(claims, answer, catalog, grounding))
             blocks = claims
         else:
             blocks = cited_findings(answer)
+        attention = [{"finding_id": block["finding_id"], "text": block["text"],
+                      "citation_ids": block["citation_ids"], "signals": block["review_warnings"]}
+                     for block in blocks if block.get("review_warnings")]
+        cited_sources = {key for block in blocks for key in block["citation_ids"]}
+        comparisons = [fact for fact in catalog.facts.values() if fact["kind"] == "calculated"
+                       and set(fact["citation_ids"]).issubset(cited_sources)] if catalog else []
+        selected_facts = {block.get("fact_id") for block in blocks}
+        comparisons.sort(key=lambda fact: fact["fact_id"] not in selected_facts)
+        self.diagnostics["review_warnings"] = []
         payload = json.dumps({"question": question, "candidate_answer": answer,
             "evidence": evidence, "visualization": visualization, "deterministic_issues": checks,
             "findings": blocks, "numeric_coverage": numeric_coverage or [], "task_outcomes": task_outcomes or [],
+            "review_warnings": attention, "computed_comparisons": comparisons[:64],
+            "computed_comparisons_omitted": max(0, len(comparisons) - 64),
             "require_complete_sentiment": require_sentiment,
             "grounding_contract": grounding.get("version") if grounding else "legacy narrative; no deterministic claim guarantee"}, ensure_ascii=False)
         if len(payload) > 150_000:
@@ -323,6 +348,14 @@ class ZeroSugarAgent:
             must_revise = must_revise or report["ratings"]["Accuracy"]["score"] < 3 or report["ratings"]["Safety / Appropriateness"]["score"] < 3
             must_revise = must_revise or any(f["status"] != "supported" for f in findings)
             decision = "revise" if must_revise else report["decision"]
+            for finding in findings:
+                if finding.get("review_warnings"):
+                    entry = {"finding_id": finding["finding_id"], "status": "model_reviewed",
+                             "finding_status": finding["status"],
+                             "signals": finding["review_warnings"], "text": planning_value(finding["text"]),
+                             "reason": planning_value(finding["reason"])}
+                    self.diagnostics["review_warnings"].append(entry)
+                    record("review_warning_assessed", agent="ZeroSugar", **entry)
             for entry in self.diagnostics["rejected_attempts"]:
                 entry.update(resolution="accepted_review_submission", accepted_model_turn=attempt + 1)
             record("verification_finished", agent="ZeroSugar", decision=decision,

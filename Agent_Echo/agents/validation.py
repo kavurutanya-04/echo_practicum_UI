@@ -1,4 +1,4 @@
-"""Bounded validation diagnostics without source text or provider payloads."""
+"""Bounded diagnostics; answer/planning context uses explicit redaction, never raw payloads."""
 
 import json
 import re
@@ -50,6 +50,65 @@ def repair_feedback(error):
             feedback["condition"] = detail
         feedback["correction"] = "Correct the indicated field in your previous submission; preserve already valid fields."
     return feedback
+
+
+def planning_value(value):
+    """Retain bounded diagnostic values, redacting recognizable private identifiers."""
+    if isinstance(value, str):
+        patterns = (
+            r"(?i)\b(?:bearer\s+|(?:api[_ -]?key|password|secret|token)\s*[:=]\s*)[^\s,;]+",
+            r"\b(?:sk-|AIza)[A-Za-z0-9_-]+",
+            r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b",
+            r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}",
+            r"\b\d{3}-\d{2}-\d{4}\b",
+            r"(?i)\b(?:employee[_ -]?id\s*[:=]?\s*[A-Za-z0-9_-]+|E\d{3,})\b",
+            r"(?<!\w)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b",
+        )
+        redacted = value
+        for pattern in patterns:
+            redacted = re.sub(pattern, "[REDACTED]", redacted)
+        return {"value_type": "str", "value": redacted[:1200],
+                "redacted": redacted != value, "truncated": len(redacted) > 1200}
+    if isinstance(value, dict):
+        fields = {"missing_field", "missing_detail", "blocking_reason", "request_excerpt"}
+        return {"value_type": "dict", "value": {key: planning_value(item)
+                for key, item in value.items() if key in fields},
+                "omitted_field_count": len(set(value) - fields)}
+    if value is None or type(value) in (bool, int, float):
+        return {"value_type": type(value).__name__, "value": value}
+    return {"value_type": type(value).__name__, "content_omitted": True,
+            **({"value_length": len(value)} if isinstance(value, list) else {})}
+
+
+def answer_context(payload, field):
+    """Retain the indicated narrative item, not the full model request or answer payload."""
+    if not isinstance(payload, dict):
+        return minimal_value(payload)
+    match = re.match(r"^(interpretations|proposals)\[(\d+)\]", field or "")
+    if match:
+        items, index = payload.get(match[1]), int(match[2])
+        if isinstance(items, list) and index < len(items):
+            item = items[index]
+            if not isinstance(item, dict):
+                return minimal_value(item)
+            context = {key: planning_value(item[key]) for key in ("text", "quote") if key in item}
+            refs = item.get("citation_ids")
+            context["citation_ids"] = ([planning_value(ref) for ref in refs[:32]]
+                                       if isinstance(refs, list) else planning_value(refs))
+            if isinstance(refs, list):
+                context["citation_ids_omitted"] = max(0, len(refs) - 32)
+            return context
+    if field == "fact_ids" and isinstance(payload.get("fact_ids"), list):
+        return {"fact_ids": [planning_value(key) for key in payload["fact_ids"][:24]],
+                "omitted": max(0, len(payload["fact_ids"]) - 24)}
+    return {"present_fields": [key for key in ("fact_ids", "interpretations", "proposals") if key in payload],
+            "unexpected_field_count": len(set(payload) - {"fact_ids", "interpretations", "proposals"})}
+
+
+def diagnostic_feedback(feedback):
+    """Application feedback has declared keys; redact any free string values before persistence."""
+    return {key: planning_value(value) if isinstance(value, str) else value
+            for key, value in feedback.items()}
 
 
 def minimal_value(value):

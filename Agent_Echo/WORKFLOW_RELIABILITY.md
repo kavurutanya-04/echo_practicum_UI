@@ -6,7 +6,52 @@ sections retain their original change context; the current contracts below and t
 
 The five roles and final GW Azure default are retained. All manager-facing output is
 English. This change does not add a UI, authentication system, bilingual testing or a
-comparative provider benchmark.
+comparative provider benchmark. Later dated changes below supersede historical contract
+details where explicitly stated.
+
+## Narrative review signals and presentation v3 (2026-10-21)
+
+The ninth live run completed 13 classifications but exhausted Vanilla's and Original's
+seven turns on final-answer validation. Nine rejections detected narrative digits; the
+other three rejected inline citations, a non-text aggregate source, and a null quote.
+It made 17 successful provider calls in 328.235 seconds and never reached ZeroSugar.
+These counts explain the failure path, not semantic label quality.
+
+The first-stage correction uses `source-facts-v3`. Narrative quantities and quantifiers
+in interpretations/proposals now attach `review_warnings` rather than raise validation
+errors. The markers describe a review focus, not proof of false meaning. They never enter
+`deterministic_issues` and do not by themselves force rejection or an extra model call.
+ZeroSugar receives each flagged phrase, references and trigger, with available code-computed
+comparisons (at most 64, selected facts prioritized, omitted count explicit). Its existing
+per-finding reason must explain support/uncertainty, units, denominator, period, population
+and proposed-versus-observed status where relevant. The model does not need to recreate
+inequality chains. The same configured verifier can still make semantic errors.
+
+V3 interprets text or source rows through one or several cited sources with `quote=null`.
+An explicitly supplied example quote remains exact and bounded at 400 characters; the
+reviewer checks whether the requested positive/critical examples and interpretation are
+actually present. Whitespace/newlines and known citation wrappers/inline IDs normalize
+without another model turn. Unknown structured source IDs remain errors; ordinary prose
+brackets are escaped rather than misread as citations. Each narrative item is one review
+unit. Controlled numeric facts, source/scope integrity, anonymity, classification coverage
+and exact source matching retain their objective checks. Stored v1/v2 answers retain their
+original renderer behavior instead of inheriting v3's relaxed presentation.
+
+Local JSON/JSONL rejection records now include bounded redacted context for the indicated
+narrative item and correction feedback. `answer_normalizations` records received and
+normalized presentation; `review_warnings` records signals and the verifier's eventual
+per-finding assessment. Known credential/email/employee-ID/SSN/phone patterns are redacted;
+unknown fields and full prompts/provider payloads are omitted. Pattern-based redaction
+does not detect every personal detail, so these diagnostics remain local. Source-answer
+context is an explicit exception to the older minimized-only diagnostic contract below.
+
+No tests, saved-artifact replay or API calls were run for this update, as requested.
+Static source/syntax/diff review does not establish successful live behavior. The next
+local attempt should preserve run nine and use `reports/apinex_prueba_vanilla_10.json`.
+Success requires the requested cited answer and a completed independent review; changing
+the status label or bypassing review is not success. Five roles, provider settings,
+turn/call/time budgets and tools are unchanged. Specialist evidence-only handoff remains
+a separate second-stage proposal, not part of this implementation.
 
 ## 3. Validated recurring metrics and exploratory SQL
 
@@ -149,8 +194,9 @@ Delegated Cherry/Vanilla tasks include the full original request as context whil
 their bounded specialist task and fixed access scope. Resolved information is reused only
 within supplied context; there is no persisted conversation between terminal invocations.
 
-Planning diagnostics log validation codes/field names, not prompt or justification text.
-The optional ignored JSON artifact records the accepted clarification basis. Regression
+Planning diagnostics now retain bounded, redacted clarification fields for rejected or
+normalized plans; see the planning update below. The optional ignored JSON artifact also
+records the accepted clarification basis. Historical regression
 checks in [test_clarification_policy.py](tests/test_clarification_policy.py) exercise these
 paths using scripted responses, not provider reasoning. The user's third APInex run
 (`reports/apinex_prueba_media_3.json`) stopped after one planning call with an unnecessary
@@ -159,6 +205,36 @@ that does not exercise reconsideration of a new unnecessary question. Interactiv
 terminal continuation, natural-language date resolution and authenticated manager selection
 remain deferred; `run_agent.py`, connections and request pacing are unchanged.
 
+### Planning normalization and diagnostics (2026-10-21)
+
+When Original proposes no clarification question (including the existing empty/null-like
+string normalization), an unused non-null `clarification_basis` is set to null rather
+than rejecting the plan. All other plan checks remain in force. A real clarification
+still requires a valid basis and reconsideration within the same two planning attempts.
+
+Rejected and normalized attempts are written to the incremental JSONL log and to
+`diagnostics.planning_attempts` in the result, including on planning failure. Each record
+identifies the attempt, status, validation cause, received clarification values, correction
+feedback and `feedback_retry_available`. That flag means another planning attempt remains,
+not proof of successful provider receipt. A normalization does not consume another call.
+The last rejected attempt records feedback with no further retry available.
+
+Only the two clarification fields and the four declared basis fields are retained, with
+value types and bounded strings. Recognizable credential patterns, email addresses,
+employee IDs, US Social Security numbers and phone numbers are redacted. Unknown object
+fields and malformed list contents are omitted with structural metadata; full prompts,
+provider payloads and source records are not added. Pattern redaction cannot detect every
+form of personal information; these remain local diagnostic artifacts.
+
+Run eight (`reports/apinex_prueba_vanilla_8.json`,
+`logs/20261021_171341_9c0e36b4cea2.jsonl`) failed in planning after
+`unexpected_clarification_basis` followed by `clarification_basis_required`, with two
+successful provider calls and no specialist/reviewer execution. These changes follow that
+observation. Per user instruction, no tests or provider calls were run for this update;
+existing test results predate it. The historical strict orphan-basis regression describes
+the former behavior. Roles, scope, other validation rules, budgets and provider settings
+are unchanged; live confirmation is pending.
+
 ## 9. Diagnostics
 
 Automatic local JSONL logs include plan choices, skipped roles, remaining budgets,
@@ -166,7 +242,8 @@ closure, request fingerprints, cache hits, metric execution/replay, finding deci
 repair targets and final response status. They exclude raw queries, prompts, answers,
 employee records, credentials and provider payloads. Optional local artifacts retain the
 detailed evidence; legacy narrative paths may also retain `diagnostics.last_unverified_text`.
-Live source-bound answer failures instead use the minimized rejected-only records below.
+Live source-bound answer failures use bounded records. The current v3 exception above
+adds redacted narrative context and feedback; the dated minimized-only design below is history.
 Diagnostic content is never a released finding. Known citation wrappers are normalized without
 creating new source records. Provider null sentinels are handled as absent values, not questions. All reports/logs remain ignored by Git.
 

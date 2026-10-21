@@ -5,11 +5,14 @@ Echo combines five agents: Original (coordination/synthesis), Cherry (Text-to-SQ
 Agent responsibilities and examples are in [Agent_Echo/AGENT_ROLES.md](Agent_Echo/AGENT_ROLES.md). [Agent_Echo/TESTING_AND_RAG.md](Agent_Echo/TESTING_AND_RAG.md) distinguishes offline engineering checks from real model evaluation, explains secure API setup and shows how to inspect retrieval traces. No API configuration means no real LLM evaluation; demo responses and judge scores are explicitly scripted.
 
 Documentation reviewed 2026-10-21. Start with [project context](Agent_Echo/PROJECT_CONTEXT.md)
-and the [complete reference map](Agent_Echo/DOCUMENTATION_MAP.md). The latest implementation
-passed 207 offline tests. Luna's fourth run completed the numeric comparison; the fifth
-comment-classification run failed before ZeroSugar. Routing, retained classification
-progress, individual comment sources and safe diagnostics were then repaired. The sixth
-live run is the next pending test, not a completed result.
+and the [complete reference map](Agent_Echo/DOCUMENTATION_MAP.md). Historical engineering
+checks include 207 offline tests; those results predate the current source-facts-v3 change.
+Luna's fourth run completed a numeric comparison; run seven reached review with partial
+output. Run nine retained 13 classifications but failed on answer validation before review.
+V3 replaces narrative digit/quantifier rejection with review signals and normalizes
+repairable presentation while retaining source/scope/calculation checks. No tests or API
+calls were run for this update, as requested. The next local attempt uses a fresh run-ten
+artifact; a successful sentiment answer remains pending live confirmation.
 
 ## Repository contents
 

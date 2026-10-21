@@ -12,7 +12,7 @@ from .runtime import RunBudget, Specialist, function_tool, AgentResult, AgentRun
 from .execution_log import record, error_summary, explain_failure
 from .findings import safe_follow_up, clarification_question
 from .policies import with_policies
-from .validation import ValidationError, repair_feedback
+from .validation import ValidationError, repair_feedback, planning_value
 
 INSTRUCTIONS = """You are Original, Echo's coordinator. Keep ownership of the final
 manager-facing answer. All answers are in English. Use ask_cherry for quantitative metrics, comparisons, recognition
@@ -62,8 +62,11 @@ not evidence of absent data. Ask Cherry only for missing work and reuse complete
 You coordinate these tasks and synthesize their evidence; do not repeat Cherry's calculations
 or replace ZeroSugar's independent review. Cite each substantive block using [citation_id].
 In live mode select numeric facts through submit_grounded_answer; synthesize text through
-its interpretations field and proposed follow-up through proposals. A synthesis may cite
-multiple text sources with quote=null; individual examples require literal quotes. Write
+its interpretations field and proposed follow-up through proposals. Interpretations of
+cited text or source rows use quote=null, with one or several sources; illustrative
+examples require literal quotes. Narrative quantities/quantifiers receive semantic review,
+not automatic rejection. Keep values, units, dates and denominators tied to evidence;
+prefer catalog tables/comparisons instead of duplicating arithmetic in prose. Write
 requested team questions as direct questions. Use task_type=numeric for Cherry and task_type=text
 or sentiment for Vanilla. A numerical survey comparison does not require comment
 classification; do not delegate sentiment to Cherry or substitute scores for text labels.
@@ -98,6 +101,7 @@ class OriginalAgent(Specialist):
         self.declined_requests = {}
 
     def plan(self, question):
+        self.planning_diagnostics = []
         tools = [function_tool("submit_plan", "Choose only the specialists needed by this question.", {
             "needs_numbers": {"type": "boolean"}, "needs_text": {"type": "boolean"},
             "needs_sentiment": {"type": "boolean", "description": "Full comment sentiment classification by Vanilla, including its counts/percentages; not survey ratings."},
@@ -117,7 +121,7 @@ class OriginalAgent(Specialist):
                 "required": ["metric", "dimension"], "additionalProperties": False}}})]
         history = [{"role": "user", "content": json.dumps({"question": question, "scope": self.scope.__dict__})}]
         reconsidered_clarification = False
-        for _ in range(2):
+        for attempt in range(1, 3):
             self.budget.consume("model")
             turn = self.model.respond(with_policies("Plan Echo's scoped analysis. Return submit_plan only. Structured SQL counts need Cherry; "
                 "full comment sentiment classification and its counts/percentages need Vanilla ONLY: set needs_sentiment=true, "
@@ -141,11 +145,18 @@ class OriginalAgent(Specialist):
                 "scope or permitted tools already answer it; never ask for credentials, anonymous identities or wider access."), history, tools, True)
             history.extend(turn.output_items)
             if len(turn.calls) != 1 or turn.calls[0].name != "submit_plan":
-                reject_calls(history, turn, "Return exactly one submit_plan call.")
+                feedback = {"error": "Return exactly one submit_plan call."}
+                self.record_planning_attempt(attempt, "rejected", {}, feedback,
+                                             attempt < 2, "invalid_plan_call")
+                reject_calls(history, turn, json.dumps(feedback))
                 continue
             call = turn.calls[0]
+            received = {}
             try:
                 plan = json.loads(call.arguments)
+                if isinstance(plan, dict):
+                    received = {key: planning_value(plan[key]) for key in
+                                ("clarification_question", "clarification_basis") if key in plan}
                 if isinstance(plan, dict) and "metrics" not in plan and self.mode != "live":
                     # Read older scripted fixtures; live plans must use the current schema.
                     metric, dimension = plan.pop("metric", "none"), plan.pop("dimension", "")
@@ -186,8 +197,10 @@ class OriginalAgent(Specialist):
                             "permitted tools. Return a corrected plan with both clarification fields null if so; "
                             "otherwise return a justified necessary clarification. Do not guess missing facts.")
                 elif plan["clarification_basis"] is not None:
-                    raise ValidationError("unexpected_clarification_basis", "clarification_basis",
-                                          "Without a clarification question, clarification_basis must be null.")
+                    plan["clarification_basis"] = None
+                    self.record_planning_attempt(attempt, "normalized", received,
+                        {"correction": "No clarification question; unused clarification_basis normalized to null."},
+                        False, "unused_clarification_basis")
                 if any(r["metric"] == "survey_trend" for r in plan["metrics"]) and q is None:
                     self.budget.consume("tool")
                     dimensions = self.specialist("Cherry").reader.describe()["survey_dimensions"]
@@ -205,11 +218,25 @@ class OriginalAgent(Specialist):
                        metric_count=len(plan["metrics"]))
                 return plan
             except (ValueError, TypeError) as error:
-                record("structured_response_repair", agent="Original", stage="planning", **error_summary(error))
+                feedback = repair_feedback(error) if isinstance(error, ValidationError) else {"error": str(error)}
+                self.record_planning_attempt(attempt, "rejected", received, feedback,
+                                             attempt < 2, **error_summary(error))
                 history.append({"type": "function_call_output", "call_id": call.call_id,
-                                "output": json.dumps(repair_feedback(error) if isinstance(error, ValidationError)
-                                                     else {"error": str(error)})})
+                                "output": json.dumps(feedback)})
         raise RuntimeError("Original did not return a valid bounded analysis plan.")
+
+    def record_planning_attempt(self, attempt, status, received, feedback, feedback_sent,
+                                validation_code=None, **details):
+        """Keep the same sanitized planning diagnostic in JSONL and the result artifact."""
+        entry = {"attempt": attempt, "status": status, "received": received,
+                 "feedback": {key: planning_value(value) if isinstance(value, str) else value
+                              for key, value in feedback.items()},
+                 "feedback_retry_available": feedback_sent, **details}
+        if validation_code is not None:
+            entry["validation_code"] = validation_code
+        self.planning_diagnostics.append(entry)
+        record("structured_response_repair" if status == "rejected" else "planning_normalization",
+               agent="Original", stage="planning", **entry)
 
     def validate_clarification_basis(self, basis, question):
         """Check observable contradictions; prompt reconsideration handles semantic ambiguity."""
@@ -314,6 +341,7 @@ class OriginalAgent(Specialist):
         self.last_result, self.last_verdict = None, None
         self.planned_metrics, self.prepared_metrics, self.repair_round = [], {}, 0
         self.coordinator_diagnostics = {}
+        self.planning_diagnostics = []
         self.declined_requests = {}
         self.attempt_reviews, self.drafts = [], []
         self.active_stage, self.verification_diagnostics = "planning", {}
@@ -324,6 +352,7 @@ class OriginalAgent(Specialist):
             candidate.failure = error_summary(error)
             candidate.failure["stage"] = candidate.diagnostics.get("stage", self.active_stage) if self.active_stage == "coordination" else self.active_stage
             candidate.diagnostics["verification"] = self.verification_diagnostics
+            candidate.diagnostics["planning_attempts"] = self.planning_diagnostics
             candidate.delegations = self.child_results
             candidate.sentiment = {key: value for child in self.child_results for key, value in child.get("sentiment", {}).items()}
             candidate.connections = self.connection_summary
@@ -365,6 +394,7 @@ class OriginalAgent(Specialist):
         if not isinstance(question, str) or not question.strip() or len(question) > 4000:
             raise ValueError("Question must contain 1 to 4,000 characters.")
         plan = self.plan(question)
+        self.coordinator_diagnostics["planning_attempts"] = self.planning_diagnostics
         self.numeric_requested = plan["needs_numbers"] or plan["needs_sentiment"]
         self.planned_metrics = plan["metrics"]
         if "Cherry" in self.specialists:
@@ -374,7 +404,8 @@ class OriginalAgent(Specialist):
             return AgentResult("Original", question, "Clarification needed: " + q, self.scope.__dict__,
                 mode=self.mode, status="needs_clarification", clarification_questions=[q],
                 verification={"decision": "needs_clarification", "reviews": [], "drafts_checked": 0},
-                diagnostics={"clarification_basis": plan["clarification_basis"], "planning_reconsidered": True})
+                diagnostics={"clarification_basis": plan["clarification_basis"], "planning_reconsidered": True,
+                             "planning_attempts": self.planning_diagnostics})
         self.set_delegations([name for name, needed in (("Cherry", plan["needs_numbers"]), ("Vanilla", plan["needs_text"])) if needed])
         for name, needed in (("Cherry", plan["needs_numbers"]), ("Vanilla", plan["needs_text"]), ("Lime", plan["include_chart"])):
             if not needed:
