@@ -146,8 +146,9 @@ Automatic local JSONL logs include plan choices, skipped roles, remaining budget
 closure, request fingerprints, cache hits, metric execution/replay, finding decisions,
 repair targets and final response status. They exclude raw queries, prompts, answers,
 employee records, credentials and provider payloads. Optional local artifacts retain the
-detailed evidence and `diagnostics.last_unverified_text` after a formatting failure; this
-diagnostic text is never a released finding. Known citation wrappers are normalized without
+detailed evidence; legacy narrative paths may also retain `diagnostics.last_unverified_text`.
+Live source-bound answer failures instead use the minimized rejected-only records below.
+Diagnostic content is never a released finding. Known citation wrappers are normalized without
 creating new source records. Provider null sentinels are handled as absent values, not questions. All reports/logs remain ignored by Git.
 
 Structured validation errors additionally record a stable validation code, field path,
@@ -155,6 +156,42 @@ record index and known source/finding ID where applicable. Literal quote mismatc
 quote length are separate failures. Reviews report missing rubric dimensions, finding
 coverage, invalid fields and changed citations through separate codes. No rejected quote
 text or arbitrary provider exception is written to the execution log.
+
+### Rejected source-answer diagnostics (2026-10-21)
+
+`diagnostics.rejected_attempts` retains source-bound answer validation failures and
+free-form answer attempts in the ignored local JSON artifact, including after success
+or exhaustion. Each entry identifies agent, tool, model turn, rejection index, field,
+element index when relevant, stable code and a fixed application explanation. Type,
+count and unknown-ID errors are distinct, as are quote type, length and literal mismatch.
+The existing acceptance predicates are unchanged. A digit/keyword rejection explicitly
+does not establish an invented target or a false claim; a valid calendar reference such
+as Q4 still triggers the current proposal rule and now has an actionable explanation.
+
+The new diagnostic deliberately omits full arguments, rejected prose, source quotes,
+names, contact details and credentials. It keeps only types/counts/positions and
+allowlisted fragments: a fixed-format `FACT_` hash, a Q1-Q4 marker, or the exact
+quantifier keyword. Other content is omitted rather than relying on incomplete PII
+pattern redaction. Thus it explains the condition without recreating the entire rejected
+statement. General JSONL logs retain only an explicit metadata allowlist, never these
+fragments or explanations. Existing evidence artifacts still contain authorized source
+data; this change does not anonymize an entire report.
+
+Entries remain `rejected_unverified`; `resolution=accepted_source_submission` and
+`accepted_model_turn` indicate a later locally valid submission, not semantic approval.
+The accepted payload remains separately in `grounding.payload` and goes through ZeroSugar.
+Original's history survives its independent-review repair rounds; each child's history
+is retained in that child's delegation artifact. New workflows reset their history.
+Retention is capped at 16 entries per agent history, with `rejected_attempts_omitted`
+counting excess entries. No diagnostic content is added to released claims or the normal
+terminal answer. Planning/reviewer/batch and ordinary tool diagnostics keep their existing
+contracts; this update specifically fills the source-answer rejection gap.
+
+The fourth live run predates this feature, so its missing rejected payloads cannot be
+recovered. Tests use controlled sensitive-looking strings to check omission, success and
+failure persistence, repair-round continuity and unchanged call counts. An offline replay
+also reproduced the fourth run's accepted answer and claims exactly. No API calls were
+made for this diagnostic update; roles, tools, budgets, connections and pacing are unchanged.
 
 Vanilla permits exact contiguous quote excerpts of 1-400 characters; 400 is a maximum,
 not a requested length. Explanations remain capped at 160 characters. Classification uses

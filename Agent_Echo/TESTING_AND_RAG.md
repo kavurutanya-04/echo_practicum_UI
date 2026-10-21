@@ -24,6 +24,7 @@ The current live answer contract and historical-output audit are documented in
 ```powershell
 python -m unittest discover -s tests -p test_grounded_claims.py -v
 python -m unittest discover -s tests -p test_clarification_policy.py -v
+python -m unittest discover -s tests -p test_rejection_diagnostics.py -v
 python audit_grounding.py reports/apinex_prueba_media_actualizada.json --output reports/grounding_review.json
 ```
 
@@ -37,11 +38,17 @@ excerpts, bounded failures, shared budgets, safe diagnostics and every analysis 
 They also check that a normal plan adds no reconsideration call. These are scripted
 engineering checks, not proof that Luna always recognizes ambiguity correctly. See
 [shared rules and clarification handling](WORKFLOW_RELIABILITY.md#shared-rules-and-initial-planning-clarifications-2026-10-21).
-The latest local suite passed 170 tests on 2026-10-21, including 16 new policy/clarification
-regressions, with zero generation API calls. A real follow-up still needs to exercise the
-updated plan schema and inspect the final answer. Preserve the third run's artifact;
-use a new output filename for the next live test. Terminal clarification still prints
-the question and exits; interactive continuation is deferred.
+The latest local suite passed 185 tests on 2026-10-21, including 16 policy/clarification
+regressions and 15 rejection-diagnostic regressions, with zero generation API calls.
+The user's fourth live Luna run completed with nine successful calls and source-matching
+results; it also exposed four corrected source-submission rejections. The diagnostic
+update followed that run and has not yet been exercised with a real provider. Its offline
+replay reproduces that run's accepted answer/claims exactly. New checks verify granular
+causes, minimal-fragment retention, omission of sensitive-looking input, success/failure
+persistence and review-round continuity. See
+[rejected source-answer diagnostics](WORKFLOW_RELIABILITY.md#rejected-source-answer-diagnostics-2026-10-21).
+Preserve earlier artifacts and use a new output filename for subsequent live tests.
+Terminal clarification still prints the question and exits; interactive continuation is deferred.
 
 ```powershell
 python -m unittest discover -s tests -v

@@ -8,7 +8,7 @@ import hashlib
 from .execution_log import record, error_summary
 from .findings import normalize_citations
 from .grounding import FactCatalog, answer_schema, render_answer
-from .validation import ValidationError, repair_feedback
+from .validation import ValidationError, repair_feedback, rejection_diagnostic, minimal_value
 from .policies import with_policies
 
 
@@ -100,8 +100,9 @@ class Specialist:
         self.scope, self.definitions, self.handlers, self.mode = scope, definitions, handlers, mode
         self.budget = budget
 
-    def run(self, question, initial_evidence=(), context=()):
-        self.last_result = AgentResult(self.name, question, "", self.scope.__dict__, mode=self.mode, status="failed")
+    def run(self, question, initial_evidence=(), context=(), diagnostics=None):
+        self.last_result = AgentResult(self.name, question, "", self.scope.__dict__, mode=self.mode, status="failed",
+                                      diagnostics=diagnostics if diagnostics is not None else {})
         try:
             return self._run(question, initial_evidence, context)
         except RuntimeError as error:
@@ -146,6 +147,17 @@ class Specialist:
                 "do not infer missing database population or a backend error.")
         last_action = "no completed turn"
         cache, close_next = {}, False
+        rejections = self.last_result.diagnostics.setdefault("rejected_attempts", [])
+        rejection_start = len(rejections)
+
+        def preserve_rejection(error, tool, model_turn):
+            if len(rejections) < 16:
+                rejections.append(rejection_diagnostic(error, self.name, tool, model_turn, len(rejections) + 1))
+            else:
+                key = "rejected_attempts_omitted"
+                self.last_result.diagnostics[key] = self.last_result.diagnostics.get(key, 0) + 1
+            record("structured_response_repair", agent=self.name, **error_summary(error))
+
         for step in range(7):
             pending_work = getattr(self, "has_pending_work", lambda evidence: False)(evidence)
             closing = step == 6 or (close_next and not pending_work) or len(trace) >= 10 or budget.remaining()["model_calls"] <= (2 if self.name == "Original" else 3)
@@ -184,13 +196,15 @@ class Specialist:
                         record("grounded_answer_rendered", agent=self.name, claims=len(rendered_claims))
                     except (ValueError, TypeError) as error:
                         last_action = "repairing source-bound answer selection"
-                        record("structured_response_repair", agent=self.name, **error_summary(error))
+                        preserve_rejection(error, "submit_grounded_answer", step + 1)
                         reject_calls(history, turn, json.dumps(repair_feedback(error)))
                         continue
                 elif not turn.calls:
                     last_action = "repairing an unstructured final answer"
-                    self.last_result.diagnostics["last_unverified_text"] = turn.text
-                    record("structured_response_repair", agent=self.name, reason="grounded_answer_required")
+                    preserve_rejection(ValidationError("grounded_answer_required", "answer",
+                        "Free-form output cannot be released; submit the structured answer tool instead.",
+                        local_details={"expected": "submit_grounded_answer", **minimal_value(turn.text)}),
+                        "free_form_answer", step + 1)
                     history.append({"role": "user", "content": "Use submit_grounded_answer; free-form factual text cannot be released."})
                     continue
             if closing and turn.calls:
@@ -203,7 +217,8 @@ class Specialist:
                         "Use the available tools to complete them; do not claim that unqueried data does not exist. " +
                         json.dumps({"numeric_coverage": self.numeric_coverage(evidence)})})
                     continue
-                self.last_result.diagnostics = {"last_unverified_text": turn.text}
+                if not grounded:
+                    self.last_result.diagnostics["last_unverified_text"] = turn.text
                 normalized = normalize_citations(turn.text, known)
                 if normalized != turn.text:
                     record("citations_normalized", agent=self.name)
@@ -221,7 +236,12 @@ class Specialist:
                     continue
                 record("agent_finished", agent=self.name, evidence_count=len(evidence))
                 result = AgentResult(self.name, question, turn.text, self.scope.__dict__, evidence, trace, self.mode)
+                # Preserve only the minimized rejected-only history, not raw rejected prose.
+                result.diagnostics.update({key: value for key, value in self.last_result.diagnostics.items()
+                                           if key in {"rejected_attempts", "rejected_attempts_omitted"}})
                 if grounded:
+                    for entry in rejections[rejection_start:]:
+                        entry.update(resolution="accepted_source_submission", accepted_model_turn=step + 1)
                     result.claims = rendered_claims
                     result.grounding = {"version": "source-facts-v1", "payload": json.loads(final_calls[0].arguments),
                                         "role": self.name, "semantic_quality": "requires_independent_review"}

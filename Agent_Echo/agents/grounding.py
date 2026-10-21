@@ -11,11 +11,11 @@ import json
 import math
 import re
 
-from .validation import ValidationError
+from .validation import ValidationError, minimal_value, numeric_fragment
 
 
-def fail(code, field, message):
-    raise ValidationError(code, field, message)
+def fail(code, field, message, **details):
+    raise ValidationError(code, field, message, **details)
 
 
 def stable_id(kind, value):
@@ -205,8 +205,18 @@ def render_answer(payload, catalog, role):
     if not isinstance(payload, dict) or set(payload) != {"fact_ids", "interpretations", "proposals"}:
         fail("answer_fields", "answer", "Return fact_ids, interpretations and proposals only.")
     chosen = payload["fact_ids"]
-    if not isinstance(chosen, list) or len(chosen) > 24 or any(not isinstance(k, str) or k not in catalog.facts for k in chosen):
-        fail("fact_identity", "fact_ids", "Select existing fact IDs; never supply numbers, altered text or invented IDs.")
+    if not isinstance(chosen, list):
+        fail("fact_ids_type", "fact_ids", "fact_ids must be a list of existing catalog identifiers.",
+             local_details={"expected_type": "list", **minimal_value(chosen)})
+    if len(chosen) > 24:
+        fail("fact_ids_count", "fact_ids", "Select at most 24 fact IDs.", expected_count=24, actual_count=len(chosen))
+    for index, key in enumerate(chosen):
+        if not isinstance(key, str):
+            fail("fact_id_type", "fact_ids", "Each fact ID must be a string.", item_index=index,
+                 local_details={"expected_type": "str", **minimal_value(key)})
+        if key not in catalog.facts:
+            fail("fact_id_unknown", "fact_ids", "The selected identifier is absent from the supplied fact catalog.",
+                 item_index=index, local_details={"expected": "existing catalog fact ID", **minimal_value(key)})
     claims = []
     for key in dict.fromkeys(chosen):
         fact = catalog.facts[key]
@@ -218,35 +228,56 @@ def render_answer(payload, catalog, role):
         claims.append({**fact, "validation": "source_reproducible"})
     for kind in ("interpretations", "proposals"):
         items = payload[kind]
-        if not isinstance(items, list) or len(items) > 12 or (role == "Cherry" and items):
-            fail("narrative_role", kind, "Cherry selects numeric facts only; narrative lists must be bounded.")
-        for item in items:
+        if not isinstance(items, list):
+            fail("narrative_type", kind, "Narrative fields must be lists.",
+                 local_details={"expected_type": "list", **minimal_value(items)})
+        if len(items) > 12:
+            fail("narrative_count", kind, "A narrative list may contain at most 12 items.",
+                 expected_count=12, actual_count=len(items))
+        if role == "Cherry" and items:
+            fail("narrative_role", kind, "Cherry selects numeric facts only; this narrative list must be empty.",
+                 expected_count=0, actual_count=len(items))
+        for index, item in enumerate(items):
+            path = kind + f"[{index}]"
             if not isinstance(item, dict) or set(item) != {"text", "citation_ids", "quote"}:
-                fail("narrative_fields", kind, "Each narrative claim requires text, citation_ids and quote.")
+                fail("narrative_fields", path, "Each narrative claim requires text, citation_ids and quote.", item_index=index)
             text, refs, quote = item["text"], item["citation_ids"], item["quote"]
             if not isinstance(text, str) or not 1 <= len(text.strip()) <= 600 or "\n" in text:
-                fail("narrative_text", kind, "Use one short sentence per narrative claim.")
+                fail("narrative_text", path + ".text", "Use one short sentence per narrative claim (1-600 characters, no newline).",
+                     item_index=index, local_details={"expected": "1-600 characters, no newline", **minimal_value(text)})
             if not isinstance(refs, list) or not refs or any(not isinstance(k, str) or k not in catalog.sources for k in refs):
-                fail("narrative_sources", kind, "Every narrative claim needs existing source IDs.")
+                fail("narrative_sources", path + ".citation_ids", "Every narrative claim needs existing source IDs.", item_index=index)
             # No source IDs embedded in model prose: code owns citation placement.
             if re.search(r"\[[^\]]+\]", text):
-                fail("embedded_citation", kind, "Put source identifiers in citation_ids, not in the text.")
+                fail("embedded_citation", path + ".text", "Put source identifiers in citation_ids, not in the text.", item_index=index)
             if kind == "interpretations":
                 if len(refs) != 1:
-                    fail("interpretation_scope", kind, "Use one source excerpt per individual interpretation; do not infer a population theme.")
-                if re.search(r"\d|\b(?:percent|percentage|majority|minority|all employees|everyone|every quarter|always|never)\b", text, re.I):
-                    fail("numeric_interpretation", kind, "Numerical/prevalence comparisons must select calculated facts.")
+                    fail("interpretation_scope", path + ".citation_ids", "Use one source excerpt per individual interpretation; do not infer a population theme.", item_index=index)
+                match = re.search(r"\d|\b(?:percent|percentage|majority|minority|all employees|everyone|every quarter|always|never)\b", text, re.I)
+                if match:
+                    fail("numeric_interpretation", path + ".text", "A digit or quantifier keyword triggered the interpretation rule; this alone does not prove a false claim. Select numerical comparisons as catalog facts.",
+                         item_index=index, local_details=numeric_fragment(text, match))
                 texts = [catalog.sources[k].get("text", "") for k in refs]
-                if not any(texts) or not isinstance(quote, str) or not 1 <= len(quote) <= 400 \
-                        or not any(quote in source for source in texts):
-                    fail("interpretation_quote", kind, "Interpretations need a literal excerpt from supplied text evidence.")
+                if not any(texts):
+                    fail("interpretation_source_not_text", path + ".citation_ids", "The selected source has no text for a qualitative interpretation.", item_index=index)
+                if not isinstance(quote, str):
+                    fail("interpretation_quote_type", path + ".quote", "The source excerpt must be a string.",
+                         item_index=index, local_details=minimal_value(quote))
+                if not 1 <= len(quote) <= 400:
+                    fail("interpretation_quote_length", path + ".quote", "The source excerpt must contain 1-400 characters.",
+                         item_index=index, max_characters=400, actual_characters=len(quote))
+                if not any(quote in source for source in texts):
+                    fail("interpretation_quote_not_literal", path + ".quote", "The proposed excerpt does not occur literally in the selected source text.",
+                         item_index=index, local_details=minimal_value(quote))
                 prefix = "Provisional interpretation for manager review: "
                 excerpt = ' Source excerpt: "' + cell(quote) + '".'
             else:
                 if quote is not None:
-                    fail("proposal_quote", kind, "Proposals use quote=null and are not observed outcomes.")
-                if re.search(r"\d|\b(?:percent|percentage points)\b", text, re.I):
-                    fail("numeric_proposal", kind, "Select numeric facts separately; do not invent numerical targets or observations in proposed actions.")
+                    fail("proposal_quote", path + ".quote", "Proposals use quote=null and are not observed outcomes.", item_index=index)
+                match = re.search(r"\d|\b(?:percent|percentage points)\b", text, re.I)
+                if match:
+                    fail("numeric_proposal", path + ".text", "A digit or percentage keyword triggered the proposal rule; this alone does not establish an invented target. Select numeric facts separately.",
+                         item_index=index, local_details=numeric_fragment(text, match))
                 prefix, excerpt = "Proposed action for manager review (not an observed outcome): ", ""
             # Split model prose into individual review units, retaining its source anchor.
             units = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text.strip())

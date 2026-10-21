@@ -275,6 +275,7 @@ class OriginalAgent(Specialist):
             tool_limit=48 + 2 * max(0, self.model_call_limit - 32), seconds=self.run_seconds)
         self.last_result, self.last_verdict = None, None
         self.planned_metrics, self.prepared_metrics, self.repair_round = [], {}, 0
+        self.coordinator_diagnostics = {}
         self.attempt_reviews, self.drafts = [], []
         try:
             return self.workflow(question)
@@ -344,7 +345,8 @@ class OriginalAgent(Specialist):
                 pending_coverage = numeric_child.numeric_coverage(evidence) if numeric_child else [
                     {**request, "status": "pending", "citation_id": None} for request in self.planned_metrics]
                 task_context = [{"role": "user", "content": json.dumps({"numeric_coverage": pending_coverage})}]
-                candidate = super().run(question, initial_evidence=evidence, context=context + task_context)
+                candidate = super().run(question, initial_evidence=evidence, context=context + task_context,
+                                        diagnostics=self.coordinator_diagnostics)
                 coordinator_trace.extend(candidate.tool_trace)
             candidates.append(candidate.answer)
             self.drafts = candidates

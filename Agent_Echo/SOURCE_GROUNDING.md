@@ -96,3 +96,14 @@ is `reports/grounding_audit_before_upgrade.json` and is excluded from Git, along
 source-bearing reports. No new live API test was run for this upgrade. Input catalog size
 and actual provider behavior/cost must be checked in the next live test; local regression
 success is software evidence, not a model quality benchmark.
+
+Follow-up, 2026-10-21: the user's fourth live Luna run completed with nine calls, a cited
+comparison table and source-reproducible numerical claims accepted by ZeroSugar. Vanilla
+was not invoked, so this does not evaluate text/sentiment quality. Four source-submission
+attempts required correction. The subsequent diagnostic update preserves minimized
+rejected-only records in `diagnostics.rejected_attempts`, without full rejected prose or
+tool payloads; its exact retention/privacy boundaries are in
+[WORKFLOW_RELIABILITY.md](WORKFLOW_RELIABILITY.md#rejected-source-answer-diagnostics-2026-10-21).
+The proposal digit rule remains unchanged and is reported as a syntactic restriction,
+not proof of hallucination. Diagnostic-only replay preserved the fourth accepted answer
+and claims exactly, without another provider call.
