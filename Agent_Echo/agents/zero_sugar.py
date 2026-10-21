@@ -67,6 +67,12 @@ explain those semantic checks in your reason. Interpretations are provisional hy
 not observations, and a literal excerpt alone does not entail the interpretation. Check
 negation, contradictions, missing context, quantifiers, numerical direction and periods.
 Proposed actions are not measured outcomes. Never mark validated semantic accuracy.
+Review task_outcomes against the actual requested work. An out-of-role decline is not a
+technical failure or proof of missing data; require correct reassignment when needed.
+Incomplete classification cannot support percentages. Previously failed attempts do not
+invalidate a later complete, source-verified classification for the same authorized scope.
+Literal excerpts support provenance, not automatic semantic approval; check whether each
+quoted response actually supports the assigned sentiment and interpretation.
 """
 
 
@@ -128,7 +134,7 @@ class ZeroSugarAgent:
                     issues.append("SQL evidence is missing its query, rows or scope metadata.")
                 if self.sql_reader is None:
                     issues.append("SQL evidence has no trusted replay source.")
-            if "text" in item and self.document_lookup is None:
+            if "text" in item and item.get("kind") != "survey_response" and self.document_lookup is None:
                 issues.append("Text evidence has no trusted source lookup.")
             if "scope" in item and item["scope"] != self.scope.__dict__:
                 issues.append("Evidence scope differs from the authorized caller scope.")
@@ -163,7 +169,12 @@ class ZeroSugarAgent:
                             issues.append("Metric evidence differs from its validated definition.")
                 except (ValueError, KeyError, TypeError):
                     issues.append("SQL evidence could not be replayed.")
-            if "text" in item and self.document_lookup is not None:
+            if item.get("kind") == "survey_response":
+                original = next((d for d in (self.sentiment_documents or []) if d["citation_id"] == item["citation_id"]), None)
+                if original is None or item.get("scope") != self.scope.__dict__ or any(item.get(key) != original.get(key) for key in
+                    ("source", "record_id", "team", "date", "dimension", "anonymous")) or item.get("text") != original["response_text"]:
+                    issues.append("Survey response evidence differs from its trusted anonymous comment.")
+            elif "text" in item and self.document_lookup is not None:
                 original = self.document_lookup.get(item["citation_id"])
                 if original is None or any(item.get(key) != original.get(key) for key in ("source", "record_id", "team", "date", "anonymous")) or item["text"] != original["text"][:1600]:
                     issues.append("Text evidence differs from its scoped source record.")
@@ -240,7 +251,7 @@ class ZeroSugarAgent:
             seen.add(key)
         return checked
 
-    def review(self, question, answer, evidence, visualization=None, numeric_coverage=None, claims=None, grounding=None):
+    def review(self, question, answer, evidence, visualization=None, numeric_coverage=None, claims=None, grounding=None, task_outcomes=None, require_sentiment=False):
         checks = self.audit(answer, evidence, visualization)
         unresolved_numeric = any(item["status"] in {"pending", "error"} for item in numeric_coverage or [])
         if claims is not None:
@@ -250,7 +261,8 @@ class ZeroSugarAgent:
             blocks = cited_findings(answer)
         payload = json.dumps({"question": question, "candidate_answer": answer,
             "evidence": evidence, "visualization": visualization, "deterministic_issues": checks,
-            "findings": blocks, "numeric_coverage": numeric_coverage or [],
+            "findings": blocks, "numeric_coverage": numeric_coverage or [], "task_outcomes": task_outcomes or [],
+            "require_complete_sentiment": require_sentiment,
             "grounding_contract": grounding.get("version") if grounding else "legacy narrative; no deterministic claim guarantee"}, ensure_ascii=False)
         if len(payload) > 150_000:
             raise ValueError("Review evidence is too large; narrow the question or query results.")
@@ -280,6 +292,11 @@ class ZeroSugarAgent:
                 report["issues"] = list(dict.fromkeys(report["issues"] + [
                     "Some planned numeric requests remain unresolved; do not infer absent data."]))
                 report["repair_targets"] = list(dict.fromkeys(report.get("repair_targets", []) + ["Cherry"]))
+            if require_sentiment and not any(e.get("kind") == "survey_sentiment" and e.get("complete") is True
+                                            for e in evidence):
+                report["issues"] = list(dict.fromkeys(report["issues"] + [
+                    "Requested full comment classification remains incomplete; no partial percentages may be released."]))
+                report["repair_targets"] = list(dict.fromkeys(report.get("repair_targets", []) + ["Vanilla"]))
             must_revise = bool(checks or report["issues"]) or any(rating["score"] == 1 for rating in report["ratings"].values())
             must_revise = must_revise or report["ratings"]["Accuracy"]["score"] < 3 or report["ratings"]["Safety / Appropriateness"]["score"] < 3
             must_revise = must_revise or any(f["status"] != "supported" for f in findings)
@@ -307,7 +324,11 @@ class ZeroSugarAgent:
             finally:
                 backend.close()
         review = self.review(artifact["question"], artifact["answer"], artifact["evidence"], artifact.get("visualization") or None,
-                             claims=artifact.get("claims") or None, grounding=artifact.get("grounding") or None)
+                             claims=artifact.get("claims") or None, grounding=artifact.get("grounding") or None,
+                             task_outcomes=[{"agent": child["agent"], "status": child["status"],
+                                             "task_outcome": child.get("task_outcome", {})}
+                                            for child in artifact.get("delegations", [])],
+                             require_sentiment=artifact.get("diagnostics", {}).get("requires_sentiment", False))
         return AgentResult(self.name, artifact["question"], "Review decision: " + review.decision,
                            self.scope.__dict__, artifact["evidence"], mode=self.mode, verification=asdict(review))
 

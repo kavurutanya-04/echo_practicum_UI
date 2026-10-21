@@ -70,6 +70,7 @@ def main(argv=None):
 
 def execute(args, parser):
     registry, agent = None, None
+    declined_visual = None
     try:
         registry = ModelRegistry(args.connections, args.profile)
         if args.show_connections:
@@ -133,8 +134,15 @@ def execute(args, parser):
             lime = LimeAgent(scope, factory("Lime"), mode)
             plan = lime.plan(artifact["question"], artifact["answer"], artifact["evidence"])
             artifact["visualization"] = asdict(plan)
-            agent = ZeroSugarAgent(scope, factory("ZeroSugar"), mode, database=HERE / "data" / "echo.db")
-        if artifact and args.agent == "lime":
+            if plan.task_outcome and plan.task_outcome.get("status") == "declined":
+                declined_visual = plan
+            if not declined_visual:
+                agent = ZeroSugarAgent(scope, factory("ZeroSugar"), mode, database=HERE / "data" / "echo.db")
+        if declined_visual:
+            result = AgentResult("Lime", artifact["question"], declined_visual.reason, scope.__dict__,
+                evidence=artifact["evidence"], mode=mode, status="declined", visualization=asdict(declined_visual),
+                task_outcome=declined_visual.task_outcome)
+        elif artifact and args.agent == "lime":
             result = agent.run(artifact)
             result.agent = "Lime"
             result.answer = artifact["answer"] if result.verification["decision"] == "accept" else "No verified visualization was produced; examine the review issues."
@@ -173,7 +181,7 @@ def execute(args, parser):
             print(f"Evidence artifact: {args.output.resolve()}")
         if result.status == "failed":
             return 1
-        return 2 if result.status in {"partial", "needs_clarification"} or result.verification.get("decision") == "revise" else 0
+        return 2 if result.status in {"partial", "needs_clarification", "declined", "incomplete"} or result.verification.get("decision") == "revise" else 0
     except KeyboardInterrupt:
         record("run_cancelled")
         print("Execution cancelled. API connectivity and answer quality were not confirmed by this interrupted run.", file=sys.stderr)

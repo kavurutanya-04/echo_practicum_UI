@@ -236,9 +236,13 @@ class SentimentTests(unittest.TestCase):
 
     def test_failed_classification_never_publishes_partial_percentages(self):
         invalid = self.labels()[:-1]
-        agent = self.agent([tool_turn("submit_sentiment_batch", {"labels": invalid}) for _ in range(2)])
-        with self.assertRaisesRegex(RuntimeError, "no partial percentages"):
-            agent.analyze_sentiment("Recognition")
+        agent = self.agent([tool_turn("submit_sentiment_batch", {"labels": invalid}),
+                            tool_turn("submit_sentiment_batch", {"labels": []}),
+                            tool_turn("submit_sentiment_batch", {"labels": []})])
+        result = agent.analyze_sentiment("Recognition")
+        self.assertEqual(result["status"], "incomplete")
+        self.assertNotIn("rows", result)
+        self.assertEqual(result["validated_comments"], 5)
         self.assertEqual(agent.sentiment_reports, {})
 
     def test_budget_preflight_refuses_large_population_without_model_calls(self):

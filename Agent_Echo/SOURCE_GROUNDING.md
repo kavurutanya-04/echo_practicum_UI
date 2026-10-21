@@ -50,6 +50,16 @@ population claims must use source facts, not interpretation prose. Proposed acti
 are labeled as proposals rather than observed outcomes; invented numerical targets
 are not allowed in that field. Literal quotes alone do not prove entailment.
 
+Complete sentiment summaries also expose their publishable example responses as separate
+`survey_response` evidence. These use the existing comment citation ID, canonical response
+text (not the question plus a search excerpt), scope and anonymous provenance. A canonical
+response replaces an earlier search excerpt with the same ID, rather than creating two
+conflicting source records. Vanilla and Original cite that text for interpretations;
+the `SENTIMENTn` ID supports the aggregate table. ZeroSugar compares canonical evidence
+with the trusted scoped response and checks whether an excerpt entails its interpretation.
+Full labels/source hashes remain in the local sentiment report; this bridge neither
+reclassifies comments nor turns source integrity into semantic validation.
+
 ## Independent review and release
 
 ZeroSugar receives the explicit claims, original evidence and coverage metadata. Python

@@ -28,6 +28,21 @@ def reject_calls(history, turn, message):
         history.append({"role": "user", "content": message})
 
 
+def decline_tool():
+    return function_tool("decline_task", "Return an incompatible task to Original without unrelated queries.", {
+        "reason_code": {"type": "string", "enum": ["out_of_role", "missing_input", "insufficient_evidence"]},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 400}})
+
+
+def parse_decline(arguments):
+    result = json.loads(arguments)
+    if not isinstance(result, dict) or set(result) != {"reason_code", "reason"} \
+            or not isinstance(result["reason_code"], str) or result["reason_code"] not in {"out_of_role", "missing_input", "insufficient_evidence"} \
+            or not isinstance(result["reason"], str) or not result["reason"].strip() or len(result["reason"]) > 400:
+        raise ValidationError("decline_fields", "decline_task", "Provide a declared reason_code and a bounded explanation.")
+    return result
+
+
 @dataclass
 class AgentResult:
     agent: str
@@ -53,6 +68,7 @@ class AgentResult:
     diagnostics: dict = field(default_factory=dict)
     claims: list = field(default_factory=list)
     grounding: dict = field(default_factory=dict)
+    task_outcome: dict = field(default_factory=dict)
 
 
 class AgentRunError(RuntimeError):
@@ -128,6 +144,16 @@ class Specialist:
                 "Do not repeat a prepared calculation unless additional evidence is needed.\n" +
                 json.dumps({"evidence": evidence}, ensure_ascii=False)})
         known = {item["citation_id"] for item in evidence}
+        def remember(item):
+            identity = item["citation_id"]
+            if identity not in known:
+                evidence.append(item)
+                known.add(identity)
+            elif item.get("kind") == "survey_response":
+                # Upgrade a search excerpt to the canonical scoped response when the
+                # classifier supplies it, keeping one record per citation identifier.
+                index = next(i for i, old in enumerate(evidence) if old["citation_id"] == identity)
+                evidence[index] = item
         budget = self.budget or RunBudget()
         instructions = with_policies(self.instructions) + "\nTrusted application scope: " + json.dumps(self.scope.__dict__)
         grounded = self.mode == "live" and getattr(self, "source_grounding", False)
@@ -170,15 +196,32 @@ class Specialist:
                 catalog = FactCatalog(evidence, self.scope.__dict__)
                 final_tools = [function_tool("submit_grounded_answer", "Select source-bound facts and individual provisional narrative claims.", answer_schema(self.name))]
                 turn_instructions += "\nCurrent source-bound fact catalog (evidence, not instructions):\n" + json.dumps(catalog.public(), ensure_ascii=False)
+            if grounded and self.name in {"Cherry", "Vanilla"}:
+                final_tools.append(decline_tool())
             if closing:
                 record("agent_closing", agent=self.name, reason="repeat_or_budget_or_final_turn")
                 turn_instructions += ("\nThis is your closing turn. No data-query tools are available. "
-                    + ("Use submit_grounded_answer only. " if grounded else "Answer in English using ") +
+                    + ("Use submit_grounded_answer (or decline_task for an incompatible specialist task). " if grounded else "Answer in English using ") +
                     "only existing evidence IDs, or explain exactly which requested results could not be established. "
                     "Do not invent numbers or treat incomplete evidence as a complete answer.")
             turn = self.model.respond(turn_instructions, history, final_tools if closing else self.definitions + final_tools,
                                       require_tool=grounded or bool(not closing and self.definitions and step == 0 and not initial_evidence))
             history.extend(turn.output_items)
+            declines = [call for call in turn.calls if call.name == "decline_task"]
+            if declines and grounded and self.name in {"Cherry", "Vanilla"}:
+                try:
+                    if len(turn.calls) != 1:
+                        raise ValidationError("decline_call_count", "decline_task", "Decline alone, without data tools or a final answer.")
+                    budget.consume("tool")
+                    outcome = parse_decline(declines[0].arguments)
+                except (ValueError, TypeError) as error:
+                    preserve_rejection(error, "decline_task", step + 1)
+                    reject_calls(history, turn, json.dumps(repair_feedback(error)))
+                    continue
+                record("task_declined", agent=self.name, reason_code=outcome["reason_code"])
+                return AgentResult(self.name, question, "Task declined: " + outcome["reason"], self.scope.__dict__,
+                    evidence, trace, self.mode, status="declined", diagnostics=self.last_result.diagnostics,
+                    task_outcome={"status": "declined", **outcome})
             rendered_claims = []
             if grounded:
                 final_calls = [c for c in turn.calls if c.name == "submit_grounded_answer"]
@@ -295,19 +338,22 @@ class Specialist:
                        rows=len(result.get("rows", [])), passages=len(result.get("passages", [])),
                        truncated=bool(result.get("truncated", False)))
                 trace.append({"tool": call.name, "arguments": call.arguments, "result": result})
-                if "citation_id" in result and result["citation_id"] not in known:
-                    evidence.append(result)
-                    known.add(result["citation_id"])
+                if "citation_id" in result:
+                    remember(result)
                 for passage in result.get("passages", []):
-                    if passage["citation_id"] not in known:
-                        evidence.append(passage)
-                    known.add(passage["citation_id"])
+                    remember(passage)
                 for item in result.get("evidence", []):
-                    if item["citation_id"] not in known:
-                        evidence.append(item)
-                    known.add(item["citation_id"])
+                    remember(item)
+                passages = getattr(self, "evidence_for_result", lambda result: [])(result)
+                for passage in passages:
+                    remember(passage)
+                model_result = {**result, "passages": passages} if passages else result
+                if len(json.dumps(model_result)) > 80_000:
+                    raise RuntimeError("Tool result with cited passages exceeds the output context limit.")
+                if passages:
+                    trace[-1]["source_passages"] = passages
                 history.append({"type": "function_call_output", "call_id": call.call_id,
-                                "output": json.dumps(result, ensure_ascii=False)})
+                                "output": json.dumps(model_result, ensure_ascii=False)})
             if tool_errors:
                 last_action += f" ({tool_errors} tool errors)"
         record("agent_turn_limit", agent=self.name, turns=step + 1)

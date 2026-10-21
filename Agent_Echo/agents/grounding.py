@@ -203,7 +203,10 @@ def render_answer(payload, catalog, role):
     if role not in {"Original", "Cherry", "Vanilla"}:
         fail("answer_role", "role", "Only Original, Cherry and Vanilla use this answer contract.")
     if not isinstance(payload, dict) or set(payload) != {"fact_ids", "interpretations", "proposals"}:
-        fail("answer_fields", "answer", "Return fact_ids, interpretations and proposals only.")
+        required = {"fact_ids", "interpretations", "proposals"}
+        fail("answer_fields", "answer", "Return fact_ids, interpretations and proposals only.",
+             missing_fields=sorted(required - set(payload)) if isinstance(payload, dict) else sorted(required),
+             unexpected_field_count=len(set(payload) - required) if isinstance(payload, dict) else 0)
     chosen = payload["fact_ids"]
     if not isinstance(chosen, list):
         fail("fact_ids_type", "fact_ids", "fact_ids must be a list of existing catalog identifiers.",

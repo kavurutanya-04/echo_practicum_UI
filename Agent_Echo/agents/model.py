@@ -168,7 +168,7 @@ class ScriptedDemoModel:
 
     def respond(self, instructions, history, tools, require_tool=False):
         if self.agent_name == "Original" and tools and tools[0]["name"] == "submit_plan":
-            plan = {"needs_numbers": True, "needs_text": True, "include_chart": True,
+            plan = {"needs_numbers": True, "needs_text": True, "needs_sentiment": False, "include_chart": True,
                     "clarification_question": None, "clarification_basis": None, "metrics": []}
             call = ToolCall("demo-plan", "submit_plan", json.dumps(plan))
             return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id,

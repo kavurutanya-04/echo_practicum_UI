@@ -38,17 +38,34 @@ excerpts, bounded failures, shared budgets, safe diagnostics and every analysis 
 They also check that a normal plan adds no reconsideration call. These are scripted
 engineering checks, not proof that Luna always recognizes ambiguity correctly. See
 [shared rules and clarification handling](WORKFLOW_RELIABILITY.md#shared-rules-and-initial-planning-clarifications-2026-10-21).
-The latest local suite passed 185 tests on 2026-10-21, including 16 policy/clarification
-regressions and 15 rejection-diagnostic regressions, with zero generation API calls.
+The latest local suite passed 207 tests on 2026-10-21, including 16 policy/clarification,
+15 rejection-diagnostic and 22 sentiment-workflow regressions, with zero generation API calls.
 The user's fourth live Luna run completed with nine successful calls and source-matching
 results; it also exposed four corrected source-submission rejections. The diagnostic
-update followed that run and has not yet been exercised with a real provider. Its offline
+update followed that run; the fifth run exercised it but failed before review. Its offline
 replay reproduces that run's accepted answer/claims exactly. New checks verify granular
 causes, minimal-fragment retention, omission of sensitive-looking input, success/failure
 persistence and review-round continuity. See
 [rejected source-answer diagnostics](WORKFLOW_RELIABILITY.md#rejected-source-answer-diagnostics-2026-10-21).
 Preserve earlier artifacts and use a new output filename for subsequent live tests.
 Terminal clarification still prints the question and exits; interactive continuation is deferred.
+
+The fifth Luna run failed with 28 successful calls and zero ZeroSugar calls: incorrect
+specialist routing, restarted classification and unavailable individual comment sources
+prevented release. The subsequent repair has only offline coverage. Its focused checks
+use prescribed labels with the actual scoped test documents to exercise third-attempt
+repair, non-resetting counters, safe incomplete outcomes, early declines/reassignment,
+canonical comment evidence, independent replay and CLI status. Run from `Agent_Echo/`:
+
+```powershell
+python -m unittest discover -s tests -p test_sentiment_workflow_repairs.py -v
+```
+
+The next real test should repeat the fifth Recognition-comments question with a new
+artifact filename. Confirm Vanilla's completed coverage, exact excerpts, individual text
+sources, actual ZeroSugar review, preserved diagnostics and total calls/tokens. Unchanged
+20-second pacing and shared budgets still apply. A passing scripted workflow is not proof
+that Luna will choose the correct tools or sentiment labels.
 
 ```powershell
 python -m unittest discover -s tests -v
@@ -194,7 +211,7 @@ RAG is not necessarily used on every Original run: a purely numerical question c
 
 The `survey_sentiment` live case asks Original for Recognition sentiment percentages in one quarter. Confirm that Vanilla actually calls `analyze_survey_sentiment`, covers all eligible IDs, preserves per-comment labels/excerpts/source hashes, includes mixed/indeterminate in the denominator and discloses `human_validated=false`. ZeroSugar must recompute the summary and reject altered counts or source provenance. Source lookup and aggregation validation cannot establish the semantic accuracy of every model label.
 
-Offline sentiment tests use prescribed labels solely to check those contracts, batch completeness, failures, privacy fields and arithmetic. They do not classify the actual survey corpus or evaluate intelligence. Human quality evaluation must use independently annotated held-out comments across categories/dimensions, per-category precision/recall, a confusion matrix and inspection of ambiguous/mixed cases. No measured quality result is available while the API remains unconfigured.
+Offline sentiment tests use prescribed labels solely to check those contracts, batch completeness, failures, privacy fields and arithmetic. They do not evaluate intelligence. The fifth live run's complete child report was never independently reviewed or released. Human quality evaluation must use independently annotated held-out comments across categories/dimensions, per-category precision/recall, a confusion matrix and inspection of ambiguous/mixed cases. No independently measured classifier quality result is available.
 
 ## Fixed live evaluation cases
 

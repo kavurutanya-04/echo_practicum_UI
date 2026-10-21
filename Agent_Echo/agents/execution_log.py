@@ -72,7 +72,7 @@ def explain_failure(failure):
 def record(event, **fields):
     log = _active.get()
     if log is not None:
-        if event == "response_finished" and fields.get("status") in {"complete", "partial", "needs_clarification", "failed"}:
+        if event == "response_finished" and fields.get("status") in {"complete", "partial", "needs_clarification", "failed", "declined", "incomplete"}:
             log.response_status = fields["status"]
         log.write(event, **fields)
 

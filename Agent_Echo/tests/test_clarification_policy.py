@@ -39,6 +39,7 @@ class ObservedModel:
 
 def planned(q=None, basis=None):
     return tool_turn("submit_plan", {"needs_numbers": False, "needs_text": False, "include_chart": False,
+                                    "needs_sentiment": False,
                                     "clarification_question": q, "clarification_basis": basis, "metrics": []})
 
 

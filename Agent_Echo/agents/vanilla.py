@@ -6,15 +6,18 @@ import json
 import math
 
 from .data_access import ScopedData
-from .runtime import RunBudget, Specialist, function_tool
+from .runtime import RunBudget, Specialist, function_tool, AgentRunError
 from .tools import TextSearch
 from .semantic_search import SemanticTextSearch
 from .execution_log import record, error_summary
-from .validation import ValidationError, repair_feedback
+from .validation import ValidationError, repair_feedback, rejection_diagnostic, minimal_value
 from .policies import with_policies
 
 
 INSTRUCTIONS = """You are Vanilla, Echo's textual-information specialist.
+Use decline_task for work requiring tools outside your role; SQL/rating calculations
+belong to Cherry. Sentiment label counts and percentages remain your responsibility.
+An incomplete classification is retained progress, not an incompatible task or absent data.
 Answer in clear English. For qualitative interpretation use search_text to retrieve
 evidence first; systematic survey classification uses analyze_survey_sentiment below.
 You can search anonymous surveys, recognition feedback, contributions, work descriptions
@@ -63,10 +66,13 @@ classification summaries and individual interpretations with literal source exce
 qualitative text. Each interpretation remains a provisional hypothesis about its cited
 source, never a population finding or validated semantic accuracy. Cite counterevidence
 when available; separate observations, interpretations and proposed manager actions.
+The sentiment tool supplies individual canonical comment passages alongside its summary.
+Use their citation IDs for literal excerpts and interpretations, not the SENTIMENT table ID.
 """
 
 SENTIMENT_LABELS = ("positive", "negative", "neutral", "mixed", "indeterminate")
 SENTIMENT_BATCH_SIZE = 20
+SENTIMENT_ATTEMPTS = 3
 SENTIMENT_QUOTE_MAX_CHARS = 400
 SENTIMENT_INSTRUCTIONS = f"""You are Vanilla classifying anonymous survey response text.
 Return exactly one submit_sentiment_batch call, with one label per supplied citation ID.
@@ -78,6 +84,9 @@ which are deliberately omitted.
 For every non-indeterminate label quote an exact contiguous excerpt from the response
 (1-{SENTIMENT_QUOTE_MAX_CHARS} characters, prefer the shortest sufficient excerpt) and explain the label in at most 160 characters. Indeterminate may
 use a null quote. Never infer respondent identity or a personnel decision.
+Copy the quote verbatim, including punctuation and relevant negation. Never summarize,
+paraphrase, translate or combine noncontiguous phrases in quote. Put the explanation
+of how that exact excerpt supports the label in reason. Correct only pending IDs.
 Examples: 'My effort is appreciated.' -> positive; 'My effort is overlooked.' -> negative;
 'We meet on Mondays.' -> neutral; 'Helpful feedback, but little recognition.' -> mixed;
 'N/A' -> indeterminate. Labels are provisional until human validation.
@@ -119,7 +128,8 @@ def partition_sentiment_labels(labels, documents):
                                   max_characters=SENTIMENT_QUOTE_MAX_CHARS,
                                   actual_characters=len(quote) if isinstance(quote, str) else 0)
                 if quote not in response:
-                    raise invalid("quote_not_literal", "quote", "Sentiment quote must be an exact excerpt from the response.")
+                    raise invalid("quote_not_literal", "quote", "Sentiment quote must be an exact excerpt from the response, not a summary or interpretation.",
+                                  local_details=minimal_value(quote))
             if not response.strip() and item["label"] != "indeterminate":
                 raise invalid("empty_response_label", "label", "Empty responses must be indeterminate.")
             accepted[identity] = item
@@ -187,6 +197,10 @@ class VanillaAgent(Specialist):
             self.sentiment_documents = backend.sentiment_documents()
             self.sentiment_reports = {}
             self.sentiment_counter = 0
+            self.sentiment_progress, self.sentiment_diagnostics = {}, []
+            self.sentiment_diagnostics_omitted = 0
+            self.workflow_reuse = False
+            self.active_progress = set()
             if retrieval == "lexical":
                 self.searcher = TextSearch(documents, scope)
             elif retrieval in {"semantic", "hybrid"} and embedding_model is not None and cache_root is not None:
@@ -213,12 +227,23 @@ class VanillaAgent(Specialist):
                             doc["dimension"].casefold() == dimension.casefold()], key=lambda doc: doc["citation_id"])
         if dimension is not None and not documents:
             raise ValueError("No eligible survey comments for this dimension and scope.")
-        # Reuse within this Vanilla run; never cache across model/scope/question changes.
-        for report in self.sentiment_reports.values():
-            if report["dimension"] == dimension:
-                return sentiment_summary(report, self.sentiment_documents)
+        # Reuse within one workflow, only for identical source/scope/model/rubric inputs.
+        key = hashlib.sha256(json.dumps({"scope": self.scope.__dict__, "documents": documents,
+            "model_instance": id(self.model), "model": str(getattr(self.model, "model", "")),
+            "mode": self.mode, "dimension": dimension.casefold() if dimension else None,
+            "rubric": "survey-sentiment-v1"}, sort_keys=True).encode()).hexdigest()
+        self.active_progress.add(key)
+        state = self.sentiment_progress.setdefault(key, {"accepted": {}, "attempts": {}, "feedback": {},
+            "report_id": None, "dimension": dimension, "ids": [d["citation_id"] for d in documents]})
+        if state["report_id"]:
+            return sentiment_summary(self.sentiment_reports[state["report_id"]], self.sentiment_documents)
         batches = math.ceil(len(documents) / SENTIMENT_BATCH_SIZE)
-        if batches + 6 > self.budget.model_limit - self.budget.models:
+        remaining_batches = sum(not all(d["citation_id"] in state["accepted"] for d in documents[o:o + SENTIMENT_BATCH_SIZE])
+                                and state["attempts"].get(o, 0) < SENTIMENT_ATTEMPTS
+                                for o in range(0, len(documents), SENTIMENT_BATCH_SIZE))
+        if remaining_batches == 0 and any(d["citation_id"] not in state["accepted"] for d in documents):
+            return self.progress_outcome(state)
+        if remaining_batches + 6 > self.budget.model_limit - self.budget.models:
             raise ValueError(f"Complete classification requires at least {batches} model calls plus workflow headroom. "
                 "Narrow the date scope/dimension, or explicitly raise --model-call-limit. No comments were classified.")
         item_schema = {"type": "object", "properties": {
@@ -228,22 +253,26 @@ class VanillaAgent(Specialist):
             "required": ["citation_id", "label", "quote", "reason"], "additionalProperties": False}
         tools = [function_tool("submit_sentiment_batch", "Submit one source-grounded label for every supplied comment.", {
             "labels": {"type": "array", "items": item_schema}})]
-        labels = []
         for offset in range(0, len(documents), SENTIMENT_BATCH_SIZE):
             batch = documents[offset:offset + SENTIMENT_BATCH_SIZE]
+            if all(doc["citation_id"] in state["accepted"] for doc in batch):
+                continue
             record("sentiment_batch_started", agent="Vanilla", batch=offset // SENTIMENT_BATCH_SIZE + 1,
                    batches=batches, comments=len(batch))
-            accepted, feedback = {}, []
-            for _ in range(2):
-                pending = [doc for doc in batch if doc["citation_id"] not in accepted]
+            feedback = state["feedback"].get(offset, [])
+            while state["attempts"].get(offset, 0) < SENTIMENT_ATTEMPTS:
+                pending = [doc for doc in batch if doc["citation_id"] not in state["accepted"]]
                 # A fresh request includes only unresolved records, not the full failed batch/history.
                 history = [{"role": "user", "content": json.dumps(
                     {"comments": pending, "validation_errors": feedback}, ensure_ascii=False)}]
                 self.budget.consume("model")
+                state["attempts"][offset] = state["attempts"].get(offset, 0) + 1
                 turn = self.model.respond(with_policies(SENTIMENT_INSTRUCTIONS), history, tools, True)
                 if len(turn.calls) != 1 or turn.calls[0].name != "submit_sentiment_batch":
-                    record("structured_response_repair", agent="Vanilla", reason="expected_one_sentiment_call")
-                    feedback = [{"error": "Return exactly one submit_sentiment_batch call."}]
+                    error = ValidationError("sentiment_call_count", "submit_sentiment_batch", "Return exactly one submit_sentiment_batch call.")
+                    self.record_sentiment_rejection(error, offset, state["attempts"][offset], key)
+                    feedback = [repair_feedback(error)]
+                    state["feedback"][offset] = feedback
                     continue
                 call = turn.calls[0]
                 self.budget.consume("tool")
@@ -252,20 +281,25 @@ class VanillaAgent(Specialist):
                     if not isinstance(payload, dict) or set(payload) != {"labels"}:
                         raise ValidationError("sentiment_fields", "tool_arguments", "Return labels only.")
                     valid, errors = partition_sentiment_labels(payload["labels"], pending)
-                    accepted.update(valid)
+                    state["accepted"].update(valid)
                     feedback = [repair_feedback(error) for error in errors]
                     for error in errors:
-                        record("structured_response_repair", agent="Vanilla", **error_summary(error))
+                        self.record_sentiment_rejection(error, offset, state["attempts"][offset], key)
                     if not errors:
                         break
                 except (ValueError, TypeError) as error:
-                    record("structured_response_repair", agent="Vanilla", **error_summary(error))
+                    self.record_sentiment_rejection(error, offset, state["attempts"][offset], key)
                     feedback = [repair_feedback(error)]
-            if len(accepted) != len(batch) or feedback:
-                raise RuntimeError("Sentiment classification was incomplete; no partial percentages were returned.")
-            labels.extend(accepted[doc["citation_id"]] for doc in batch)
+                state["feedback"][offset] = feedback
+            if any(doc["citation_id"] not in state["accepted"] for doc in batch):
+                return self.progress_outcome(state)
+            for entry in self.sentiment_diagnostics:
+                if entry.get("classification_ref") == key and entry.get("batch_offset") == offset and entry.get("resolution") == "unresolved" \
+                        and (entry.get("source_id") in state["accepted"] or not entry.get("source_id")):
+                    entry.update(resolution="accepted_sentiment_batch", accepted_batch_attempt=state["attempts"].get(offset, 0))
             record("sentiment_batch_finished", agent="Vanilla", batch=offset // SENTIMENT_BATCH_SIZE + 1)
         self.sentiment_counter += 1
+        labels = [state["accepted"][doc["citation_id"]] for doc in documents]
         identity = f"SENTIMENT{self.sentiment_counter}"
         report = {"citation_id": identity, "scope": self.scope.__dict__, "dimension": dimension,
             "mode": self.mode, "labels": labels,
@@ -273,16 +307,49 @@ class VanillaAgent(Specialist):
                               for doc in documents}}
         summary = sentiment_summary(report, self.sentiment_documents)
         self.sentiment_reports[identity] = report
+        state["report_id"] = identity
         return summary
+
+    def progress_outcome(self, state):
+        pending = [key for key in state["ids"] if key not in state["accepted"]]
+        return {"status": "incomplete", "complete": False, "dimension": state["dimension"],
+                "eligible_comments": len(state["ids"]), "validated_comments": len(state["accepted"]),
+                "pending_source_ids": pending, "attempt_limit": SENTIMENT_ATTEMPTS,
+                "note": "Classification is incomplete. Valid records were retained; no partial percentages are available. Do not restart the same task or substitute survey scores."}
+
+    def record_sentiment_rejection(self, error, offset, attempt, key):
+        record("structured_response_repair", agent="Vanilla", **error_summary(error))
+        if len(self.sentiment_diagnostics) < 16:
+            entry = rejection_diagnostic(error, "Vanilla", "submit_sentiment_batch", attempt, len(self.sentiment_diagnostics) + 1)
+            entry.update(stage="sentiment_classification", batch_offset=offset, batch_attempt=attempt, classification_ref=key)
+            self.sentiment_diagnostics.append(entry)
+        else:
+            self.sentiment_diagnostics_omitted += 1
+
+    def evidence_for_result(self, result):
+        if result.get("kind") != "survey_sentiment":
+            return []
+        lookup = {doc["citation_id"]: doc for doc in self.sentiment_documents}
+        return [{**{key: lookup[item["citation_id"]][key] for key in
+                    ("citation_id", "source", "record_id", "team", "date", "dimension", "anonymous")},
+                 "kind": "survey_response", "text": lookup[item["citation_id"]]["response_text"],
+                 "scope": self.scope.__dict__} for item in result["examples"]]
 
     def close(self):
         self.searcher.close()
 
     def run(self, question, initial_evidence=(), context=()):
         import re
-        self.sentiment_reports = {}
-        result = super().run(question, initial_evidence, context)
-        result.sentiment = self.sentiment_reports.copy()
+        if not self.workflow_reuse:
+            self.sentiment_reports, self.sentiment_progress, self.sentiment_diagnostics = {}, {}, []
+            self.sentiment_counter, self.sentiment_diagnostics_omitted = 0, 0
+        self.active_progress = set()
+        try:
+            result = super().run(question, initial_evidence, context)
+        except AgentRunError as error:
+            self.attach_sentiment(error.result)
+            raise
+        self.attach_sentiment(result)
         searches = [item for item in result.tool_trace if item["tool"] == "search_text" and "error" not in item["result"]]
         result.rag = {"retrieval_calls": [{"arguments": item["arguments"],
             "method": item["result"].get("retrieval"), "metadata": item["result"].get("metadata", {}),
@@ -292,3 +359,15 @@ class VanillaAgent(Specialist):
             "generation_mode": self.mode,
             "note": "Offline fixture generation is not a live RAG answer; semantic retrieval requires a configured embedding provider."}
         return result
+
+    def attach_sentiment(self, result):
+        result.sentiment = self.sentiment_reports.copy()
+        result.diagnostics["sentiment_rejected_attempts"] = self.sentiment_diagnostics.copy()
+        result.diagnostics["sentiment_rejected_attempts_omitted"] = self.sentiment_diagnostics_omitted
+        incomplete = [self.progress_outcome(self.sentiment_progress[key]) for key in self.active_progress
+                      if not self.sentiment_progress[key]["report_id"]]
+        if incomplete:
+            result.diagnostics["sentiment_progress"] = incomplete
+            if result.status != "failed":
+                result.status = "incomplete"
+                result.task_outcome = {"status": "incomplete", "reason_code": "incomplete_sentiment", "progress": incomplete}

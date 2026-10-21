@@ -24,6 +24,10 @@ Survey text sentiment classification/counts/percentages belong to Vanilla's
 analyze_survey_sentiment, which enumerates all eligible scoped comments. Request that
 tool explicitly in the delegated question. Do not substitute numeric survey scores or
 selected search examples. Disclose provisional model labels and comment denominators.
+Counts/percentages computed from sentiment labels are Vanilla's work; they do not require
+Cherry or survey-score metrics. A specialist can return declined or incomplete. Correct
+an incompatible delegation, never switch to Cherry to obtain raw comments. Reuse validated
+classification progress; do not restart the same task to bypass its attempt limit.
 Delegate a bounded question to one or both specialists as needed, preserving the original
 manager/date scope. Combine their evidence, acknowledge disagreement and missing coverage,
 and explain findings with the exact source IDs returned by the tools. Top-k examples do not
@@ -85,10 +89,12 @@ class OriginalAgent(Specialist):
              "ask_vanilla": lambda question, task_type=None: self.delegate("Vanilla", question, task_type)}, mode)
         self.all_definitions = definitions
         self.allowed_delegations = {"Cherry", "Vanilla"}
+        self.declined_requests = {}
 
     def plan(self, question):
         tools = [function_tool("submit_plan", "Choose only the specialists needed by this question.", {
             "needs_numbers": {"type": "boolean"}, "needs_text": {"type": "boolean"},
+            "needs_sentiment": {"type": "boolean", "description": "Full comment sentiment classification by Vanilla, including its counts/percentages; not survey ratings."},
             "include_chart": {"type": "boolean"}, "clarification_question": {"type": ["string", "null"]},
             "clarification_basis": {"type": ["object", "null"], "properties": {
                 "missing_field": {"type": "string", "enum": ["manager_id", "start_date", "end_date", "metric", "task", "other"]},
@@ -107,16 +113,19 @@ class OriginalAgent(Specialist):
         reconsidered_clarification = False
         for _ in range(2):
             self.budget.consume("model")
-            turn = self.model.respond(with_policies("Plan Echo's scoped analysis. Return submit_plan only. Quantitative counts need Cherry; "
-                "use Vanilla only for requested or necessary narrative/source interpretation. A count alone does not need "
-                "Vanilla. Requests to show numerical evidence, cite SQL results or explain metric limitations do not "
+            turn = self.model.respond(with_policies("Plan Echo's scoped analysis. Return submit_plan only. Structured SQL counts need Cherry; "
+                "full comment sentiment classification and its counts/percentages need Vanilla ONLY: set needs_sentiment=true, "
+                "needs_text=true, needs_numbers=false and metrics=[] unless the user separately requests SQL/rating metrics. "
+                "For Recognition comment percentages with literal examples, do not add Manager support, survey scores or Cherry. "
+                "use Vanilla for requested narrative/source interpretation as well as sentiment classification. A structured SQL count alone does not need "
+                "Vanilla. Requests to cite SQL results or explain survey-score limitations do not "
                 "require text retrieval. Use Vanilla for actual narrative examples or qualitative interpretation. "
                 "For example, a quarterly numeric Recognition survey trend with dates, response counts, mean "
                 "scores and metric limitations needs Cherry only; it does not request comment sentiment. "
                 "The backend already restricts the data to the supplied manager's roster and dates; those details "
                 "do not need clarification. Charts are optional; request one only if asked for or useful to compare indicators. "
                 "Return metrics as a list of ALL needed catalog requests. Include one survey_trend entry per exact "
-                "dimension: comparing Recognition with Manager support needs TWO entries. Cross-team counts use "
+                "dimension explicitly needed by the user's rating question. Never copy example dimensions or add unrequested metrics. Cross-team counts use "
                 "cross_team_contributions with dimension=null. Use metrics=[] for custom SQL or no numeric work. "
                 "The application prepares these metrics; Cherry keeps tools to complete additional calculations. "
                 "All output is English. Use clarification_question=null and clarification_basis=null unless a necessary "
@@ -137,10 +146,13 @@ class OriginalAgent(Specialist):
                     plan["metrics"] = [] if metric == "none" else [{"metric": metric, "dimension": dimension or None}]
                 if isinstance(plan, dict) and self.mode != "live":
                     plan.setdefault("clarification_basis", None)
-                if not isinstance(plan, dict) or set(plan) != {"needs_numbers", "needs_text", "include_chart", "clarification_question", "clarification_basis", "metrics"}:
+                    plan.setdefault("needs_sentiment", False)
+                if not isinstance(plan, dict) or set(plan) != {"needs_numbers", "needs_text", "needs_sentiment", "include_chart", "clarification_question", "clarification_basis", "metrics"}:
                     raise ValueError("Plan fields differ from the required schema.")
-                if any(type(plan[k]) is not bool for k in ("needs_numbers", "needs_text", "include_chart")):
+                if any(type(plan[k]) is not bool for k in ("needs_numbers", "needs_text", "needs_sentiment", "include_chart")):
                     raise ValueError("Plan flags must be booleans.")
+                if plan["needs_sentiment"] and not plan["needs_text"]:
+                    raise ValueError("Sentiment classification requires Vanilla (needs_text=true).")
                 if plan["include_chart"] and not plan["needs_numbers"]:
                     raise ValueError("A chart requires numeric evidence.")
                 if not isinstance(plan["metrics"], list) or len(plan["metrics"]) > 32:
@@ -183,7 +195,7 @@ class OriginalAgent(Specialist):
                         request["dimension"] = matches[0] if matches else request["dimension"].strip()
                 plan["metrics"] = list({(r["metric"], r["dimension"]): r for r in plan["metrics"]}.values())
                 record("workflow_plan", agent="Original", needs_numbers=plan["needs_numbers"],
-                       needs_text=plan["needs_text"], include_chart=plan["include_chart"], needs_clarification=q is not None,
+                       needs_text=plan["needs_text"], needs_sentiment=plan["needs_sentiment"], include_chart=plan["include_chart"], needs_clarification=q is not None,
                        metric_count=len(plan["metrics"]))
                 return plan
             except (ValueError, TypeError) as error:
@@ -226,6 +238,7 @@ class OriginalAgent(Specialist):
             else:
                 child = VanillaAgent(self.database, self.scope, self.model_factory(name), self.mode,
                     retrieval=self.retrieval, embedding_model=self.embedding_model, cache_root=self.cache_root, budget=self.budget)
+                child.workflow_reuse = True
             self.specialists[name] = child
         return self.specialists[name]
 
@@ -234,6 +247,9 @@ class OriginalAgent(Specialist):
             raise ValueError("This repair/plan does not require that specialist. Use the supplied evidence.")
         if self.mode == "live" and task_type not in ({"numeric"} if name == "Cherry" else {"text", "sentiment"}):
             raise ValueError("Delegation task_type must match the specialist: Cherry=numeric, Vanilla=text/sentiment.")
+        declined_key = (name, question.strip(), task_type)
+        if declined_key in getattr(self, "declined_requests", {}):
+            return self.declined_requests[declined_key]
         try:
             child = self.specialist(name)
             prepared = []
@@ -262,9 +278,17 @@ class OriginalAgent(Specialist):
                     "evidence": result.evidence, "failure": result.failure,
                     "numeric_coverage": child.numeric_coverage(result.evidence) if name == "Cherry" else []}
         self.child_results.append(asdict(result))
-        return {"agent": name, "answer": result.answer, "scope": result.scope, "evidence": result.evidence,
+        response = {"agent": name, "status": result.status, "task_outcome": result.task_outcome,
+                "answer": result.answer, "scope": result.scope, "evidence": result.evidence,
                 "claims": result.claims,
                 "numeric_coverage": child.numeric_coverage(result.evidence) if name == "Cherry" else []}
+        if result.status == "declined":
+            self.declined_requests[declined_key] = response
+            if result.task_outcome.get("reason_code") == "out_of_role":
+                self.set_delegations({"Cherry", "Vanilla"})
+        elif result.status == "incomplete":
+            self.declined_requests[declined_key] = response
+        return response
 
     def run(self, question):
         # A fresh workflow prevents artifacts from earlier questions entering the answer.
@@ -276,6 +300,7 @@ class OriginalAgent(Specialist):
         self.last_result, self.last_verdict = None, None
         self.planned_metrics, self.prepared_metrics, self.repair_round = [], {}, 0
         self.coordinator_diagnostics = {}
+        self.declined_requests = {}
         self.attempt_reviews, self.drafts = [], []
         try:
             return self.workflow(question)
@@ -283,6 +308,7 @@ class OriginalAgent(Specialist):
             candidate = self.last_result or AgentResult("Original", question, "", self.scope.__dict__, mode=self.mode)
             candidate.failure = error_summary(error)
             candidate.delegations = self.child_results
+            candidate.sentiment = {key: value for child in self.child_results for key, value in child.get("sentiment", {}).items()}
             candidate.connections = self.connection_summary
             candidate.verification = {"decision": "revise", "reviews": self.attempt_reviews,
                                       "drafts_checked": len(self.drafts), "rejected_drafts": self.drafts}
@@ -319,7 +345,7 @@ class OriginalAgent(Specialist):
         if not isinstance(question, str) or not question.strip() or len(question) > 4000:
             raise ValueError("Question must contain 1 to 4,000 characters.")
         plan = self.plan(question)
-        self.numeric_requested = plan["needs_numbers"]
+        self.numeric_requested = plan["needs_numbers"] or plan["needs_sentiment"]
         self.planned_metrics = plan["metrics"]
         if "Cherry" in self.specialists:
             self.specialists["Cherry"].required_metrics = self.planned_metrics
@@ -364,7 +390,8 @@ class OriginalAgent(Specialist):
             fingerprint = hashlib.sha256(json.dumps(numeric_evidence, sort_keys=True).encode()).hexdigest()
             chart_failure = None
             if plan["include_chart"]:
-                if prior_visuals is not None and prior_fingerprint == fingerprint and "Lime" not in targets:
+                if prior_visuals is not None and prior_fingerprint == fingerprint and ("Lime" not in targets or
+                        (prior_visuals.get("task_outcome") or {}).get("status") == "declined"):
                     candidate.visualization = prior_visuals
                     record("repair_reuse", agent="Lime", reason="unchanged_numeric_evidence")
                 else:
@@ -377,6 +404,8 @@ class OriginalAgent(Specialist):
                         chart_failure = error_summary(error)
                         record("chart_planning_failed", agent="Lime", **chart_failure)
                         candidate.visualization = {"charts": [], "reason": "The planned chart could not be completed.", "mode": self.mode, "tool_trace": []}
+                if (candidate.visualization.get("task_outcome") or {}).get("status") == "declined":
+                    chart_failure = {"error_category": "task_declined"}
             else:
                 candidate.visualization = {"charts": [], "reason": "No chart needed by the analysis plan.", "mode": self.mode, "tool_trace": []}
             candidate.rag = {"specialist_runs": [child["rag"] for child in self.child_results if child.get("rag")],
@@ -384,9 +413,12 @@ class OriginalAgent(Specialist):
             coverage = cherry.numeric_coverage(candidate.evidence) if cherry else [
                 {**request, "status": "pending", "citation_id": None} for request in self.planned_metrics]
             candidate.diagnostics["numeric_coverage"] = coverage
+            candidate.diagnostics["requires_sentiment"] = plan["needs_sentiment"]
             verdict = verifier.review(question, candidate.answer, candidate.evidence, candidate.visualization,
                                       numeric_coverage=coverage, claims=candidate.claims or None,
-                                      grounding=candidate.grounding or None)
+                                      grounding=candidate.grounding or None,
+                                      task_outcomes=[{"agent": c["agent"], "status": c["status"], "task_outcome": c.get("task_outcome", {})}
+                                                     for c in self.child_results], require_sentiment=plan["needs_sentiment"])
             if chart_failure:
                 verdict.decision = "revise"
                 verdict.repair_targets = sorted(set(verdict.repair_targets) | {"Lime"})
@@ -401,10 +433,12 @@ class OriginalAgent(Specialist):
                 candidate.tool_trace = coordinator_trace
                 candidate.connections = self.connection_summary
                 latest_children = {c["agent"]: c for c in self.child_results}
-                unresolved_child = any(c.get("status") == "failed" for c in latest_children.values())
+                unresolved_child = any(c.get("status") in {"failed", "incomplete"} or
+                    (c.get("status") == "declined" and c.get("task_outcome", {}).get("reason_code") != "out_of_role")
+                    for c in latest_children.values())
                 if unresolved_child:
                     candidate.verification["decision"] = "revise"
-                    verdict.repair_targets = [name for name, child in latest_children.items() if child.get("status") == "failed"]
+                    verdict.repair_targets = [name for name, child in latest_children.items() if child.get("status") in {"failed", "incomplete", "declined"}]
                     candidate.failure = next((child.get("failure") for child in latest_children.values() if child.get("status") == "failed" and child.get("failure")), {})
                     return self.incomplete(candidate, verdict)
                 candidate.status = "complete"
@@ -414,6 +448,8 @@ class OriginalAgent(Specialist):
             record("repair_requested", agent="Original", targets=sorted(targets),
                    supported_findings=sum(f["status"] == "supported" for f in verdict.findings))
             if "clarify" in targets and verdict.clarification_question:
+                break
+            if targets == {"Lime"} and (candidate.visualization.get("task_outcome") or {}).get("status") == "declined":
                 break
             self.set_delegations(targets & {"Cherry", "Vanilla"})
             context = [{"role": "assistant", "content": candidate.answer},

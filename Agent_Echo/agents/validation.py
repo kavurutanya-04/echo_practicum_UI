@@ -30,9 +30,12 @@ def safe_validation_details(error):
                    if key in {"source_id", "finding_id"} else r"[A-Za-z0-9_.\[\] /:-]+")
         if isinstance(value, str) and len(value) <= 160 and re.fullmatch(pattern, value):
             result[key] = value
-    for key in ("item_index", "expected_count", "actual_count", "max_characters", "actual_characters", "line", "column"):
+    for key in ("item_index", "expected_count", "actual_count", "max_characters", "actual_characters", "line", "column", "unexpected_field_count"):
         if type(details.get(key)) is int and details[key] >= 0:
             result[key] = details[key]
+    if isinstance(details.get("missing_fields"), list):
+        result["missing_fields"] = [name for name in details["missing_fields"] if isinstance(name, str) and name in
+                                    {"fact_ids", "interpretations", "proposals"}]
     return result
 
 

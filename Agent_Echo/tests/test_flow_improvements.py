@@ -34,6 +34,7 @@ def tables():
 
 def plan(numbers=True, text=False, chart=False, question=None, metric="none", dimension="", basis=None):
     return tool_turn("submit_plan", {"needs_numbers": numbers, "needs_text": text,
+                                    "needs_sentiment": False,
                                     "include_chart": chart, "clarification_question": question,
                                     "clarification_basis": basis,
                                     "metrics": [] if metric == "none" else [{"metric": metric, "dimension": dimension or None}]})

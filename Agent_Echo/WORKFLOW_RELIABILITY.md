@@ -195,7 +195,7 @@ made for this diagnostic update; roles, tools, budgets, connections and pacing a
 
 Vanilla permits exact contiguous quote excerpts of 1-400 characters; 400 is a maximum,
 not a requested length. Explanations remain capped at 160 characters. Classification uses
-20-comment batches and at most two attempts per batch. Valid records are retained while
+20-comment batches and at most three attempts per batch. Valid records are retained while
 only unresolved comments and bounded error reasons are sent in a fresh repair request.
 No partial sentiment percentages are produced. Local schema/quote checks establish
 provenance and completeness, not semantic label accuracy.
@@ -203,3 +203,55 @@ provenance and completeness, not semantic label accuracy.
 Behavioral tests cover duplicates, parameter binding, closure, reuse, role selection,
 localized correction, finding coverage and safe partial release. These implementation
 checks do not replace the deferred comparative live evaluation.
+
+## Sentiment routing, retained progress and task declines (2026-10-21)
+
+The fifth Luna run failed before ZeroSugar: the plan confused comment-label percentages
+with SQL ratings, repeated Vanilla delegations restarted classification, and individual
+comment IDs were unavailable as text evidence for the final claim contract. The repair
+keeps the five existing roles and their source checks; it adds no preflight agent or
+mandatory model call.
+
+- Original's plan marks full comment classification with `needs_sentiment=true` and
+  `needs_text=true`. This does not imply `needs_numbers` or survey-rating metrics.
+  Counts/percentages derived from labels stay with Vanilla; separate SQL requests stay
+  with Cherry. The model must still correctly interpret the user's question.
+- Cherry, Vanilla and Lime can submit `decline_task` alone, in an existing turn, with
+  a bounded explanation and `out_of_role`, `missing_input` or `insufficient_evidence`.
+  Original receives the structured outcome and can correct the recipient/task. Identical
+  declined or incomplete requests return their existing outcome without another child
+  call; an out-of-role decline enables corrected specialist routing. Optional no-chart
+  completion remains distinct. Standalone CLI declines/incomplete results exit with 2;
+  these outcomes do not masquerade as successful analysis or absent data.
+- Vanilla retains valid records and per-batch attempt counters across delegations in
+  one workflow. Input identity includes scope, source content, model instance/name,
+  mode, dimension and rubric version. Only pending comments consume up to three total
+  classification attempts per batch; a provider interruption also consumes an attempt.
+  No cross-workflow cache or automatic budget increase is introduced. Exhaustion returns
+  `incomplete` with eligible/validated counts and pending IDs, without percentage rows.
+- A quote copies contiguous response text verbatim, including punctuation and relevant
+  negation, with a 400-character maximum. Summaries/explanations belong in `reason`, not
+  `quote`. Publishable summary examples expose canonical individual text evidence so
+  Vanilla and Original can submit valid source-linked interpretations. ZeroSugar checks
+  those records against trusted scoped responses as well as recomputing the full summary.
+- ZeroSugar receives task outcomes and the required-classification flag, retained for
+  standalone artifact review. Requested classification without complete evidence cannot
+  receive final acceptance. This is a coverage failure, allowing unrelated independently
+  supported findings to remain partial; an actual integrity/safety failure still blocks
+  partial release. Prior failed attempts do not invalidate a later complete result.
+
+Batch rejections now persist in `diagnostics.sentiment_rejected_attempts`: validation
+code, safe field/index, source ID, batch/attempt and a hashed classification reference.
+They omit rejected quotes, arbitrary text and credentials; general logs retain metadata
+only. History is capped at 16 entries with an omission count. Resolution indicates later
+local batch acceptance, never verified sentiment accuracy. Completed reports and rejection
+diagnostics survive specialist failure and remain in delegation artifacts; Original also
+preserves completed child reports if final synthesis fails. Unknown final-answer field
+errors now list missing allowlisted fields and count extra fields without storing their
+arbitrary names. Existing local evidence files still contain authorized source text.
+
+The 22 new offline regressions cover third-attempt repair, non-resetting limits,
+interruption/reuse, incomplete coverage, role declines/reassignment, privacy, CLI outcomes,
+canonical sources and Original -> Vanilla -> ZeroSugar integration. Scripted labels test
+software contracts, not Luna's semantic accuracy. No real provider request was made for
+this update; the next live run must test the repaired behavior.

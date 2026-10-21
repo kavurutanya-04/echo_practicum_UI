@@ -27,6 +27,7 @@ def requests(*dimensions):
 
 def numeric_plan(metrics):
     return tool_turn("submit_plan", {"needs_numbers": True, "needs_text": False,
+        "needs_sentiment": False,
         "include_chart": False, "clarification_question": None, "clarification_basis": None, "metrics": metrics})
 
 
@@ -64,7 +65,7 @@ class NumericRepairs(unittest.TestCase):
         self.assertEqual(result.status, "complete")
         self.assertEqual(len(result.evidence), 2)
         self.assertEqual(len(agent.specialists["Cherry"].metric_cache), 2)
-        self.assertEqual(len([t for t in cherry_model.tools if t["name"] != "submit_grounded_answer"]), 3)
+        self.assertEqual(len([t for t in cherry_model.tools if t["name"] not in {"submit_grounded_answer", "decline_task"}]), 3)
         coverage = result.diagnostics["numeric_coverage"]
         self.assertEqual([r["status"] for r in coverage], ["with_results", "with_results"])
         self.assertEqual([r["dimension"] for r in coverage], ["Recognition", "Manager support"])

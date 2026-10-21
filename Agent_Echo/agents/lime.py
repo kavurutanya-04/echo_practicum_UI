@@ -6,11 +6,14 @@ import json
 import math
 import re
 
-from .runtime import RunBudget, function_tool, reject_calls
+from .runtime import RunBudget, function_tool, reject_calls, decline_tool, parse_decline
 from .execution_log import record, error_summary
 from .policies import with_policies
 
 INSTRUCTIONS = """You are Lime, Echo's indicator-visualization specialist.
+Use decline_task for a non-chart task or a requested chart outside the supported source
+contract; do not fabricate numeric evidence. A useful decision not to add an optional
+chart is still submit_visuals with charts=[], not automatically a task decline.
 Your input is the manager question, the candidate answer, Cherry's scoped SQL evidence and optional
 review feedback. Decide yourself whether a chart helps answer this question. Original
 does not choose chart types, axes or indicators. Read the numeric SQL rows before deciding.
@@ -57,6 +60,7 @@ class VisualizationResult:
     reason: str
     mode: str
     tool_trace: list
+    task_outcome: dict = None
 
 
 def validate_visuals(plan, evidence, scope):
@@ -134,7 +138,7 @@ class LimeAgent:
         self.budget = budget or RunBudget()
         self.tools = [function_tool("submit_visuals", "Choose relevant charts using exact SQL sources and columns; explain no-chart decisions.", {
             "charts": {"type": "array", "items": chart_schema, "maxItems": 3},
-            "reason": {"type": "string"}})]
+            "reason": {"type": "string"}}), decline_tool()]
 
     def plan(self, question, answer, evidence, feedback=None):
         # Do not supply raw passages, retrieval scores or other agents' data to Lime.
@@ -148,6 +152,17 @@ class LimeAgent:
             self.budget.consume("model")
             turn = self.model.respond(with_policies(INSTRUCTIONS), history, self.tools, True)
             history.extend(turn.output_items)
+            if len(turn.calls) == 1 and turn.calls[0].name == "decline_task":
+                self.budget.consume("tool")
+                try:
+                    outcome = parse_decline(turn.calls[0].arguments)
+                except (ValueError, TypeError) as error:
+                    record("structured_response_repair", agent="Lime", **error_summary(error))
+                    reject_calls(history, turn, "Provide a valid decline_task reason or submit_visuals.")
+                    continue
+                record("task_declined", agent="Lime", reason_code=outcome["reason_code"])
+                return VisualizationResult([], "Task declined: " + outcome["reason"], self.mode, trace,
+                                           {"status": "declined", **outcome})
             if len(turn.calls) != 1 or turn.calls[0].name != "submit_visuals":
                 record("structured_response_repair", agent="Lime", reason="expected_one_visual_call")
                 reject_calls(history, turn, "Return exactly one submit_visuals call.")
