@@ -16,9 +16,16 @@ Echo is the Practicum HR/people-analytics prototype. It uses synthetic employee 
 
 Typical flow: question/scope -> Original's plan -> Cherry and/or Vanilla -> candidate answer -> Lime when needed -> ZeroSugar -> accepted output or localized correction. Specialists are selected by need, not always all invoked. Final states include `complete`, `partial`, `needs_clarification`, and `failed`.
 
+Specialists can also return structured `declined` or `incomplete` task outcomes. Original
+uses those to correct routing or explain unresolved work; a decline does not prove absent
+data. Sentiment-label counts belong to Vanilla; SQL/rating metrics belong to Cherry.
+
 Unsupported findings are withheld. Independently supported blocks may be released as partial output; charts are withheld for incomplete packages. A missing recognition record is not proof that recognition never occurred. Sentiment prevalence requires the complete eligible population, not selected search hits.
 
 Sources: [AGENT_ROLES.md](AGENT_ROLES.md), [WORKFLOW_RELIABILITY.md](WORKFLOW_RELIABILITY.md).
+The [documentation map](DOCUMENTATION_MAP.md) lists every current guide, coding-assistant
+instruction file and local historical reference. `AGENTS.md` guides project maintenance;
+`agents/policies.py` supplies the shared rules actually composed into model calls.
 
 ## Retrieval and configuration
 
@@ -28,16 +35,27 @@ Sources: [AGENT_ROLES.md](AGENT_ROLES.md), [WORKFLOW_RELIABILITY.md](WORKFLOW_RE
 - The configured shared default is `gw_azure`; role assignments are currently unset and inherit it. `google_test` currently names `gemini-3.5-flash-lite`. Other provider profiles are experiments, not automatic fallbacks or proof of availability. An explicit `--profile` selects the profile for that run.
 - No OpenRouter profile exists in the inspected configuration. Paid comparisons and Graphify were discussed in chat; this task does not implement either integration or select a winning model.
 - Added on 2026-10-20: optional `apinex_test` uses the existing Chat Completions adapter with `https://api.apinex.bond/v1`, `free/gpt-6-luna`, and the private `APINEX_API_KEY`. The user selected Luna for all roles via `--profile apinex_test` and 20-second request spacing (3 RPM target). [request_pacing.py](agents/request_pacing.py) shares spacing and HTTP 429 cooldowns by endpoint/credential within one process; two bounded retries honor `Retry-After` with fallback backoff. SDK retries stay disabled. Existing model-turn and elapsed-time budgets remain unchanged; waits consume elapsed time. Separate processes are not coordinated. The user approved raising the shared Luna output allowance from 3500 to 6000 tokens. The connection probe confirmed one real tool call on this date; this is not proof of analytic quality. See [APInex setup and probe](TESTING_AND_RAG.md#apinex-sdk-trial).
-- Authorized workflow corrections, 2026-10-20: Original plans multiple catalog requests; Cherry keeps its tools and reuses completed metrics; code supplies numeric task states rather than making Original a second verifier. Vanilla permits literal excerpts up to 400 characters and retries only invalid records within a batch. ZeroSugar logs bounded field/code diagnostics and still reviews findings independently. Missing numeric tasks trigger Cherry repair without automatically invalidating other independently supported findings. Scope, source checks, full sentiment coverage and partial-release gates remain enforced. Offline verification: 134 tests passed, including 10 new workflow repair regressions and 8 pacing/retry checks. See [WORKFLOW_RELIABILITY.md](WORKFLOW_RELIABILITY.md) and [regression checks](tests/test_workflow_repairs.py). Corrected live quality is pending: the attempted follow-up could not connect (zero successful API calls); permission for an unrestricted retry was declined.
-- Source-bound upgrade authorized on 2026-10-20 after the user's next live test exposed false comparisons accepted by ZeroSugar. Live Original/Cherry/Vanilla now finish via `submit_grounded_answer`: numeric facts and tables are rendered from sources, survey differences and matched-date comparisons are computed by Python, and each narrative interpretation is source-linked and explicitly provisional. ZeroSugar reviews explicit claims and code independently reconstructs the selected output. Typed delegation enforces role task types. All five roles, scopes, pacing and partial-release gates remain. Initial offline verification: 154 tests passed, including 20 source-grounding regressions. The user's fourth Luna run subsequently exercised the numeric answer contract successfully (see below); custom-query meaning, text interpretation and sentiment label quality remain evaluation tasks. See [SOURCE_GROUNDING.md](SOURCE_GROUNDING.md).
 
-- Shared-policy/clarification update authorized on 2026-10-21: [policies.py](agents/policies.py) supplies six common instruction rules to the shared runtime and the separate planning, sentiment, review and chart calls, replacing general duplicates. Original's initial planner now requires a missing-detail justification and literal request excerpt, rejects already supplied scope fields, and reconsiders a proposed clarification within the existing two-attempt limit. Normal plans add no call. Delegated tasks carry the full original request as context. Source/semantic checks, roles, budgets, connections and pacing remain in place. Initial offline verification: 170 tests passed, including 16 [policy/clarification regressions](tests/test_clarification_policy.py). The fourth live run used the updated plan schema and proceeded without clarification; a real reconsideration of an unnecessary clarification remains untested. Same-model reconsideration is not a guarantee of semantic correctness. Interactive terminal continuation, natural-language date resolution and authenticated manager selection remain deferred; the current CLI still prints a clarification and exits.
-- Rejection-diagnostic update authorized on 2026-10-21: source-answer rejections now retain agent/tool/turn, precise condition, field/index and minimized fragments in ignored `diagnostics.rejected_attempts`, surviving success, failure and Original review repairs. Full arguments, employee text and credentials are omitted; only counts/types/positions, fixed-format technical fact IDs, Q1-Q4 and quantifier keywords may be retained. General logs use a metadata allowlist. Rejected records never become claims; later source-format acceptance is separate from ZeroSugar's semantic review. Rules, budgets and API calls are unchanged. Verification: 185 offline tests passed, including 15 new [rejection-diagnostic regressions](tests/test_rejection_diagnostics.py); offline replay reproduced the fourth run's accepted answer/claims exactly. No provider call was made for this update. See [WORKFLOW_RELIABILITY.md](WORKFLOW_RELIABILITY.md#rejected-source-answer-diagnostics-2026-10-21).
+## Current implemented contracts
 
-Specialists can also return structured `declined` or `incomplete` task outcomes. Original
-uses those to correct routing or explain unresolved work; a decline does not prove absent data.
+The approved updates on 2026-10-20/21 preserve the five roles, source restrictions and
+independent review. Detailed change history belongs in the linked operating guides;
+the observed live runs are recorded separately below.
 
-- Fifth-run repairs authorized on 2026-10-21: Original's plan distinguishes full comment sentiment (`needs_sentiment`) from SQL/rating work; label counts remain Vanilla's responsibility. Cherry, Vanilla and Lime can decline incompatible tasks in an existing turn; Original can correct routing without resending identical closed requests. Vanilla gets three attempts per 20-comment batch, retains valid labels and counters across same-workflow delegations, and returns incomplete progress without partial percentages on exhaustion. Literal quotes remain exact response text up to 400 characters; explanations are separate. Publishable examples become canonical individual `survey_response` sources for Vanilla/Original and independent ZeroSugar checks. Shared policies, artifact/CLI outcomes and minimized batch diagnostics were updated. Existing call/time/turn budgets, role ownership, database access, Luna assignment and 20-second pacing are preserved. Verification: 207 offline tests passed, including 22 new [sentiment workflow regressions](tests/test_sentiment_workflow_repairs.py), with no provider requests. Live confirmation and independently measured label quality remain pending. See [repair contracts](WORKFLOW_RELIABILITY.md#sentiment-routing-retained-progress-and-task-declines-2026-10-21).
+| Area | Current behavior | Detailed reference |
+| --- | --- | --- |
+| Numeric evidence | Original plans all needed dimensions; Cherry retains metric/schema/SQL tools and reuses completed work. Models select source facts; Python renders tables, differences and matched-date comparisons. | [Source contract](SOURCE_GROUNDING.md), [workflow](WORKFLOW_RELIABILITY.md) |
+| Shared instructions and scope | Six rules in `agents/policies.py` reach every analysis call path. A proposed initial clarification must identify a missing detail and reconsider the full request within the existing two planning attempts. Normal planning adds no call. | [Shared rules](WORKFLOW_RELIABILITY.md#shared-rules-and-initial-planning-clarifications-2026-10-21) |
+| Text classification | Original distinguishes full sentiment from SQL ratings. Vanilla uses batches of 20, three attempts per batch, retained valid records/counters within the same workflow, literal quotes up to 400 characters and separate explanations up to 160. No partial percentages. | [Role contract](AGENT_ROLES.md), [sentiment repairs](WORKFLOW_RELIABILITY.md#sentiment-routing-retained-progress-and-task-declines-2026-10-21) |
+| Individual text sources | Publishable summary examples also become canonical `survey_response` evidence for Vanilla/Original citations; ZeroSugar checks the actual scoped response, labels, hashes, coverage and aggregation. Labels/interpretations remain provisional. | [Source grounding](SOURCE_GROUNDING.md) |
+| Task outcomes | Cherry, Vanilla and Lime can decline incompatible work in an existing turn. Original can correct routing and reuses identical closed-task outcomes. Missing evidence, incomplete work and failure stay distinct. No new agent or mandatory preflight call. | [Workflow repairs](WORKFLOW_RELIABILITY.md#sentiment-routing-retained-progress-and-task-declines-2026-10-21) |
+| Diagnostics and release | Minimized answer/batch rejections preserve condition, field/index, source IDs and attempt metadata without rejected prose/quotes or keys. Authorized source text remains in local evidence. ZeroSugar reviews claims; incomplete work cannot be labeled complete, and only eligible supported claims can be partial. | [Diagnostics](WORKFLOW_RELIABILITY.md#rejected-source-answer-diagnostics-2026-10-21), [CLI guide](README.md) |
+
+The latest implementation check passed **207 offline tests on 2026-10-21**, including
+22 [sentiment workflow regressions](tests/test_sentiment_workflow_repairs.py), without
+provider requests. Scripted labels test contracts, not model quality. The current
+documentation review did not rerun that suite. Live confirmation of the fifth-run repairs
+and independently measured sentiment quality remain pending.
 
 ## What is implemented versus demonstrated
 
@@ -72,6 +90,13 @@ The latter two list configuration/cases without making model requests. Live eval
 
 ## Decisions, proposals, and pending work
 
+- Immediate next step: repeat run five's exact Recognition-comment question and M14/Q3
+  2026 scope with `--profile apinex_test --run-seconds 1000`, saving
+  `reports/apinex_prueba_vanilla_6.json`. No saved sixth-run result was present at this
+  documentation review. The [complete terminal command](TESTING_AND_RAG.md#next-live-test-sixth-luna-run)
+  does not establish that a run was executed. Inspect actual citations, retained retries,
+  task routing, ZeroSugar review, minimized diagnostics and gateway token/quota usage.
+
 - Preserve the five-role baseline while evaluating answer quality, usefulness, and provider/model fit.
 - The user wants evidence-grounded conclusions and useful partial results when independent findings survive a component failure.
 - UI and enterprise integration are deferred in the existing decision document. Dedicated recommendation/planning/execution/monitoring roles are proposals, not implemented agents.
@@ -82,6 +107,7 @@ The latter two list configuration/cases without making model requests. Live eval
 
 | Need | Start here |
 | --- | --- |
+| Complete reference inventory and maintenance rules | [DOCUMENTATION_MAP.md](DOCUMENTATION_MAP.md) |
 | Roles and worked examples | [AGENT_ROLES.md](AGENT_ROLES.md) |
 | Scope/review/partial-result behavior | [WORKFLOW_RELIABILITY.md](WORKFLOW_RELIABILITY.md) |
 | Setup and live/offline/RAG evaluation | [TESTING_AND_RAG.md](TESTING_AND_RAG.md) |
@@ -92,3 +118,9 @@ The latter two list configuration/cases without making model requests. Live eval
 Read the orientation documents once per chat when Echo work first becomes relevant, unless their contents are already available in the chat context. Reuse that orientation for subsequent questions; reread only relevant sections if the documents change or verification is needed. Additional source files and other chats are consulted only as needed for the current request.
 
 Update only affected sections after material changes, with a review date and source. Keep live observations separate from planned tests. This file is project documentation, separate from Codex's machine-local generated memories.
+
+Documentation review, 2026-10-21: reconciled setup/profile precedence, selective Lime
+execution, batch retries, literal citations, current test history and the next live case
+across current guides and local background. Historical classroom inspection dates and
+license notices were preserved. This review changed documentation only; no new API call,
+runtime feature or measured accuracy result was introduced.

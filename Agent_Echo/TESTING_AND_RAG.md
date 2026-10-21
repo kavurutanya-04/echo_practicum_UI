@@ -2,6 +2,10 @@
 
 Updated 2026-10-21. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
 
+Use [DOCUMENTATION_MAP.md](DOCUMENTATION_MAP.md) to navigate all references and
+[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for dated observations. The 207-test result
+below belongs to the latest implementation check, not a new run for this documentation review.
+
 ## Three different activities
 
 For evaluating intelligence, use the live evaluation cases after configuring a provider. Running Python locally can still call a cloud LLM; the decisive distinction is live API responses versus programmed fixtures. The demo is an optional engineering diagnostic, not a reasoning benchmark. Provider access and analytic quality require separate checks; see the NVIDIA/OpenCode access findings below.
@@ -164,7 +168,13 @@ The setup page supplied on 2026-10-20 states 5 requests/minute for free access a
 
 The existing workflow defaults remain 32 model turns, 48 local tool calls and 300 seconds elapsed time; specialist loops also have their own turn bounds. These prevent runaway loops and are distinct from requests/minute. HTTP retries count in execution API-call totals, not as new logical workflow turns. Deliberate pacing waits consume elapsed time. For a longer Original/Vanilla run, explicitly add `--run-seconds 900` (15 minutes); this does not increase the model-turn limit. Time limits are checked at budget checkpoints, not by forcibly cancelling an in-flight request or wait.
 
-The minimal probe checks one real tool call, not analytical quality or sustained throughput. On 2026-10-20, the local connection probe confirmed one real Luna tool call. The first medium analytic run (`reports/apinex_prueba_media.json`) completed 17 API calls but failed because no valid structured verifier review was obtained; Vanilla also failed quote validation. The shared default remains `gw_azure`; `--profile apinex_test` selects Luna for every role in that run. Its output allowance is now 6000 tokens per request for all roles, raised from 3500 to allow more space for classifications and structured reviews. This is a maximum, not a requested response size; support and analytical quality after the corrections require a separate live test.
+The minimal probe confirmed one real Luna tool call on 2026-10-20, not analytical quality
+or sustained throughput. The first medium run failed after 17 calls. After subsequent
+repairs, the fourth run completed its numeric comparison with nine calls; the fifth
+comment run failed after 28 calls before ZeroSugar. The shared default remains `gw_azure`;
+`--profile apinex_test` selects Luna for every role. The profile allows at most 6000
+output tokens per request, raised from 3500. That is a maximum, not a requested response
+size. The latest sentiment repairs still require their own real follow-up.
 
 The 2026-10-20 workflow corrections support multiple planned metrics, retain Cherry's query tools, expose numeric task coverage, allow literal sentiment excerpts up to 400 characters, repair only invalid records within a classification batch, and identify structured review errors by field/code. Run the focused regression checks without a model or API:
 
@@ -172,7 +182,29 @@ The 2026-10-20 workflow corrections support multiple planned metrics, retain Che
 python -m unittest discover -s tests -p test_workflow_repairs.py -v
 ```
 
-Then run the full suite. Prescribed model responses test software contracts, not model reasoning. For a real follow-up, repeat the same original medium question/scope with `--profile apinex_test --run-seconds 1000` and a new output filename, preserving the earlier failed artifact. Run only one terminal process per key because pacing is shared within a process.
+Then run the full suite when implementation changes warrant it. Prescribed model
+responses test software contracts, not model reasoning. The next real follow-up targets
+the fifth comment-classification case below; preserve all earlier artifacts. Run only one
+terminal process per key because pacing is shared within a process.
+
+### Next live test: sixth Luna run
+
+Open `Final_Project` in VS Code. In a terminal at that repository root, with the existing
+Conda environment available, run this block. If the terminal is already inside
+`Agent_Echo`, omit the `Set-Location` line. A new clone can use the virtual environment
+instructions in the root README instead of Conda.
+
+```powershell
+Set-Location -LiteralPath .\Agent_Echo
+conda activate echo-agent
+python run_agent.py original --manager M14 --start 2026-07-01 --end 2026-09-30 --profile apinex_test --run-seconds 1000 --question "I'm preparing for a team check-in. Using all eligible anonymous Recognition survey comments for the third quarter of 2026, classify each comment as positive, negative, neutral, mixed, or indeterminate. Show the count and percentage in each category, including the denominator. Include a short literal excerpt illustrating a positive and a critical view if available, with source citations. Explain the main patterns and interpretation limits, and suggest two follow-up questions for the team. Base this analysis on comment text rather than numerical survey ratings, and do not identify respondents." --output .\reports\apinex_prueba_vanilla_6.json
+```
+
+The question, manager and dates match run five; only the output filename changes. Check
+whether this file already exists before a later repeat, since `--output` overwrites it.
+This documentation review did not run the command and found no saved sixth-run result.
+Inspect both the JSON and the exact `.jsonl` path printed at startup; a complete result
+still does not measure human-validated sentiment accuracy.
 
 ## 4. Run a live answer with lexical RAG
 

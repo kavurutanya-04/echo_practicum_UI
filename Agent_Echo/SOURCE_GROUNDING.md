@@ -1,6 +1,6 @@
 # Source-bound facts and claim review
 
-Updated 2026-10-20. This contract addresses the incorrect comparisons released in
+Reviewed 2026-10-21. The initial 2026-10-20 contract addresses the incorrect comparisons released in
 `reports/apinex_prueba_media_actualizada.json`. The source rows were correct, but
 Original wrote contradictory prose and ZeroSugar accepted it. Source replay and valid
 citations did not establish entailment. A successful API call or model approval is
@@ -117,3 +117,12 @@ tool payloads; its exact retention/privacy boundaries are in
 The proposal digit rule remains unchanged and is reported as a syntactic restriction,
 not proof of hallucination. Diagnostic-only replay preserved the fourth accepted answer
 and claims exactly, without another provider call.
+
+The fifth Luna run then failed before ZeroSugar: complete labels existed inside a Vanilla
+delegation, but canonical comment evidence was not available to the final response path.
+The subsequent source bridge described above exposes individual response text without
+relaxing literal-quote validation or reclassifying the population. Three bounded batch
+attempts and retained same-workflow progress address retries separately from claim review.
+The current implementation passed 207 offline tests; real behavior after these repairs is
+pending the sixth run. See [current results](PROJECT_CONTEXT.md),
+[testing directions](TESTING_AND_RAG.md) and the [reference map](DOCUMENTATION_MAP.md).

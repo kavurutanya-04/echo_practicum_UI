@@ -1,5 +1,10 @@
 # Echo synthetic dataset: two-year reporting window
 
+Reference review: 2026-10-21. Dataset-generation dates, source counts and synthetic
+assumptions below are retained; this documentation update did not regenerate data.
+See the [reference map](../Agent_Echo/DOCUMENTATION_MAP.md) and
+[current application context](../Agent_Echo/PROJECT_CONTEXT.md) for implemented behavior.
+
 The application data covers **October 1, 2024 through September 30, 2026**, the latest 24 complete calendar months when this version was created on October 5, 2026. All supplied and generated information is synthetic. All data and documentation are in English. The application backend loads eleven `HR_` and `OP_` CSV files. Backend loading does not authorize sending entire tables to the language model.
 
 `HR_` means Human Resources; `OP_` means operational work. `QA_` files contain audit material, generation references and private backend HR indicators. They are outside the model's general data source. The original source is retained as a historical reference; its observation dates have not been relabeled as current measurements.
@@ -88,6 +93,20 @@ Training_Hours_Last_Year sums recorded workshop and training hours over the prec
 
 Keep fictional names and employee IDs where needed to demonstrate contributions and work assignments. Salary, age, gender, burnout and performance are outside the small agent-facing roster. Private source and HR-history records stay with trusted backend code. Expose named, read-only functions that check the caller's role and team, then return authorized work evidence or permitted HR and program aggregates with denominators. The agent should receive no unrestricted SQL, database-file or raw private-history access.
 
-CSV files do not implement authentication or permissions. These are requirements for the future application. For future real surveys, review identifying details in text, present themes by team and suppress results with fewer than ten respondents under the chosen prototype reporting rule. Ten is a design choice, not a guarantee of anonymity or a legal standard.
+CSV files do not implement authentication or permissions. The current backend physically
+scopes read-only copies to the CLI manager/date selection, but that selection is not login.
+In `agents/data_access.py`, survey rows require at least five survey responses. Vanilla
+additionally suppresses sentiment summary groups and examples with fewer than five
+eligible comments. Those are different denominators. Private identity tokens and numerical
+response scores do not enter text-only classification. Full eligible coverage, exact
+source excerpts and source hashes are checked before percentages are released; model
+sentiment labels remain provisional.
+
+The earlier proposal of a ten-respondent threshold for future real surveys is not the
+implemented five-response rule and was not applied by this update. A deployment must
+choose and document its privacy policy, review identifying free text and authenticate
+access. Neither threshold guarantees anonymity or establishes a legal standard. Current
+contracts are in [AGENT_ROLES.md](../Agent_Echo/AGENT_ROLES.md) and
+[SOURCE_GROUNDING.md](../Agent_Echo/SOURCE_GROUNDING.md).
 
 All files use comma-separated UTF-8 with BOM, English text and ISO dates. Blank values mean unavailable or not applicable, not zero. This dataset supports two-year comparisons and hypothetical follow-up scenarios. It does not establish that benefits, training or Echo caused better engagement. No guaranteed improvement is imposed on the eight waves; label any later deliberately improved version as a simulated scenario.

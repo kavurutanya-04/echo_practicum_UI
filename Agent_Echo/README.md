@@ -1,6 +1,11 @@
 # Echo: five agents with interchangeable model connections
 
-Echo's Python code, prompts, configuration and project documentation are in English. Its existing SQLite database contains eleven application tables and 630,339 synthetic rows; it does not need another CSV import.
+Echo's Python code, prompts, configuration and operating documentation are in English.
+The local SQLite database is built from eleven application tables (630,339 synthetic rows
+in the inspected dataset). A new clone runs `import_data.py` once; an existing database
+does not need another import to configure a provider. Reviewed: 2026-10-21. See
+[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for observed results and the
+[reference map](DOCUMENTATION_MAP.md) for current guides and historical notes.
 
 | Agent | Role | Access |
 | --- | --- | --- |
@@ -33,7 +38,12 @@ evaluation review record also links to its execution log. A forced process stop 
 leave a log ending at the last started step without a final status. Earlier failures
 that had no log cannot be reconstructed retroactively.
 
-The next product milestone is **live evaluation of the agents' reasoning**, not another scripted demo. Python runs Echo locally in both modes: with a configured API it calls a real model; `--demo` substitutes programmed responses. Local execution does not mean that inference is offline. Trial access varies by model and account. Connection checks confirm API/tool access only; they do not establish analytic quality.
+Live evaluation is already in progress. Luna's fourth run completed a source-matching
+numeric comparison; its fifth run failed before independent comment-analysis review.
+The next step is repeating that comment question after the routing/retry/source repairs.
+No saved sixth-run result was present at this review. Python runs Echo locally in both
+modes: with a configured API it calls a real model; `--demo` substitutes programmed
+responses. Connection probes establish API/tool access for that request, not analytic quality.
 
 **Without configured API credentials, you cannot test a real model's reasoning.** Offline tests/demo validate engineering with scripted/mocked responses. Live mode requires a real provider and fails rather than silently simulating an answer. [TESTING_AND_RAG.md](TESTING_AND_RAG.md) explains secure configuration, a real connection probe, retrieval inspection and fixed live evaluations.
 
@@ -64,7 +74,21 @@ python .\run_agent.py zerosugar --manager M14 --demo --input .\reports\cherry_of
 
 ## Systematic survey sentiment
 
-Vanilla's `analyze_survey_sentiment` classifies every eligible comment in the requested scope/dimension, not the top search hits. It uses the configured model for positive/negative/neutral/mixed/indeterminate labels; code computes percentages with all comments as the denominator and suppresses groups below five comments. Saved JSON includes labels, source IDs, supporting excerpts and source hashes. ZeroSugar rechecks coverage/provenance/aggregation. Labels are provisional pending human evaluation; no live classification has been run while API setup is deferred.
+Vanilla's `analyze_survey_sentiment` classifies every eligible comment in the requested
+scope/dimension, not the top search hits. Its model assigns positive/negative/neutral/
+mixed/indeterminate labels; code computes percentages using all eligible comments in each
+group and suppresses groups below five comments. Quotes copy contiguous response text
+verbatim, up to 400 characters; explanations are separate, up to 160. Each 20-comment batch
+has at most three attempts, repairing only pending records. Valid labels and attempt
+counters survive same-workflow redelegation for identical source/scope/model inputs;
+independent runs reset them. Exhaustion returns incomplete progress without percentages.
+
+Saved JSON includes completed labels, source IDs, literal excerpts and source hashes.
+Publishable examples also become individual canonical text evidence for Vanilla/Original
+to cite and ZeroSugar to independently check. Counts from these labels belong to Vanilla,
+not Cherry's SQL/rating metrics. The fifth live run completed a child classification but
+never reached ZeroSugar or released an answer. Semantic label quality remains unmeasured;
+`human_validated=false` is not changed by passing source/aggregation checks.
 
 After configuring the API, run a bounded real evaluation:
 
@@ -88,11 +112,12 @@ For a larger corpus, `run_agent.py` accepts an explicit `--model-call-limit` (de
 | `nvidia_test` | NVIDIA hosted Chat Completions; Nemotron 3.5 Super VL | `NVIDIA_API_KEY` |
 | `nvidia_glm_test` | Z.AI GLM-5.3-Flash hosted by NVIDIA | `NVIDIA_API_KEY` |
 | `opencode_test` | Connection reference; free external calls previously rejected | `OPENCODE_API_KEY` |
+| `apinex_test` | APInex compatible Chat Completions; Luna for all roles when explicitly selected | `APINEX_API_KEY` |
 | `gw_embeddings` | Azure embeddings | `GW_AZURE_OPENAI_KEY` |
 | `google_embeddings` | Google embeddings | `GOOGLE_API_KEY` |
 | `openai_embeddings` | OpenAI embeddings | `OPENAI_API_KEY` |
 
-For every profile, edit `model` and `endpoint` directly in JSON. Azure legacy profiles also declare `api_version`; Azure v1 profiles must supply their complete API base URL, including `/openai/v1/`. Generation profiles declare `max_output_tokens`, `timeout_seconds` and `max_retries`. `key_env` names the credential variable; it never contains the key itself. The private file is ignored by Git. Real key values must never enter JSON, source code, examples or logs.
+For every profile, edit `model` and `endpoint` directly in JSON. Azure legacy profiles also declare `api_version`; Azure v1 profiles must supply their complete API base URL, including `/openai/v1/`. Generation profiles declare `max_output_tokens`, `timeout_seconds` and `max_retries`; APInex additionally uses `request_interval_seconds` and `rate_limit_retries`, with SDK retries disabled. `key_env` names the credential variable; it never contains the key itself. The private file is ignored by Git. Real key values must never enter JSON, source code, examples or logs.
 
 Selection precedence is explicit: `--profile` for the current run, then the role's JSON assignment, then JSON `default_profile`. Model, endpoint, API-version and role overrides from `.env` or terminal variables are no longer used. Legacy JSON fields `model_env`, `endpoint_env` and `api_version_env` are rejected with a migration message. Only API keys use environment precedence: the process environment first, then the private `.env`. The legacy `from_environment()` entry point also follows JSON profile selection.
 
@@ -219,7 +244,14 @@ Retrieved passages are examples, not a representative sentiment sample. Similari
 
 Lime is the dedicated visualization role, named consistently with the project's Coca-Cola flavors. Its model receives only Cherry-produced SQL evidence as data, plus the question/candidate answer for context. Query results now identify `producer=Cherry`; other agents' numeric data, raw passages and retrieval scores are excluded. The former `visualizer` CLI name remains an alias for `lime`. Re-run Original for an older saved artifact lacking producer metadata before re-planning its charts.
 
-Original uses Cherry/Vanilla as tools, following the classroom root/agent-tool pattern. Every candidate then goes to the separately prompted Lime, which chooses relevant indicator charts or explains why none is supported. Original does not decide chart type or rendering. ZeroSugar reviews both the candidate and chart plan. It checks citation IDs, dates/scope, anonymous fields, SQL replay, source-text correspondence and chart references/columns, then asks its configured model to judge Accuracy, Relevance, Completeness, Clarity, Instruction Following, Usefulness, and Safety / Appropriateness on a 1-3 scale.
+Original uses Cherry/Vanilla as tools, following the classroom root/agent-tool pattern.
+Its plan selects SQL metrics, text/sentiment and optional charts separately. Lime runs
+only when a chart is planned; its model chooses indicator/type/axes from Cherry's evidence.
+Cherry, Vanilla and Lime can return a structured decline for incompatible tasks in an
+existing turn. Original can correct the assignment without resending an identical closed
+request. Missing evidence, incomplete classification and execution failure are distinct
+outcomes. ZeroSugar reviews claims, task coverage and any chart plan, combining source
+checks with its seven-dimension model review; it does not author the candidate answer.
 
 Only accepted plans are exported by `LimeAgent.export` / `agents/chart_export.py` as local SVG graphics, exact selected CSV columns and JSON provenance. Bars compare categories; lines show dates/quarters; nulls remain missing. No model-generated numbers, arbitrary code or web frontend are involved. SVG graphics are local output artifacts, not a dashboard. ZeroSugar reviews structured specs/data, not rendered pixels; human layout inspection remains separate.
 
@@ -229,7 +261,7 @@ Vanilla records retrieval method, query/filter metadata, returned source IDs and
 
 Deterministic issues force revision even if the model accepts. The coordinator gets one revision opportunity. A twice-rejected draft is retained in the local trace but withheld from the user-facing answer. Global limits cover model calls, tools, embeddings and elapsed time, with additional per-agent and SQL limits. These are bounded execution controls, not a guarantee of claim correctness. Human review remains necessary.
 
-Direct Cherry/Vanilla runs are specialist diagnostics and do not automatically invoke ZeroSugar. Use Original for the verified workflow, or review a saved artifact separately. Standalone ZeroSugar also reloads the scoped source data for SQL/text integrity checks. CLI exit codes are 0 for completion, 1 for execution/configuration failure, and 2 for partial results, clarification or required revision. Cancellation is 130.
+Direct Cherry/Vanilla runs are specialist diagnostics and do not automatically invoke ZeroSugar. Use Original for the verified workflow, or review a saved artifact separately. Standalone ZeroSugar also reloads the scoped source data for SQL/text integrity checks. CLI exit codes are 0 for completion, 1 for execution/configuration failure, and 2 for partial results, clarification, declined/incomplete tasks or required revision. Cancellation is 130. A decline never exports charts or represents an approved analysis.
 
 ## Data access
 
@@ -247,11 +279,22 @@ Cherry's temporary tables are `employees`, `survey_summary`, `program_summary`, 
 python -m unittest discover -s tests -v
 ```
 
-All **61 offline tests pass** as of 2026-10-06, including numeric reconciliation, scope controls, provider/message contracts, semantic vector/cache behavior, altered evidence, mandatory review, bounded revision/withholding, source database integrity, exact chart rows/missing values, invalid chart rejection, retrieval context reaching generation, missing-API failures and complete sentiment coverage/provenance/aggregation. Mocks do not establish live provider compatibility, chart-choice quality, sentiment accuracy or answer accuracy.
+The latest implementation check passed **207 offline tests on 2026-10-21**, including
+22 new sentiment workflow regressions. Coverage includes source reconciliation, scope,
+provider/message contracts, pacing, shared policies, bounded clarification and repairs,
+claim rendering, minimized rejection diagnostics, canonical comments, full sentiment
+coverage and Original -> Vanilla -> ZeroSugar integration. These were scripted engineering
+checks with zero generation API calls, not classifier accuracy measurements. This later
+documentation-only review checked content/links; it did not rerun live or offline models.
 
 [REFERENCE_VALIDATION.md](REFERENCE_VALIDATION.md) records the exact classroom materials reviewed, differences, fixes and remaining live validation. `tests/evaluation_cases.json` contains fixed live questions and independent review criteria; it is excluded from agent retrieval. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) preserves classroom attribution.
 
 `agents/original.py`, `cherry.py`, `vanilla.py`, `lime.py` and `zero_sugar.py` define the five roles. Shared runtime/connections, scoped tools, semantic retrieval and the SVG exporter are supporting infrastructure. `run_agent.py` is the terminal entry point. No Google ADK or plotting-package installation is required for this provider-independent implementation.
+
+`agents/policies.py` supplies six common rules to all analysis call paths. Role modules
+retain their specialized duties; `AGENTS.md` guides coding work and is not loaded into
+Echo model calls. Minimized rejection diagnostics omit raw rejected prose/quotes and
+credentials, but normal local evidence artifacts can contain authorized source text.
 
 ## Existing data utilities
 

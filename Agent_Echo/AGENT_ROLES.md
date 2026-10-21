@@ -11,7 +11,7 @@ Updated 2026-10-21. Five roles share configurable model adapters; each has its o
 
 ## Original — coordination, synthesis and supervised revision
 
-**Input:** manager question, backend-fixed manager/date scope, specialist responses and verifier feedback. **Tools:** `ask_cherry(question)` and `ask_vanilla(question)` only. **Output:** a cited candidate answer, source evidence and specialist delegations.
+**Input:** manager question, backend-fixed manager/date scope, specialist responses and verifier feedback. **Tools:** `ask_cherry(question, task_type="numeric")` and `ask_vanilla(question, task_type="text"/"sentiment")`; source-fact selection uses `submit_grounded_answer`. **Output:** a cited candidate answer, source evidence and specialist delegations.
 
 Original decomposes the question, requests appropriately bounded evidence, combines quantitative and textual findings, acknowledges disagreement and explains unavailable coverage. Its plan distinguishes SQL/rating metrics from Vanilla's full comment classification and derived counts/percentages (`needs_sentiment`). A sentiment-only task does not require Cherry. Original corrects incompatible delegations after a specialist's structured decline; it does not resend an identical closed request. It owns the answer and responds to ZeroSugar's correction request. It does not run SQL, widen access, retrieve files, choose chart types or render graphs. The workflow invokes Lime when Original's plan requires a chart.
 
@@ -23,7 +23,7 @@ Example boundary: "Identify the person behind this anonymous comment." Explain t
 
 ## Cherry — quantitative evidence and Text-to-SQL
 
-**Input:** a bounded analytical question. **Tools:** `describe_schema()` and `execute_sql(sql)`. **Output:** numeric findings with `[SQLn]` citations; SQL text, returned rows, scope and truncation flag are retained as evidence.
+**Input:** a bounded analytical question. **Tools:** `describe_schema()`, `execute_sql(sql)` and `run_metric(metric, dimension)`; live source selection or task decline uses the shared response contract. **Output:** numeric findings with `[SQLn]` citations; SQL text, returned rows, scope and truncation flag are retained as evidence.
 
 Cherry inspects permitted tables, chooses read-only SQL, repairs failed queries and explains metrics, denominators and limits. It preserves the correct grain when joining contributions, feedback, work requests and capacity. Names in authorized operational records are permitted; anonymous surveys remain team aggregates and benefit histories remain group summaries. Cherry does not choose graphs, interpret retrieved comments or infer causal effects.
 
@@ -51,7 +51,7 @@ Lime replaces the earlier functional name Visualizer, keeping the project's flav
 
 **Input:** question, candidate answer, exact evidence rows, scope and optional review feedback. **Tool:** `submit_visuals(charts, reason)`. **Output:** zero to three chart specifications and an explicit relevance/no-chart explanation. After acceptance, its exporter generates `.svg`, companion `.csv` and `.json` provenance files.
 
-Lime is a separately prompted model role with its own profile assignment (`ECHO_LIME_PROFILE`). It decides whether a chart helps, which supported indicator to plot, bar versus line, axes, series, units, denominator and title. It has no database access and cannot generate executable code, request arbitrary files or invent numeric arrays. Specs reference SQL citation IDs and column names; the exporter reads values directly from those rows. Original does not pick chart types.
+Lime is a separately prompted model role with its own `agents.Lime` assignment in `connections.json`, overridden by an explicit run-wide `--profile`. The old `ECHO_LIME_PROFILE` variable does not select it. Lime decides whether a chart helps, which supported indicator to plot, bar versus line, axes, series, units, denominator and title. It has no database access and cannot generate executable code, request arbitrary files or invent numeric arrays. Specs reference SQL citation IDs and column names; the exporter reads values directly from those rows. Original does not pick chart types.
 
 Concrete renderer: `agents/chart_export.py::export_charts`. It draws vector graphics using Python's standard library. No plotting package, web server or dashboard framework is required. Files open in a browser or compatible image editor; opening an SVG is not deploying a web application.
 
@@ -95,15 +95,21 @@ flowchart TB
     O <--> C[Cherry: numeric evidence]
     O <--> V[Vanilla: retrieved textual evidence]
     O --> P[Candidate answer and source evidence]
-    P --> G[Lime: choose indicator charts or explain no chart]
+    P --> D{Chart planned?}
+    D -->|Yes| G[Lime: choose supported charts or return task outcome]
+    D -->|No| Z
     G --> Z[ZeroSugar: review answer, evidence and chart plan]
     Z -->|One correction round| O
     Z -->|Accept| E[Lime exporter: local SVG, CSV and provenance]
     E --> H[Text answer and optional charts for human review]
-    Z -->|Second rejection| W[Withhold answer and chart files]
+    Z -->|Unresolved| W[Release eligible supported claims as partial; withhold the rest and charts]
 ```
 
 ## References used
+
+For current shared rules, diagnostic/privacy contracts, dated run results and all other
+guides, use the [documentation map](DOCUMENTATION_MAP.md). Classroom source-inspection
+dates below are historical; this documentation review did not repeat an external review.
 
 - Classroom `text2sql_example/text_to_sql.ipynb`: schema-aware questions, few-shot mappings and read-only results. Echo adds scoped data copies and SQLite authorization.
 - Classroom `rag_example/rag_query.ipynb`: retrieval -> source context -> cited generation; semantic retrieval uses cosine similarity.

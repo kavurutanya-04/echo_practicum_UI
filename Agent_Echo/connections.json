@@ -68,7 +68,7 @@
       "clear_thinking": true
     },
     "apinex_test": {
-      "description": "Optional APInex Luna profile for all roles. Tool probe succeeded on 2026-10-20; the first analytic run failed review validation. Quality after corrections remains unverified.",
+      "description": "Optional APInex Luna profile for all roles. Tool probe succeeded on 2026-10-20. Numeric run four completed; sentiment run five failed before independent review. Live confirmation of the latest sentiment repairs and measured label quality remain pending.",
       "provider": "openai_compatible",
       "api": "chat",
       "endpoint": "https://api.apinex.bond/v1",

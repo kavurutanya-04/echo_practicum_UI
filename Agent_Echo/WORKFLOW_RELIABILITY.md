@@ -1,4 +1,8 @@
-# Workflow reliability: points 3–9
+# Workflow reliability: current execution and repair contracts
+
+Reviewed 2026-10-21 against the current runtime and the fifth-run repairs. Earlier dated
+sections retain their original change context; the current contracts below and the
+[documentation map](DOCUMENTATION_MAP.md) identify the relevant implementation sources.
 
 The five roles and final GW Azure default are retained. All manager-facing output is
 English. This change does not add a UI, authentication system, bilingual testing or a
@@ -41,7 +45,11 @@ original question to the right plan, and ZeroSugar must check for omissions in t
 
 ## 4. Bounded closure and reuse
 
-The final turn has no tools and asks for an evidence-based answer or explicit limitation.
+The shared specialist loop allows at most seven model turns. In live source-grounded
+Original/Cherry/Vanilla runs, the closing turn retains the response tool
+`submit_grounded_answer`; Cherry/Vanilla can also submit `decline_task`. Data/delegation
+tools close at the bound. The legacy/scripted path can ask for free-form closure without
+data tools; this is not the live factual-answer contract.
 Each turn states the remaining allowance. Identical tool requests reuse their result within
 that run and trigger closure only when no planned Cherry metrics remain unresolved.
 Hard turn/tool/time limits still force bounded closure with explicit limitations. A failed or
@@ -50,8 +58,10 @@ noncompliant model produces an explicit failure instead of invented conclusions.
 ## 5. Selective roles
 
 Original submits a typed plan: numeric evidence, text evidence, optional chart or a
-necessary task clarification. Only planned specialists are available. Simple counts can
-skip Vanilla and Lime. Analytical findings still require ZeroSugar review. Clarification
+necessary task clarification. Full comment sentiment has its own `needs_sentiment` flag;
+its counts/percentages require Vanilla, not SQL/rating metrics. Planned/repair-target
+specialists are available, with corrected routing enabled after an out-of-role decline.
+Simple SQL counts can skip Vanilla and Lime. Analytical findings still require ZeroSugar review. Clarification
 responses contain no analytical findings.
 
 ## 6. Localized repairs
@@ -59,7 +69,9 @@ responses contain no analytical findings.
 ZeroSugar selects repair targets: Cherry, Vanilla, Lime, Original or clarification. The
 single correction pass permits only affected specialists. Chart-only repairs reuse the
 candidate and calculations. Unchanged chart plans are reused when another role is repaired.
-Sources and the final package are still reviewed. Nothing is cached across executions.
+Sources and the final package are still reviewed. Tool/classification progress is not
+reused across independent workflows. Optional persistent embedding caches are separate
+and scoped to source/provider/model identity, as described in TESTING_AND_RAG.md.
 
 ## 7. Review by finding
 
@@ -97,7 +109,9 @@ Artifacts include `findings`, `limitations`, `next_steps`, `clarification_questi
 safe `failure` metadata. Rejected drafts and withheld blocks stay local for diagnostics;
 a future UI must not render them as approved findings. Direct specialist results remain
 `unverified` until reviewed. Incomplete survey classification still produces no partial
-sentiment percentages. Charts are withheld for incomplete packages. Known failures also
+sentiment percentages. A standalone specialist may instead return `declined` or
+`incomplete` (exit 2), with a structured task outcome; neither is verified analysis.
+Charts are withheld for incomplete packages. Known failures also
 write an explicitly failed artifact when `--output` is supplied; successful artifacts are
 saved before printing. Cancellation remains exit 130 with an incremental execution log.
 
@@ -136,7 +150,8 @@ The optional ignored JSON artifact records the accepted clarification basis. Reg
 checks in [test_clarification_policy.py](tests/test_clarification_policy.py) exercise these
 paths using scripted responses, not provider reasoning. The user's third APInex run
 (`reports/apinex_prueba_media_3.json`) stopped after one planning call with an unnecessary
-clarification; this update has not yet been evaluated in another live run. Interactive
+clarification. The fourth run subsequently planned and completed without clarification;
+that does not exercise reconsideration of a new unnecessary question. Interactive
 terminal continuation, natural-language date resolution and authenticated manager selection
 remain deferred; `run_agent.py`, connections and request pacing are unchanged.
 
