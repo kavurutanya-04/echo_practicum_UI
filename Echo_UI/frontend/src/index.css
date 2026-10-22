@@ -48,3 +48,7 @@ body {
   .chat-shell header > div + div { margin-top: 0.5rem; }
   .chat-shell footer { position: sticky; bottom: 0; z-index: 20; padding-top: 0.5rem; padding-bottom: 0.5rem; }
 }
+
+/* Marching dashes along an active agent link on the stage. */
+@keyframes flow-dash { to { stroke-dashoffset: -28; } }
+.flow-dash { animation: flow-dash 0.9s linear infinite; }

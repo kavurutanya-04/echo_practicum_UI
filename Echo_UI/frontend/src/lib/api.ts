@@ -55,8 +55,10 @@ export type RunMeta = {
   manager_id: string
   start_date: string
   end_date: string
-  mode: 'demo' | 'live'
+  mode: 'demo' | 'live' | 'replay' | 'offline'
   profile: string
+  replay_of?: string
+  recorded_at?: string
   created_at: string
   finished_at?: string
   state: string
@@ -141,6 +143,38 @@ export type Artifact = {
   next_steps: string[]
   clarification_questions: string[]
   failure: Record<string, unknown>
+  made?: Made
+  triangle?: Triangle
+  examples?: Example[]
+  watch?: WatchItem[]
+  voice?: { topic: string; responses: number; positive: number; negative: number }
+  guardrail?: { rule: string; checked_by: string; detail: string }
+}
+
+export type TriangleSide = { value: string; label: string; tone: 'good' | 'fair' | 'poor' | 'neutral'; agent: string }
+export type Triangle = { work: TriangleSide; feedback: TriangleSide; voice: TriangleSide; agreement: 'conflict' | 'aligned'; note: string }
+export type Example = { contribution_id: string; employee_id: string; name: string; team_helped: string; date: string; outcome: string; praise_reached_you: boolean }
+export type WatchItem = { metric: string; baseline: string; goal: string }
+
+export type Made = {
+  specialists: string[]
+  queries: number
+  survey_sources: number
+  sentiment_runs: number
+  charts: number
+  findings_checked: number
+  drafts_checked: number
+}
+
+export type PulseTheme = { text: string; share: 'most' | 'many' | 'some' | 'a few'; tone: 'positive' | 'concern' | 'mixed' }
+
+export type Pulse = {
+  scope: Scope
+  mood: { topic: string; responses: number; positive: number; neutral: number; negative: number }[]
+  themes: { topic: string; headline: string; themes: PulseTheme[]; comments_used: number }[] | null
+  generated_at: string | null
+  model: string | null
+  error: string | null
 }
 
 export type RunDetail = { meta: RunMeta; artifact: Artifact | null; console: string }
@@ -197,6 +231,10 @@ export const api = {
   runs: () => request<RunMeta[]>('/api/runs'),
   run: (id: string) => request<RunDetail>(`/api/runs/${id}`),
   managerRun: (id: string) => request<RunDetail>(`/api/runs/${id}?view=manager`),
+  pulse: (id: string, start: string, end: string, generate = false) =>
+    request<Pulse>(`/api/managers/${encodeURIComponent(id)}/pulse?start=${start}&end=${end}${generate ? '&generate=true' : ''}`),
+  savedAnswers: (id: string, start: string, end: string) =>
+    request<{ question: string; recorded_at: string | null }[]>(`/api/recordings?manager_id=${encodeURIComponent(id)}&start=${start}&end=${end}`),
   lookupManager: (code: string) => request<Manager>(`/api/manager/${encodeURIComponent(code)}`),
   startRun: (body: Record<string, unknown>) => request<RunMeta>('/api/runs', { method: 'POST', body: JSON.stringify(body) }),
   cancelRun: (id: string) => request<unknown>(`/api/runs/${id}/cancel`, { method: 'POST' }),

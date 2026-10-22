@@ -1,9 +1,9 @@
 import clsx from 'clsx'
-import { AlertTriangle, ChevronDown, Loader2, Lock, ShieldAlert, ShieldCheck, Table2 } from 'lucide-react'
+import { AlertTriangle, ChevronDown, History, Loader2, MessagesSquare, ShieldAlert, ShieldCheck, Table2, Workflow } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { EvidenceChart } from '../components/run/Charts'
 import { SqlBlock } from '../components/run/Evidence'
-import { isSql, type Artifact, type RunMeta, type SqlEvidence } from '../lib/api'
+import { isSql, type Artifact, type Made, type RunMeta, type SqlEvidence } from '../lib/api'
 
 const CITATION = /\s*\[([A-Za-z]+\d*(?::[A-Za-z0-9_-]+)?)\]/g
 
@@ -14,7 +14,7 @@ function friendlyFailure(meta: RunMeta) {
 }
 
 /** Answer text with numbered source markers; data sources expand inline, comments stay redacted. */
-function SourcedText({ text, sources, onOpen }: { text: string; sources: Map<string, SqlEvidence | null>; onOpen: (id: string) => void }) {
+export function SourcedText({ text, sources, onOpen, onOpenPulse }: { text: string; sources: Map<string, SqlEvidence | null>; onOpen: (id: string) => void; onOpenPulse: () => void }) {
   const parts: (string | string)[] = []
   const ids: string[] = []
   let last = 0
@@ -41,13 +41,14 @@ function SourcedText({ text, sources, onOpen }: { text: string; sources: Map<str
             <Table2 className="size-3" /> data
           </button>
         ) : (
-          <span
+          <button
             key={index}
-            className="mx-0.5 inline-flex translate-y-[-1px] items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 align-middle text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-            title="Anonymous survey response — text is not shown"
+            onClick={onOpenPulse}
+            className="mx-0.5 inline-flex translate-y-[-1px] items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 align-middle text-[11px] text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+            title="Based on team survey responses — see the summary of what your team is saying"
           >
-            <Lock className="size-3" /> survey
-          </span>
+            <MessagesSquare className="size-3" /> survey
+          </button>
         )
       })}
     </>
@@ -63,9 +64,20 @@ export function PendingBubble({ status }: { status: string }) {
   )
 }
 
-export default function AnswerBubble({ meta, artifact }: { meta: RunMeta; artifact: Artifact | null }) {
+function describeMade(made: Made) {
+  const parts = ['Original planned the answer']
+  if (made.queries) parts.push(`Cherry ran ${made.queries} data quer${made.queries === 1 ? 'y' : 'ies'}`)
+  if (made.survey_sources || made.sentiment_runs) parts.push('Vanilla reviewed survey responses')
+  if (made.charts) parts.push(`Lime drew ${made.charts} chart${made.charts === 1 ? '' : 's'}`)
+  else parts.push('Lime decided no chart was needed')
+  parts.push(`ZeroSugar checked ${made.drafts_checked > 1 ? `${made.drafts_checked} drafts` : 'the answer'}${made.findings_checked ? ` and ${made.findings_checked} finding${made.findings_checked === 1 ? '' : 's'}` : ''}`)
+  return parts.join(' · ')
+}
+
+export default function AnswerBubble({ meta, artifact, onOpenPulse }: { meta: RunMeta; artifact: Artifact | null; onOpenPulse: () => void }) {
   const [openSource, setOpenSource] = useState<string | null>(null)
   const [notesOpen, setNotesOpen] = useState(false)
+  const [madeOpen, setMadeOpen] = useState(false)
 
   if (!artifact || meta.state === 'failed' || meta.state === 'cancelled' || artifact.status === 'failed') {
     return (
@@ -89,13 +101,23 @@ export default function AnswerBubble({ meta, artifact }: { meta: RunMeta; artifa
     <div className="space-y-4">
       {meta.mode === 'demo' && (
         <div className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-          Demo mode: this is Echo's scripted sample answer, not an answer to your exact question.
+          Demo mode: no saved answer exists for this question yet, so this is Echo's scripted sample answer. Switch to Live AI for a real answer.
+        </div>
+      )}
+      {meta.mode === 'offline' && artifact.status !== 'needs_clarification' && (
+        <div className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          Offline demo: numbers are computed directly from your team's data; the wording is a fixed template, not AI.
+        </div>
+      )}
+      {meta.mode === 'replay' && (
+        <div className="flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs text-indigo-800 dark:bg-indigo-500/10 dark:text-indigo-300">
+          <History className="size-3.5" /> Saved answer from a live run{meta.recorded_at ? ` on ${new Date(meta.recorded_at).toLocaleDateString()}` : ''} — replayed without using the AI.
         </div>
       )}
       <div className="text-[15px] leading-7">
         {artifact.answer.split(/\n{2,}/).map((paragraph, i) => (
           <p key={i} className="mb-2.5 last:mb-0">
-            <SourcedText text={paragraph} sources={sources} onOpen={(id) => setOpenSource(openSource === id ? null : id)} />
+            <SourcedText text={paragraph} sources={sources} onOpen={(id) => setOpenSource(openSource === id ? null : id)} onOpenPulse={onOpenPulse} />
           </p>
         ))}
       </div>
@@ -123,7 +145,7 @@ export default function AnswerBubble({ meta, artifact }: { meta: RunMeta; artifa
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 text-xs">
+      {artifact.status !== 'needs_clarification' && <div className="flex flex-wrap items-center gap-2 text-xs">
         <span
           className={clsx(
             'inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ring-1 ring-inset',
@@ -136,16 +158,22 @@ export default function AnswerBubble({ meta, artifact }: { meta: RunMeta; artifa
           {verified ? 'Checked by ZeroSugar' : 'Not fully verified'}
         </span>
         {commentCount > 0 && (
-          <span className="inline-flex items-center gap-1 text-slate-500">
-            <Lock className="size-3" /> Uses {commentCount} anonymous survey response{commentCount === 1 ? '' : 's'} (text hidden)
-          </span>
+          <button onClick={onOpenPulse} className="inline-flex items-center gap-1 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400">
+            <MessagesSquare className="size-3" /> Draws on team survey responses · see what your team is saying
+          </button>
+        )}
+        {artifact.made && (
+          <button onClick={() => setMadeOpen(!madeOpen)} className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
+            <Workflow className="size-3" /> How this answer was made <ChevronDown className={clsx('size-3.5 transition', madeOpen && 'rotate-180')} />
+          </button>
         )}
         {artifact.limitations?.length > 0 && (
           <button onClick={() => setNotesOpen(!notesOpen)} className="ml-auto inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
             Notes & limitations <ChevronDown className={clsx('size-3.5 transition', notesOpen && 'rotate-180')} />
           </button>
         )}
-      </div>
+      </div>}
+      {madeOpen && artifact.made && <p className="slide-in rounded-xl bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800/50 dark:text-slate-300">{describeMade(artifact.made)}.</p>}
       {notesOpen && (
         <ul className="slide-in space-y-1 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
           {artifact.limitations.map((note, i) => (

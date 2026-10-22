@@ -14,6 +14,7 @@ const TOOL_TEXT: Record<string, string> = {
   analyze_survey_sentiment: 'Measuring survey sentiment',
   submit_visuals: 'Choosing a chart',
   submit_review: 'Checking the answer',
+  summarize_voice: 'Summarizing what the team says',
 }
 
 /** Plain-language "what is this agent doing" line for each agent. */
@@ -27,7 +28,7 @@ export function agentActivity(events: LogEvent[]): Partial<Record<AgentName, str
     else if (event.event === 'model_finished' && event.tools?.[0]) activity[agent] = TOOL_TEXT[event.tools[0]] ?? 'Thinking'
     else if (event.event === 'sentiment_batch_started') activity[agent] = `Reading responses (batch ${event.batch}/${event.batches})`
     else if (event.event === 'visual_plan_validated') activity[agent] = 'Chart ready'
-    else if (event.event === 'verification_finished') activity[agent] = event.decision === 'accept' ? 'Answer verified' : 'Asked for a revision'
+    else if (event.event === 'verification_finished') activity[agent] = event.decision === 'accept' ? 'Answer verified' : event.decision === 'declined' ? 'Declined: protects anonymity' : 'Asked for a revision'
     else if (event.event === 'agent_finished') activity[agent] = 'Done'
     else if (event.event === 'model_failed' || event.event === 'agent_failed') activity[agent] = 'Hit a problem'
   }
