@@ -365,6 +365,9 @@ def start_run(request: RunRequest):
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6]
     path = RUNS / run_id
     path.mkdir(parents=True)
+    # Questions that try to unmask anonymous respondents are declined in every mode, before any data is read.
+    if offline.guarded(request.question):
+        return offline_run(run_id, path, request)
     if request.mode == "demo" and request.question.strip():
         recording = recordings().get(recording_key(request.manager_id, request.start_date, request.end_date, request.question))
         if recording and (RUNS / recording["run_id"] / "artifact.json").is_file():
@@ -448,8 +451,12 @@ def without_comment_text(artifact):
         "visualization": {"charts": visualization.get("charts", []), "reason": visualization.get("reason", "")},
         "verification": {"decision": (artifact.get("verification") or {}).get("decision")},
         "limitations": artifact.get("limitations", []),
-        "findings": [], "next_steps": [], "clarification_questions": [], "sentiment": {}, "execution": {},
+        "findings": [{"finding_id": f.get("finding_id"), "text": f.get("text"), "citation_ids": f.get("citation_ids", []),
+                      "status": f.get("status")} for f in artifact.get("findings") or []],
+        "next_steps": artifact.get("next_steps", []), "clarification_questions": [], "sentiment": {}, "execution": {},
         "made": how_it_was_made(artifact),
+        # Story fields from offline answers (counts, record-level work items and checks; never survey text).
+        **{key: artifact[key] for key in ("triangle", "examples", "watch", "voice", "guardrail") if key in artifact},
     }
 
 

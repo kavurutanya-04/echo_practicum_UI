@@ -37,3 +37,24 @@ export function saveManagerCode(code: string | null) {
     /* storage unavailable */
   }
 }
+
+export type Watched = WatchItemSaved
+type WatchItemSaved = { metric: string; baseline: string; goal: string; savedAt: string; question: string }
+
+const watchKey = (manager: string) => `echo-watch-${manager.toUpperCase()}`
+
+export function loadWatch(manager: string): Watched[] {
+  try {
+    return JSON.parse(localStorage.getItem(watchKey(manager)) ?? '[]')
+  } catch {
+    return []
+  }
+}
+
+export function saveWatch(manager: string, items: Watched[]) {
+  try {
+    localStorage.setItem(watchKey(manager), JSON.stringify(items))
+  } catch {
+    /* storage unavailable */
+  }
+}

@@ -144,7 +144,17 @@ export type Artifact = {
   clarification_questions: string[]
   failure: Record<string, unknown>
   made?: Made
+  triangle?: Triangle
+  examples?: Example[]
+  watch?: WatchItem[]
+  voice?: { topic: string; responses: number; positive: number; negative: number }
+  guardrail?: { rule: string; checked_by: string; detail: string }
 }
+
+export type TriangleSide = { value: string; label: string; tone: 'good' | 'fair' | 'poor' | 'neutral'; agent: string }
+export type Triangle = { work: TriangleSide; feedback: TriangleSide; voice: TriangleSide; agreement: 'conflict' | 'aligned'; note: string }
+export type Example = { contribution_id: string; employee_id: string; name: string; team_helped: string; date: string; outcome: string; praise_reached_you: boolean }
+export type WatchItem = { metric: string; baseline: string; goal: string }
 
 export type Made = {
   specialists: string[]

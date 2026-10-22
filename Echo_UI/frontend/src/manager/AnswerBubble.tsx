@@ -14,7 +14,7 @@ function friendlyFailure(meta: RunMeta) {
 }
 
 /** Answer text with numbered source markers; data sources expand inline, comments stay redacted. */
-function SourcedText({ text, sources, onOpen, onOpenPulse }: { text: string; sources: Map<string, SqlEvidence | null>; onOpen: (id: string) => void; onOpenPulse: () => void }) {
+export function SourcedText({ text, sources, onOpen, onOpenPulse }: { text: string; sources: Map<string, SqlEvidence | null>; onOpen: (id: string) => void; onOpenPulse: () => void }) {
   const parts: (string | string)[] = []
   const ids: string[] = []
   let last = 0

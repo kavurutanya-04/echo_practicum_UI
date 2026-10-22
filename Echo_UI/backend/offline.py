@@ -34,6 +34,7 @@ class Query:
         self.db.row_factory = sqlite3.Row
         self.scope = scope
         self.evidence = []
+        self.extra = {}  # story fields: triangle, examples, watch, next_steps, voice
         self.team_filter = ("SELECT Employee_ID FROM HR_employees WHERE Pilot_Manager_ID = :manager "
                             "AND Hire_Date <= :end AND (Termination_Date IS NULL OR Termination_Date >= :start)")
         self.params = {"manager": scope.manager_id, "start": scope.start_date, "end": scope.end_date}
@@ -275,7 +276,132 @@ def biggest_survey_change(q):
     return answer, findings, [chart], ["Compares the first and last survey within the last 12 months of the period."]
 
 
+def _tone(percent, good=70, fair=50):
+    return "good" if percent >= good else "fair" if percent >= fair else "poor"
+
+
+def invisible_work(q):
+    """The project's anchor story: is help given to other teams seen and recognized?"""
+    start, end = quarter_window(q)
+    if not end:
+        return "There are no survey results in this period to anchor a quarter.", [], [], []
+    window = {"qstart": start, "qend": end}
+    c1, work = q.run(f"""WITH c AS (
+            SELECT c.Contribution_ID, c.Home_Team <> c.Beneficiary_Team AS cross_team,
+              EXISTS(SELECT 1 FROM HR_recognition_feedback f WHERE f.Contribution_ID = c.Contribution_ID AND f.Interaction_Type = 'Partner feedback') AS praised,
+              EXISTS(SELECT 1 FROM HR_recognition_feedback f WHERE f.Contribution_ID = c.Contribution_ID AND f.Interaction_Type = 'Partner feedback' AND f.Shared_With_Home_Manager = 'Yes') AS shared,
+              EXISTS(SELECT 1 FROM HR_recognition_feedback f WHERE f.Contribution_ID = c.Contribution_ID AND f.Interaction_Type = 'Manager recognition') AS recognized
+            FROM OP_contributions c WHERE c.Employee_ID IN ({q.team_filter}) AND c.Contribution_Date BETWEEN :qstart AND :qend)
+        SELECT SUM(cross_team) AS Cross_Team, SUM(cross_team AND praised) AS Praised, SUM(cross_team AND shared) AS Praise_Shared_With_You,
+          SUM(cross_team AND recognized) AS Recognized, SUM(cross_team AND praised AND NOT recognized) AS Praised_Not_Recognized,
+          SUM(NOT cross_team) AS Own_Team, SUM(NOT cross_team AND recognized) AS Own_Team_Recognized FROM c""", window)
+    c2, survey = q.run(f"""SELECT Survey_Date, Responses, Mean_Score, Favorable_Percent FROM HR_survey_summary
+        WHERE Dimension = 'Recognition' AND Team IN {q.team_in()} AND Survey_Date = :qend AND Responses >= {SURVEY_MIN_RESPONSES}""", window)
+    c3, voice = q.run(f"""SELECT COUNT(*) AS Responses, ROUND(100.0 * AVG(c.Response_Score >= 4)) AS Positive_Percent,
+          ROUND(100.0 * AVG(c.Response_Score <= 2)) AS Negative_Percent
+        FROM HR_survey_comments c JOIN HR_survey_summary s ON c.Survey_ID = s.Survey_ID
+        WHERE c.Dimension = 'Recognition' AND c.Team IN {q.team_in()} AND c.Survey_Date = :qend AND s.Responses >= {SURVEY_MIN_RESPONSES}
+        HAVING COUNT(*) >= {SURVEY_MIN_RESPONSES}""", window)
+    c4, examples = q.run(f"""SELECT c.Contribution_ID, c.Employee_ID, c.Employee_Name, c.Beneficiary_Team AS Team_Helped, c.Contribution_Date,
+          c.Business_Outcome, MAX(f.Shared_With_Home_Manager = 'Yes') AS Praise_Shared_With_You
+        FROM OP_contributions c JOIN HR_recognition_feedback f ON f.Contribution_ID = c.Contribution_ID AND f.Interaction_Type = 'Partner feedback'
+        WHERE c.Employee_ID IN ({q.team_filter}) AND c.Home_Team <> c.Beneficiary_Team AND c.Contribution_Date BETWEEN :qstart AND :qend
+          AND NOT EXISTS(SELECT 1 FROM HR_recognition_feedback r WHERE r.Contribution_ID = c.Contribution_ID AND r.Interaction_Type = 'Manager recognition')
+        GROUP BY c.Contribution_ID ORDER BY Praise_Shared_With_You DESC, c.Contribution_Date LIMIT 3""", window)
+    w = work[0]
+    total = w["Cross_Team"] or 0
+    if not total:
+        return f"Your team recorded no cross-team contributions in {_quarter(end)} [{c1}].", [], [], []
+    recognized_pct = 100 * (w["Recognized"] or 0) / total
+    own_pct = 100 * (w["Own_Team_Recognized"] or 0) / w["Own_Team"] if w["Own_Team"] else None
+    praised = w["Praised"] or 0
+    favorable = survey[0]["Favorable_Percent"] if survey else None
+    findings = [
+        (f"In {_quarter(end)} your team made {total} contributions to other teams; {praised} drew written praise from the team "
+         f"they helped, but only {w['Recognized']} ({recognized_pct:.0f}%) were recognized by a manager.", [c1]),
+    ]
+    if own_pct is not None:
+        findings.append((f"Work for your own team was recognized {own_pct:.0f}% of the time, so cross-team help is "
+                         f"{'less' if recognized_pct < own_pct else 'not less'} likely to be recognized.", [c1]))
+    if praised:
+        findings.append((f"{w['Praised_Not_Recognized']} praised contributions have no recognition, and "
+                         f"{w['Praise_Shared_With_You']} of the praise notes were sent to you.", [c1]))
+    if favorable is not None:
+        findings.append((f"Yet the team's Recognition survey is {favorable:.0f}% favorable "
+                         f"({survey[0]['Mean_Score']:.2f} out of 5), so most people feel recognized overall.", [c2]))
+    answer = " ".join(f"{text} [{c[0]}]" for text, c in findings)
+
+    feedback_tone = _tone(recognized_pct, 50, 25)
+    voice_tone = _tone(favorable) if favorable is not None else None
+    conflict = voice_tone is not None and (voice_tone == "good") != (feedback_tone == "good")
+    q.extra["triangle"] = {
+        "work": {"value": str(total), "label": "contributions to other teams", "tone": "neutral", "agent": "Cherry"},
+        "feedback": {"value": f"{recognized_pct:.0f}%", "label": "of that work recognized by a manager", "tone": feedback_tone, "agent": "Cherry"},
+        "voice": {"value": f"{favorable:.0f}%" if favorable is not None else "n/a",
+                  "label": "say recognition is good" if favorable is not None else "not enough survey responses",
+                  "tone": voice_tone or "neutral", "agent": "Vanilla"},
+        "agreement": "conflict" if conflict else "aligned",
+        "note": ("The records and the survey disagree: people feel recognized overall, but most help given to other teams "
+                 "has no recognition record. Both can be true: informal thanks may be unrecorded, or the people doing the "
+                 "most cross-team work may be a minority of respondents.") if conflict else
+                "The records and the survey point the same way.",
+    }
+    if voice:
+        q.extra["voice"] = {"topic": "Recognition", "responses": voice[0]["Responses"],
+                            "positive": voice[0]["Positive_Percent"], "negative": voice[0]["Negative_Percent"]}
+    q.extra["examples"] = [{"contribution_id": e["Contribution_ID"], "employee_id": e["Employee_ID"], "name": e["Employee_Name"],
+                            "team_helped": e["Team_Helped"], "date": e["Contribution_Date"], "outcome": e["Business_Outcome"],
+                            "praise_reached_you": bool(e["Praise_Shared_With_You"])} for e in examples]
+    q.extra["next_steps"] = [
+        f"Start with the {w['Praise_Shared_With_You']} praise notes already sent to you: recognize the work specifically, naming the team it helped.",
+        "Ask the managers your team helps most to copy you on partner feedback.",
+        "Check again after next quarter's review using the measures below.",
+    ]
+    q.extra["watch"] = [
+        {"metric": "Cross-team work recognized by a manager", "baseline": f"{recognized_pct:.0f}%", "goal": "above 50%"},
+        {"metric": "Praised cross-team work left unrecognized", "baseline": str(w["Praised_Not_Recognized"]), "goal": "fewer each quarter"},
+        {"metric": "Recognition survey favorable", "baseline": f"{favorable:.0f}%" if favorable is not None else "n/a", "goal": "hold steady"},
+    ]
+    chart_rows = [{"Stage": "Helped another team", "Contributions": total},
+                  {"Stage": "Praised by that team", "Contributions": praised},
+                  {"Stage": "Praise reached you", "Contributions": w["Praise_Shared_With_You"] or 0},
+                  {"Stage": "Recognized by a manager", "Contributions": w["Recognized"] or 0}]
+    q.evidence.append({"citation_id": f"SQL{len(q.evidence) + 1}", "producer": "Cherry", "sql": f"-- reshaped from {c1} for charting",
+                       "rows": chart_rows, "truncated": False, "scope": q.scope.__dict__, "parameters": []})
+    chart = {"source_id": q.evidence[-1]["citation_id"], "kind": "bar", "x": "Stage", "y": "Contributions",
+             "title": f"Where cross-team work drops out of sight ({_quarter(end)})", "x_label": "Stage", "y_label": "Contributions",
+             "unit": "contributions"}
+    limits = ["Recognition records cover formal feedback logged at quarterly reviews; informal thanks may be unrecorded.",
+              "The survey covers everyone surveyed in the team, which can include people outside your pilot roster.",
+              "Use the examples to start a conversation, not to rate individuals."]
+    return answer, findings, [chart], limits
+
+
+GUARDRAIL = re.compile(r"\b(who (said|wrote|complained|posted|is unhappy|feels|thinks|answered)|which (employee|person|people|colleague)s? "
+                       r"(said|wrote|complained|feel|answered)|identify|de-?anonymi[sz]e|name the (person|people|employee)|which comment)\b")
+
+
+def guarded(question):
+    return bool(GUARDRAIL.search(question.lower()))
+
+
+def declined(scope, question):
+    answer = ("Echo can't identify who wrote a survey response. Responses are anonymous by design, and using Echo to "
+              "trace them back to people would break the trust the survey depends on. I can show what the team is saying "
+              "as overall themes, or look at recorded work and feedback, which are not anonymous.")
+    artifact = {"agent": "Original", "question": question, "answer": answer, "scope": scope.__dict__, "evidence": [],
+                "mode": "offline-demo", "status": "declined", "verification": {"decision": "declined", "drafts_checked": 1},
+                "delegations": [], "visualization": {"charts": []}, "rag": {}, "execution": {}, "sentiment": {}, "findings": [],
+                "limitations": [], "next_steps": ["Open Team pulse to see themes from the survey without individual responses.",
+                                                  "Ask \"Is my team's cross-team work being recognized?\" to look at recorded work instead."],
+                "clarification_questions": [], "failure": {},
+                "guardrail": {"rule": "No re-identification of anonymous survey responses",
+                              "checked_by": "ZeroSugar", "detail": "Requests to find out who said something are declined before any data is read."}}
+    return artifact, events(scope, 0, False, 0, declined=True)
+
+
 HANDLERS = [
+    ("cross team work being recognized", invisible_work),
     ("how is recognition trending", recognition_trend),
     ("this quarter s recognition metrics", this_quarter_recognition),
     ("recognition over eight quarters", recognition_eight_quarters),
@@ -292,6 +418,8 @@ def supported(question):
 
 def build(database, scope, question):
     """Returns (artifact, events) for a supported question, or None."""
+    if guarded(question):
+        return declined(scope, question)
     handler = supported(question)
     if handler is None:
         return None
@@ -323,7 +451,9 @@ def build(database, scope, question):
         "sentiment": {}, "findings": finding_items, "limitations": limits, "next_steps": [],
         "clarification_questions": [], "failure": {}, "diagnostics": {},
     }
-    return artifact, events(scope, len(q.evidence), bool(charts), len(finding_items))
+    artifact.update(q.extra)
+    return artifact, events(scope, len([e for e in q.evidence if not e["sql"].startswith("--")]), bool(charts),
+                            len(finding_items), voice="voice" in q.extra)
 
 
 def unsupported(scope, question):
@@ -336,7 +466,7 @@ def unsupported(scope, question):
     return artifact, events(scope, 0, False, 0, plan_only=True)
 
 
-def events(scope, queries, chart, findings, plan_only=False):
+def events(scope, queries, chart, findings, plan_only=False, voice=False, declined=False):
     """An execution log in Echo's format, so the agent strip lights up the same way as a live run."""
     run_id = "offline_" + datetime.now().strftime("%Y%m%d_%H%M%S")
     clock = [0.0]
@@ -351,8 +481,15 @@ def events(scope, queries, chart, findings, plan_only=False):
     add("scope_ready", **scope.__dict__)
     add("model_started", agent="Original", profile="offline_fixture")
     add("model_finished", agent="Original", profile="offline_fixture", tools=["submit_plan"])
-    add("workflow_plan", agent="Original", needs_numbers=not plan_only, needs_text=False, include_chart=chart,
+    add("workflow_plan", agent="Original", needs_numbers=not (plan_only or declined), needs_text=voice, include_chart=chart,
         needs_clarification=plan_only)
+    if declined:
+        add("model_started", agent="ZeroSugar", profile="offline_fixture", step=0.6)
+        add("model_finished", agent="ZeroSugar", profile="offline_fixture", tools=["submit_review"])
+        add("verification_finished", agent="ZeroSugar", decision="declined", step=0.6)
+        add("response_finished", status="declined")
+        add("run_finished", status="declined")
+        return log
     if plan_only:
         add("response_finished", status="needs_clarification")
         add("run_finished", status="needs_clarification")
@@ -366,6 +503,13 @@ def events(scope, queries, chart, findings, plan_only=False):
         add("tool_finished", agent="Cherry", tool="execute_sql", step=0.6)
     add("agent_finished", agent="Cherry")
     add("tool_finished", agent="Original", tool="ask_cherry")
+    if voice:
+        add("tool_started", agent="Original", tool="ask_vanilla")
+        add("agent_started", agent="Vanilla")
+        add("tool_started", agent="Vanilla", tool="summarize_voice", step=0.6)
+        add("tool_finished", agent="Vanilla", tool="summarize_voice", step=0.9)
+        add("agent_finished", agent="Vanilla")
+        add("tool_finished", agent="Original", tool="ask_vanilla")
     add("model_started", agent="Original", profile="offline_fixture")
     add("model_finished", agent="Original", profile="offline_fixture", step=0.6)
     add("model_started", agent="Lime", profile="offline_fixture")
