@@ -3,7 +3,7 @@
 Echo's Python code, prompts, configuration and operating documentation are in English.
 The local SQLite database is built from eleven application tables (630,339 synthetic rows
 in the inspected dataset). A new clone runs `import_data.py` once; an existing database
-does not need another import to configure a provider. Reviewed: 2026-10-21. See
+does not need another import to configure a provider. Reviewed: 2026-10-22. See
 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for observed results and the
 [reference map](DOCUMENTATION_MAP.md) for current guides and historical notes.
 
@@ -16,6 +16,13 @@ does not need another import to configure a provider. Reviewed: 2026-10-21. See
 | **ZeroSugar** | Review the candidate against evidence and request corrections | Evidence checks, structured seven-dimension model review; no unrestricted database access |
 
 Original, Cherry, Vanilla and ZeroSugar retain their existing names; Lime is the fifth role. Engagement, recognition and priority conflicts are analysis topics across these roles. Detailed responsibilities, outputs, tools and worked examples are in [AGENT_ROLES.md](AGENT_ROLES.md).
+
+The 2026-10-22 coordination update shares request-derived deliverables with specialists
+and the reviewer. ZeroSugar identifies concrete mandatory corrections and assesses prior
+pending items on the revised answer; optional phrasing remains a suggestion. Partial output
+names current reviewed gaps. Specialist formats, standalone commands and source-facts-v3
+remain. No tests or provider calls were run for this update, by request. See
+[coordination and corrections](WORKFLOW_RELIABILITY.md#requested-deliverables-and-explicit-corrections-2026-10-22).
 
 ## Start with the correct kind of test
 
@@ -43,9 +50,10 @@ leave a log ending at the last started step without a final status. Earlier fail
 that had no log cannot be reconstructed retroactively.
 
 Live evaluation is already in progress. Luna's fourth run completed a source-matching
-numeric comparison; its fifth run failed before independent comment-analysis review.
-The next step is repeating that comment question after the routing/retry/source repairs.
-No saved sixth-run result was present at this review. Python runs Echo locally in both
+numeric comparison; its tenth comment run reached completed reviews and released partial
+findings but omitted requested literal examples from the visible answer. It predates the
+coordination update. Preserve that artifact and use a fresh filename for a later authorized
+attempt. Python runs Echo locally in both
 modes: with a configured API it calls a real model; `--demo` substitutes programmed
 responses. Connection probes establish API/tool access for that request, not analytic quality.
 

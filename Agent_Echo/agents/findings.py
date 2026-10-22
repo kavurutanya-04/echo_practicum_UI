@@ -53,3 +53,15 @@ def safe_follow_up(targets):
                 "Original": "Some conclusions or their presentation still require correction.",
                 "clarify": "A necessary part of the request needs clarification."}
     return [messages[t] for t in sorted(set(targets)) if t in messages]
+
+
+def unresolved_follow_up(verdict):
+    """Publish current reviewed gaps, not a generic diagnosis based on agent name."""
+    from .validation import planning_value
+
+    messages = list(verdict.deterministic_issues) + list(verdict.issues)
+    if not messages:
+        messages = [item["reason"] for item in verdict.findings if item.get("status") != "supported"]
+    # The diagnostics redactor also bounds each model-authored review message.
+    return list(dict.fromkeys(planning_value(text)["value"] for text in messages
+                              if isinstance(text, str) and text.strip()))

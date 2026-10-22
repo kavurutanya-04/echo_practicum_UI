@@ -1,7 +1,7 @@
 # Echo documentation map
 
-Reviewed: 2026-10-21 (America/New_York), against the current local implementation
-and the saved live artifacts through run nine. Current answers use source-facts-v3;
+Reviewed: 2026-10-22 (America/New_York), against the current local implementation
+and the saved live artifacts through run ten. Current answers use source-facts-v3;
 historical test/replay counts below predate it. This is an index and maintenance guide, not an
 additional runtime policy or a benchmark. No new provider request was made for this review.
 
@@ -14,6 +14,7 @@ additional runtime policy or a benchmark. No new provider request was made for t
 | [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) | Compact current state, observed runs, approved decisions and next test. |
 | [Repository README](../README.md) | Clone/setup, repository contents and collaboration. |
 | [Application README](README.md) | Running Echo, configuration, artifacts, statuses and data access. |
+| [UI README](../Echo_UI/README.md) | Group-built local manager UI and technical console; its startup script targets macOS/Linux. Current Windows startup evidence and command are recorded in PROJECT_CONTEXT.md. |
 | [AGENT_ROLES.md](AGENT_ROLES.md) | Responsibilities, tools, inputs/outputs and boundaries of all five roles. |
 | [WORKFLOW_RELIABILITY.md](WORKFLOW_RELIABILITY.md) | Planning, bounded retries, declines, retained evidence, structured repair feedback, independent review, release gates and minimized diagnostics. |
 | [SOURCE_GROUNDING.md](SOURCE_GROUNDING.md) | Source-bound numeric facts, cited synthesis, literal examples, v2 presentation and v1 replay compatibility. |
@@ -58,12 +59,19 @@ them or approve their proposals.
 5. Generated Codex memory, classroom sources, source datasets and license text are not
    automatically edited by project-document maintenance.
 
-Current next local attempt: repeat the Recognition-comments question with the same M14/Q3
-2026 scope and `--profile apinex_test --run-seconds 1000`, saving a fresh artifact such as
-`reports/apinex_prueba_vanilla_10.json`. Runs six through nine have saved observations in
-PROJECT_CONTEXT.md. Per user instruction, no tests or API calls were run for v3; a supplied
-command is not proof of completion. Interactive chat, natural-language date resolution,
-authentication and enterprise writes remain deferred.
+The first-stage coordination update is documented in
+[workflow reliability](WORKFLOW_RELIABILITY.md#requested-deliverables-and-explicit-corrections-2026-10-22),
+role responsibilities and the source contract. Runtime ownership remains in Original and
+ZeroSugar; specialist answer/evidence formats are retained. No new reference file is needed.
+
+For a later authorized attempt, repeat the Recognition-comments question with the same
+M14/Q3 2026 scope and `--profile apinex_test --run-seconds 1000`, saving a fresh artifact
+such as `reports/apinex_prueba_vanilla_11.json`. Run ten is preserved and recorded in
+PROJECT_CONTEXT.md. Per user instruction, no tests, replay, API calls or GitHub publication
+were performed at the initial stage of the 2026-10-22 update; publication was later
+authorized separately (see PROJECT_CONTEXT.md). A supplied command is not proof of completion.
+The group's manager chat UI is now available locally (see PROJECT_CONTEXT.md).
+Natural-language date resolution, authentication and enterprise writes remain deferred.
 
 Historical documentation review checks: 17 Markdown references and 147 relative file/heading links checked without
 errors; documented CLI options checked against `--help`. License text was unchanged.

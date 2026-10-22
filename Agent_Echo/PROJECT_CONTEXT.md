@@ -1,10 +1,12 @@
 # Echo: current project context
 
-Reviewed: 2026-10-21 (America/New_York). This is a short entry point for future chats. It describes the local files inspected on this date; verify relevant sources before changing behavior. It is not a benchmark report or a transcript of every project conversation.
+Reviewed: 2026-10-22 (America/New_York). This is a short entry point for future chats. It describes the local files inspected on this date; verify relevant sources before changing behavior. It is not a benchmark report or a transcript of every project conversation.
 
 ## Purpose and architecture
 
-Echo is the Practicum HR/people-analytics prototype. It uses synthetic employee data to support manager review. The current application runs in a terminal and exports local artifacts.
+Echo is the Practicum HR/people-analytics prototype. It uses synthetic employee data to support manager review. The application runs in a terminal and exports local artifacts; a local web UI is also available in [Echo_UI](../Echo_UI/README.md).
+
+Local UI setup, 2026-10-22: copied only `Echo_UI/` from `origin/main` at `fcc014a`, preserving the existing uncommitted agent changes. Built the frontend and started FastAPI at `http://127.0.0.1:8765` using the separate Windows Python 3.12 environment `Echo_UI/.venv-windows`. HTTP checks confirmed the page, M14 lookup and scoped overview; browser inspection confirmed M14's manager workspace in its default Demo mode. No analysis or live model call was run. This verifies local UI startup, not answer quality. The repository's `start.sh` is for macOS/Linux; this local Windows server was started directly with `.venv-windows/Scripts/python.exe -m uvicorn app:app --host 127.0.0.1 --port 8765` from `Echo_UI/backend/`. The existing local Git branch was not merged or committed.
 
 | Role | Current responsibility | Main implementation |
 | --- | --- | --- |
@@ -38,6 +40,26 @@ instruction file and local historical reference. `AGENTS.md` guides project main
 
 ## Current implemented contracts
 
+First-stage coordination update, 2026-10-22, after run ten: Original's existing plan now
+requests literal request-derived deliverables with analytical owners. The checklist
+accompanies specialist assignment, final synthesis and review; the original question
+remains authoritative. Existing Vanilla/Cherry answer/evidence formats and standalone
+commands remain. ZeroSugar returns explicit corrections per mandatory issue, including
+owner, requested change and available sources, and assesses each previous pending item
+on the next candidate while reviewing the entire revised package. Optional wording is
+a suggestion, not a reason to block. Partial output names current reviewed gaps rather
+than inferring them from the agent targeted for repair. Older planning/review fields
+remain readable; no source-facts-v3 answer or v1/v2 replay change is introduced. Code
+checks structure/references, not semantic completion. No tests, replay, provider calls,
+commit or GitHub publication were performed at that initial stage, as requested. The existing
+revision/call/time/token limits remain. Evidence-only handoff is still deferred. See
+[coordination contract](WORKFLOW_RELIABILITY.md#requested-deliverables-and-explicit-corrections-2026-10-22).
+
+Publication follow-up, 2026-10-22: the user subsequently authorized committing and pushing
+the pending coordination code and reference updates, incorporating the group's UI commits
+from `origin/main`. This publication does not validate runtime behavior or answer quality;
+no new runtime tests, artifact replay or provider calls are part of this follow-up.
+
 First-stage v3 update, 2026-10-21, after run nine: narrative quantities/quantifiers now
 produce nonblocking review warnings, not automatic answer rejection. Interpretations may
 cite text or source rows with `quote=null`, regardless of source count; supplied illustrative
@@ -48,7 +70,8 @@ sources, exact excerpts, coverage and controlled calculations; it does not assig
 or prove prose meaning. Rejections/normalizations retain bounded redacted narrative context
 and feedback; warning assessments are logged. Saved v1/v2 rendering remains implemented.
 No tests, artifact replay or API calls were run, by user instruction; only static review.
-The next live attempt uses a fresh filename such as `apinex_prueba_vanilla_10.json`.
+At that point the proposed next filename was `apinex_prueba_vanilla_10.json`; its later
+observed result and the current next filename are recorded below.
 A successful answer remains the goal, not a demonstrated outcome of these code changes.
 Specialist evidence-only handoff remains a separate second-stage proposal. See
 [v3 workflow](WORKFLOW_RELIABILITY.md#narrative-review-signals-and-presentation-v3-2026-10-21)
@@ -149,6 +172,21 @@ Eighth-run observation: `apinex_prueba_vanilla_8.json` and
 `clarification_basis_required`. No specialist, data tool or independent review ran. The
 planning update above follows this failure; the saved run is preserved unchanged.
 
+Tenth-run observation, inspected 2026-10-21/22: `apinex_prueba_vanilla_10.json` and
+`logs/20261021_233751_93460f0e607c.jsonl` record `partial`, 12 successful Luna calls
+(Original 4, Vanilla 4, ZeroSugar 4) and 228.875 seconds. All 13 comments were classified
+(8 positive, 2 negative, 3 mixed; zero neutral/indeterminate); current scoped source IDs,
+hashes, literal excerpts and aggregation matched in a read-only audit. They belong to
+SUR2134, dated 2026-09-30. Vanilla's batch repaired two nonliteral excerpts; each review
+repaired a rating-schema submission. The final review supported all six included blocks
+with zero deterministic issues but requested the positive/critical literal examples
+missing from the visible answer. Both examples were already in attached evidence.
+Original added patterns during its one correction pass but still omitted the examples;
+two candidate versions exhausted the revision bound, not the 1000-second allowance.
+The reviewer also objected to usable "ask the team:" question phrasing. Semantic labels
+remain provisional; this result does not validate the new coordination update. Preserve
+run ten and use a fresh filename such as `apinex_prueba_vanilla_11.json` for a later run.
+
 Ninth-run observation: `apinex_prueba_vanilla_9.json` and
 `logs/20261021_182928_c61f05bcd469.jsonl` record `failed`, 17 successful calls
 (Original 8, Vanilla 9) and 328.235 seconds. Planning passed immediately without needing
@@ -180,7 +218,7 @@ The latter two list configuration/cases without making model requests. Live eval
 
 - Preserve the five-role baseline while evaluating answer quality, usefulness, and provider/model fit.
 - The user wants evidence-grounded conclusions and useful partial results when independent findings survive a component failure.
-- UI and enterprise integration are deferred in the existing decision document. Dedicated recommendation/planning/execution/monitoring roles are proposals, not implemented agents.
+- The existing decision document historically deferred UI and enterprise integration. The group's local UI is now available as recorded above; enterprise integration remains deferred. Dedicated recommendation/planning/execution/monitoring roles are proposals, not implemented agents.
 - The existing [brainstorming and decisions document](../echo_brainstorm_resumen_y_decisiones.md), reviewed 2026-10-17, already records architecture, reviewed live examples, limitations, and candidate extensions. It is the detailed source for those discussions; do not present every proposal as approved. This source is present locally but currently ignored by Git, so another checkout may not contain it.
 - The current model-selection discussion is exploratory. Compare the same representative HR questions and inspect tool correctness, cited findings, unsupported claims, total task cost, and latency before choosing.
 

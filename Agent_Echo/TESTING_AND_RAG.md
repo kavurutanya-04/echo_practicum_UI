@@ -1,20 +1,38 @@
 # What can be tested without an API, and how to verify RAG
 
-Updated 2026-10-21. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
+Updated 2026-10-22. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
 
-Latest update: `source-facts-v3` turns narrative digit/quantifier rejections into review
+Latest update, 2026-10-22: requested-deliverable coordination and explicit corrections
+retain source-facts-v3 and specialist formats. No tests, saved-artifact replay or provider
+calls were run, by user instruction; GitHub publication was initially deferred and later
+authorized separately (see PROJECT_CONTEXT.md). Static review
+does not establish model compliance. Later validation should cover numeric-only, text-only,
+mixed and standalone specialist paths; retained examples missing from visible answers;
+all prior corrections resolved/unresolved; optional wording suggestions; runtime coverage
+failures; legacy review/plan fields; and complete-package review after a localized edit.
+The new response fields add structural work within the existing call/attempt budgets;
+their provider compliance and token cost remain unmeasured. See the
+[coordination contract](WORKFLOW_RELIABILITY.md#requested-deliverables-and-explicit-corrections-2026-10-22).
+Preserve run ten and use a fresh filename, e.g. `reports/apinex_prueba_vanilla_11.json`,
+for a later authorized live attempt.
+
+Static-only evidence for this update: four changed Python sources parsed without importing
+the application; local link targets in eight affected guides existed; the new coordination
+heading was present; the whitespace/diff check was clean. These are not runtime tests.
+
+Historical v3 update, 2026-10-21: `source-facts-v3` turns narrative digit/quantifier rejections into review
 signals, normalizes unambiguous presentation, permits row/single-source interpretations
 without quotes, and retains bounded redacted diagnostic context. Per user instruction,
 no local tests, saved-artifact replay or live/provider calls were run for this update.
 Only static source/syntax/diff review is permitted in this task. All test counts below
 are historical and do not validate v3; existing assertions about default numeric rejection,
 single-source mandatory quotes and minimized narrative omission describe the old contract.
-Saved v1/v2 replay branches remain implemented. The next user-run live attempt must use
-a fresh filename, such as `reports/apinex_prueba_vanilla_10.json`, preserving runs 1-9.
+Saved v1/v2 replay branches remain implemented. The then-proposed tenth run has since
+been inspected; its result predates the coordination update and is recorded in PROJECT_CONTEXT.md.
 Completion requires an actual completed independent review and requested answer coverage,
 not merely successful provider calls. See
 [v3 workflow](WORKFLOW_RELIABILITY.md#narrative-review-signals-and-presentation-v3-2026-10-21).
-Static evidence for this task: Python's syntax parser accepted all seven changed Python
+Static evidence for that 2026-10-21 update: Python's syntax parser accepted all seven changed Python
 files without importing the application; the staged whitespace/diff check was clean.
 Neither activity executes a test or demonstrates model behavior.
 

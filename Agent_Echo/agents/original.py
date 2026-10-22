@@ -10,7 +10,7 @@ from .zero_sugar import ZeroSugarAgent
 from .lime import LimeAgent
 from .runtime import RunBudget, Specialist, function_tool, AgentResult, AgentRunError, reject_calls
 from .execution_log import record, error_summary, explain_failure
-from .findings import safe_follow_up, clarification_question
+from .findings import safe_follow_up, clarification_question, unresolved_follow_up
 from .policies import with_policies
 from .validation import ValidationError, repair_feedback, planning_value
 
@@ -36,6 +36,18 @@ Recommend practical actions for human review with a measurable follow-up when wa
 An independent verifier will check your candidate before release.
 When revision feedback is supplied, correct the specified issues using the supplied evidence
 or ask a specialist for additional evidence. Do not merely hide limitations.
+The supplied request_deliverables are a planning checklist, not proof of completeness.
+Delegate every relevant requested component to its specialist, including interpretation,
+examples and limits when requested; you still own the complete final answer. A specialist's
+answer and its evidence are different: usable excerpts can already be in evidence.examples
+or canonical response text even when absent from the specialist's prose. Include requested
+examples in the final answer using the existing literal quote field and source IDs.
+Before submission, check each requested deliverable against the visible answer, not merely
+against evidence collected. Use the original question to catch omissions in the checklist.
+During repair, address every pending_correction explicitly while preserving other requested
+content. Reuse supplied evidence for presentation omissions; ask a specialist only for
+missing or disputed analysis/evidence. A concise supported synthesis can replace repeated
+prose; removing a requested interpretation or example does not resolve redundancy.
 Workflow examples:
 - A quarterly Recognition trend with anonymous context: ask Cherry for Survey_Date,
   Team, Responses and Mean_Score, then Vanilla for supportive and critical passages.
@@ -118,7 +130,14 @@ class OriginalAgent(Specialist):
                 "metric": {"type": "string", "enum": ["cross_team_contributions", "survey_trend"]},
                 "dimension": {"type": ["string", "null"], "description":
                     "Exact survey topic for survey_trend; null for cross-team counts. Never a time grouping."}},
-                "required": ["metric", "dimension"], "additionalProperties": False}}})]
+                "required": ["metric", "dimension"], "additionalProperties": False}},
+            "deliverables": {"type": "array", "maxItems": 16, "description":
+                "All explicitly requested output components, quoted from the original question; no added requirements. Owner supplies the analysis, Original owns final presentation.",
+                "items": {"type": "object", "properties": {
+                    "request_excerpt": {"type": "string", "minLength": 1, "maxLength": 400},
+                    "owner": {"type": "string", "enum": ["Original", "Cherry", "Vanilla", "Lime"]}},
+                    "required": ["request_excerpt", "owner"], "additionalProperties": False}},
+        })]
         history = [{"role": "user", "content": json.dumps({"question": question, "scope": self.scope.__dict__})}]
         reconsidered_clarification = False
         for attempt in range(1, 3):
@@ -138,6 +157,10 @@ class OriginalAgent(Specialist):
                 "dimension explicitly needed by the user's rating question. Never copy example dimensions or add unrequested metrics. Cross-team counts use "
                 "cross_team_contributions with dimension=null. Use metrics=[] for custom SQL or no numeric work. "
                 "The application prepares these metrics; Cherry keeps tools to complete additional calculations. "
+                "List all explicitly requested output components in deliverables, using exact contiguous excerpts "
+                "from the question and the role supplying the analysis. Include requested examples, synthesis, "
+                "limitations and follow-up questions, not only calculations. Original owns final integration. "
+                "Do not invent output requirements or select additional roles just to fill the checklist. "
                 "All output is English. Use clarification_question=null and clarification_basis=null unless a necessary "
                 "task detail prevents proceeding. Otherwise supply a concrete missing_detail, blocking_reason and exact "
                 "request_excerpt after reading the COMPLETE request. Your proposed clarification will be returned once "
@@ -164,7 +187,11 @@ class OriginalAgent(Specialist):
                 if isinstance(plan, dict) and self.mode != "live":
                     plan.setdefault("clarification_basis", None)
                     plan.setdefault("needs_sentiment", False)
-                if not isinstance(plan, dict) or set(plan) != {"needs_numbers", "needs_text", "needs_sentiment", "include_chart", "clarification_question", "clarification_basis", "metrics"}:
+                if isinstance(plan, dict):
+                    # Older submissions did not carry a checklist; the full question
+                    # remains authoritative and must still receive independent review.
+                    plan.setdefault("deliverables", [])
+                if not isinstance(plan, dict) or set(plan) != {"needs_numbers", "needs_text", "needs_sentiment", "include_chart", "clarification_question", "clarification_basis", "metrics", "deliverables"}:
                     raise ValueError("Plan fields differ from the required schema.")
                 if any(type(plan[k]) is not bool for k in ("needs_numbers", "needs_text", "needs_sentiment", "include_chart")):
                     raise ValueError("Plan flags must be booleans.")
@@ -213,6 +240,7 @@ class OriginalAgent(Specialist):
                                              ", ".join(dimensions) + ". A quarter is a time grouping, not a survey dimension.")
                         request["dimension"] = matches[0] if matches else request["dimension"].strip()
                 plan["metrics"] = list({(r["metric"], r["dimension"]): r for r in plan["metrics"]}.values())
+                plan["deliverables"] = self.validate_deliverables(plan["deliverables"], question)
                 record("workflow_plan", agent="Original", needs_numbers=plan["needs_numbers"],
                        needs_text=plan["needs_text"], needs_sentiment=plan["needs_sentiment"], include_chart=plan["include_chart"], needs_clarification=q is not None,
                        metric_count=len(plan["metrics"]))
@@ -224,6 +252,23 @@ class OriginalAgent(Specialist):
                 history.append({"type": "function_call_output", "call_id": call.call_id,
                                 "output": json.dumps(feedback)})
         raise RuntimeError("Original did not return a valid bounded analysis plan.")
+
+    @staticmethod
+    def validate_deliverables(items, question):
+        """Validate source/structure only; the reviewer still judges task meaning."""
+        if not isinstance(items, list) or len(items) > 16:
+            raise ValidationError("deliverables_list", "deliverables", "Return at most 16 requested deliverables.")
+        result = []
+        for index, item in enumerate(items):
+            if not isinstance(item, dict) or set(item) != {"request_excerpt", "owner"}:
+                raise ValidationError("deliverable_fields", "deliverables", "Each deliverable needs request_excerpt and owner only.", item_index=index)
+            excerpt, owner = item["request_excerpt"], item["owner"]
+            if not isinstance(excerpt, str) or not 1 <= len(excerpt) <= 400 or not excerpt.strip() or excerpt not in question:
+                raise ValidationError("deliverable_excerpt", "deliverables.request_excerpt", "Copy a nonempty exact excerpt from the original question, up to 400 characters.", item_index=index)
+            if not isinstance(owner, str) or owner not in {"Original", "Cherry", "Vanilla", "Lime"}:
+                raise ValidationError("deliverable_owner", "deliverables.owner", "Choose an existing analysis role.", item_index=index)
+            result.append({"deliverable_id": f"D{index + 1}", **item})
+        return result
 
     def record_planning_attempt(self, attempt, status, received, feedback, feedback_sent,
                                 validation_code=None, **details):
@@ -307,7 +352,8 @@ class OriginalAgent(Specialist):
                 retained.update({item["citation_id"]: item for item in prepared})
                 prepared = list(retained.values())
             context = ([{"role": "user", "content": json.dumps({"original_request": self.original_request,
-                        "note": "Context for this delegated task; preserve the application scope and your specialist role."})}]
+                        "assigned_deliverables": [item for item in getattr(self, "request_deliverables", []) if item["owner"] == name],
+                        "note": "Address the assigned analytical components within your role and fixed scope. Return the existing answer/evidence format. Original owns final integration; distinguish analysis, source examples and unavailable evidence."})}]
                        if getattr(self, "original_request", None) else [])
             result = child.run(question, initial_evidence=prepared, context=context)
         except AgentRunError as error:
@@ -340,6 +386,7 @@ class OriginalAgent(Specialist):
             tool_limit=48 + 2 * max(0, self.model_call_limit - 32), seconds=self.run_seconds)
         self.last_result, self.last_verdict = None, None
         self.planned_metrics, self.prepared_metrics, self.repair_round = [], {}, 0
+        self.request_deliverables = []
         self.coordinator_diagnostics = {}
         self.planning_diagnostics = []
         self.declined_requests = {}
@@ -365,10 +412,10 @@ class OriginalAgent(Specialist):
     def incomplete(self, candidate, verdict):
         candidate.findings = verdict.findings if verdict else []
         targets = verdict.repair_targets if verdict else ["Original"]
-        candidate.limitations = safe_follow_up(targets) or ["The requested analysis could not be fully verified."]
+        candidate.limitations = (unresolved_follow_up(verdict) if verdict else []) or safe_follow_up(targets) or ["The requested analysis could not be fully verified."]
         if candidate.failure:
             candidate.limitations.insert(0, explain_failure(candidate.failure))
-        candidate.next_steps = ["Review the unresolved findings and retry only the affected calculation or interpretation."]
+        candidate.next_steps = ["Address the listed unresolved items using retained evidence where available, then review the complete revised answer."]
         supported = [f["text"] for f in candidate.findings if f["status"] == "supported"]
         if verdict and (verdict.deterministic_issues or verdict.ratings["Safety / Appropriateness"]["score"] < 3):
             supported = []
@@ -395,6 +442,8 @@ class OriginalAgent(Specialist):
             raise ValueError("Question must contain 1 to 4,000 characters.")
         plan = self.plan(question)
         self.coordinator_diagnostics["planning_attempts"] = self.planning_diagnostics
+        self.request_deliverables = plan.get("deliverables", [])
+        self.coordinator_diagnostics["request_deliverables"] = self.request_deliverables
         self.numeric_requested = plan["needs_numbers"] or plan["needs_sentiment"]
         self.planned_metrics = plan["metrics"]
         if "Cherry" in self.specialists:
@@ -413,6 +462,7 @@ class OriginalAgent(Specialist):
         context, evidence = [], []
         candidates, reviews, coordinator_trace = [], [], []
         prior_visuals, prior_fingerprint, targets = None, None, set()
+        pending_corrections = []
         for attempt in range(2):
             self.repair_round = attempt
             if attempt and targets == {"Lime"}:
@@ -421,7 +471,10 @@ class OriginalAgent(Specialist):
                 numeric_child = self.specialists.get("Cherry")
                 pending_coverage = numeric_child.numeric_coverage(evidence) if numeric_child else [
                     {**request, "status": "pending", "citation_id": None} for request in self.planned_metrics]
-                task_context = [{"role": "user", "content": json.dumps({"numeric_coverage": pending_coverage})}]
+                task_context = [{"role": "user", "content": json.dumps({
+                    "numeric_coverage": pending_coverage, "request_deliverables": self.request_deliverables,
+                    "pending_corrections": pending_corrections,
+                    "completion_check": "Before submitting, account for every requested component in the visible answer or explain unavailable evidence. Evidence existing internally does not make a requested example visible. Checklist and prior support do not establish semantic correctness."})}]
                 self.active_stage = "coordination"
                 candidate = super().run(question, initial_evidence=evidence, context=context + task_context,
                                         diagnostics=self.coordinator_diagnostics)
@@ -475,17 +528,22 @@ class OriginalAgent(Specialist):
                                       numeric_coverage=coverage, claims=candidate.claims or None,
                                       grounding=candidate.grounding or None,
                                       task_outcomes=[{"agent": c["agent"], "status": c["status"], "task_outcome": c.get("task_outcome", {})}
-                                                     for c in self.child_results], require_sentiment=plan["needs_sentiment"])
+                                                     for c in self.child_results], require_sentiment=plan["needs_sentiment"],
+                                      request_deliverables=self.request_deliverables, previous_corrections=pending_corrections)
             if chart_failure:
                 verdict.decision = "revise"
                 verdict.repair_targets = sorted(set(verdict.repair_targets) | {"Lime"})
                 verdict.issues.append("The planned chart could not be completed.")
+                verdict.corrections.append({"correction_id": f"C{len(verdict.issues)}",
+                    "issue_index": len(verdict.issues) - 1, "issue": verdict.issues[-1], "kind": "coverage",
+                    "owner": "Lime", "requested_change": verdict.issues[-1], "citation_ids": [], "request_excerpt": None})
                 candidate.failure = chart_failure
             reviews.append(asdict(verdict))
             candidate.diagnostics["verification"] = verifier.diagnostics
             self.last_verdict, self.attempt_reviews = verdict, reviews
             self.active_stage = "release"
             candidate.findings = verdict.findings
+            candidate.diagnostics["pending_corrections"] = verdict.corrections
             if verdict.decision == "accept":
                 candidate.verification = {"decision": "accept", "status": "completed", "reviews": reviews, "drafts_checked": len(candidates)}
                 candidate.delegations = self.child_results
@@ -509,6 +567,7 @@ class OriginalAgent(Specialist):
                 return candidate
             evidence = candidate.evidence
             targets = set(verdict.repair_targets)
+            pending_corrections = verdict.corrections
             record("repair_requested", agent="Original", targets=sorted(targets),
                    supported_findings=sum(f["status"] == "supported" for f in verdict.findings))
             if "clarify" in targets and verdict.clarification_question:
@@ -520,7 +579,8 @@ class OriginalAgent(Specialist):
                 {"role": "user", "content": "Repair the specified mandatory issues. Preserve supported facts, meaning and sources, "
                  "while allowing rephrasing, reordering, qualitative synthesis and removal of redundant presentation. "
                  "Reuse existing evidence; the revised candidate will be reviewed again. Answer in English. " +
-                 json.dumps({"review": asdict(verdict), "evidence": evidence}, ensure_ascii=False)}]
+                 json.dumps({"review": asdict(verdict), "pending_corrections": pending_corrections,
+                             "request_deliverables": self.request_deliverables, "evidence": evidence}, ensure_ascii=False)}]
         # Rejected drafts are preserved in the local artifact, never released as findings.
         candidate.verification = {"decision": "revise", "status": "completed", "reviews": reviews, "drafts_checked": len(candidates), "rejected_drafts": candidates}
         candidate.delegations, candidate.tool_trace = self.child_results, coordinator_trace

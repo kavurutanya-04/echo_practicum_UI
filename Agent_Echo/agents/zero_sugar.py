@@ -99,6 +99,21 @@ the meaning of free prose. Do not invent a missing comparison. If the evidence c
 settle a flagged claim, explain why and request a targeted correction.
 An interpretation with quote=null may cite one or several text/row sources. A supplied
 example quote must be literal; check its context and whether requested examples exist.
+Use request_deliverables as a shared checklist and check the original question for items
+it missed. An excerpt in evidence does not satisfy a request to show it in the answer;
+do not require illustrative excerpts when the question did not request them. Pattern
+explanation describes supported themes/disagreements, not repeated category counts.
+For every issue return one corrections entry with its zero-based issue_index, kind,
+owner, specific requested_change, existing citation_ids that can help, and an exact
+request_excerpt when tied to an explicit user request (otherwise null). Original owns
+omitted presentation/synthesis when evidence is already available; Vanilla is needed
+for missing or disputed text analysis/evidence, Cherry for missing/disputed calculations.
+Suggestions do not belong in corrections. A useful direct team question remains a
+question when introduced by 'Ask the team:'. Do not require identical preferred wording.
+For each previous_correction, return a correction_review with its ID, resolved/unresolved
+status and a reason tied to the current candidate. Mark unresolved requirements as issues
+again. Review the COMPLETE revised package for regressions as well as the prior pending
+items; old support and a completed checklist never prove that the new prose is correct.
 """
 
 
@@ -114,6 +129,8 @@ class VerificationResult:
     repair_targets: list = field(default_factory=list)
     clarification_question: str | None = None
     suggestions: list = field(default_factory=list)
+    corrections: list = field(default_factory=list)
+    correction_reviews: list = field(default_factory=list)
 
 
 class ZeroSugarAgent:
@@ -145,6 +162,20 @@ class ZeroSugarAgent:
                 "required": ["finding_id", "decision", "citation_ids", "reason"], "additionalProperties": False}},
             "repair_targets": {"type": "array", "items": {"type": "string", "enum": ["Cherry", "Vanilla", "Lime", "Original", "clarify"]}},
             "clarification_question": {"type": ["string", "null"]},
+            "corrections": {"type": "array", "maxItems": 32, "items": {"type": "object", "properties": {
+                "issue_index": {"type": "integer", "minimum": 0},
+                "kind": {"type": "string", "enum": ["unsupported_claim", "missing_deliverable", "unusable_presentation"]},
+                "owner": {"type": "string", "enum": ["Original", "Cherry", "Vanilla", "Lime", "clarify"]},
+                "requested_change": {"type": "string", "minLength": 1, "maxLength": 600},
+                "citation_ids": {"type": "array", "maxItems": 16, "items": {"type": "string"}},
+                "request_excerpt": {"type": ["string", "null"], "minLength": 1, "maxLength": 400}},
+                "required": ["issue_index", "kind", "owner", "requested_change", "citation_ids", "request_excerpt"],
+                "additionalProperties": False}},
+            "correction_reviews": {"type": "array", "maxItems": 64, "items": {"type": "object", "properties": {
+                "correction_id": {"type": "string"},
+                "status": {"type": "string", "enum": ["resolved", "unresolved"]},
+                "reason": {"type": "string", "minLength": 1, "maxLength": 600}},
+                "required": ["correction_id", "status", "reason"], "additionalProperties": False}},
         })]
 
     def audit(self, answer, evidence, visualization=None):
@@ -219,7 +250,8 @@ class ZeroSugarAgent:
     def validate(report):
         basic = {"decision", "ratings", "issues", "uncertainty"}
         extended = basic | {"finding_reviews", "repair_targets", "clarification_question"}
-        if not isinstance(report, dict) or set(report) not in (basic, extended, basic | {"suggestions"}, extended | {"suggestions"}):
+        optional = {"suggestions", "corrections", "correction_reviews"}
+        if not isinstance(report, dict) or set(report) - optional not in (basic, extended):
             raise ValidationError("review_fields", "review", "Review fields differ from the required review schema.")
         if not isinstance(report["decision"], str) or report["decision"] not in {"accept", "revise"} or not isinstance(report["uncertainty"], str):
             raise ValidationError("review_decision", "decision/uncertainty", "Invalid review decision or uncertainty.")
@@ -282,7 +314,67 @@ class ZeroSugarAgent:
             seen.add(key)
         return checked
 
-    def review(self, question, answer, evidence, visualization=None, numeric_coverage=None, claims=None, grounding=None, task_outcomes=None, require_sentiment=False):
+    @staticmethod
+    def validate_corrections(report, question, evidence, previous_corrections):
+        """Check references/coverage, never infer whether prose has been corrected."""
+        known = {item.get("citation_id") for item in evidence}
+        corrections, seen = [], set()
+        supplied = report.get("corrections")
+        if "corrections" in report:
+            if not isinstance(supplied, list) or len(supplied) > 32 or len(supplied) != len(report["issues"]):
+                raise ValidationError("correction_coverage", "corrections", "Provide one correction per mandatory issue, at most 32; optional improvements belong in suggestions.")
+            fields = {"issue_index", "kind", "owner", "requested_change", "citation_ids", "request_excerpt"}
+            for index, item in enumerate(supplied):
+                if not isinstance(item, dict) or set(item) != fields:
+                    raise ValidationError("correction_fields", "corrections", "Use the declared correction fields only.", item_index=index)
+                issue_index = item["issue_index"]
+                if type(issue_index) is not int or not 0 <= issue_index < len(report["issues"]) or issue_index in seen:
+                    raise ValidationError("correction_issue", "corrections.issue_index", "Reference each current mandatory issue once using its zero-based index.", item_index=index)
+                if not isinstance(item["kind"], str) or item["kind"] not in {"unsupported_claim", "missing_deliverable", "unusable_presentation"}:
+                    raise ValidationError("correction_kind", "corrections.kind", "Choose a declared mandatory correction kind.", item_index=index)
+                if not isinstance(item["owner"], str) or item["owner"] not in {"Original", "Cherry", "Vanilla", "Lime", "clarify"}:
+                    raise ValidationError("correction_owner", "corrections.owner", "Choose an existing repair role.", item_index=index)
+                if item["owner"] == "clarify" and not report.get("clarification_question"):
+                    raise ValidationError("correction_clarification", "corrections.owner", "A clarification correction requires an actual clarification question.", item_index=index)
+                change = item["requested_change"]
+                if not isinstance(change, str) or not 1 <= len(change) <= 600 or not change.strip():
+                    raise ValidationError("correction_change", "corrections.requested_change", "Describe the specific required change in at most 600 characters.", item_index=index)
+                refs, excerpt = item["citation_ids"], item["request_excerpt"]
+                if not isinstance(refs, list) or len(refs) > 16 or any(not isinstance(ref, str) or ref not in known for ref in refs):
+                    raise ValidationError("correction_citations", "corrections.citation_ids", "Use up to 16 existing evidence citation IDs, or an empty list for missing evidence.", item_index=index)
+                if excerpt is not None and (not isinstance(excerpt, str) or not 1 <= len(excerpt) <= 400 or not excerpt.strip() or excerpt not in question):
+                    raise ValidationError("correction_excerpt", "corrections.request_excerpt", "Use null or an exact nonempty excerpt from the original question, up to 400 characters.", item_index=index)
+                seen.add(issue_index)
+                corrections.append({"correction_id": f"C{issue_index + 1}", "issue": report["issues"][issue_index], **item})
+        else:
+            # Compatibility for older reviews: preserve their issues/targets without
+            # inventing evidence links or retrospectively assigning semantic kinds.
+            targets = report.get("repair_targets", [])
+            owner = targets[0] if len(targets) == 1 else "Original"
+            corrections = [{"correction_id": f"C{index + 1}", "issue_index": index,
+                            "issue": issue, "kind": "legacy_review_issue", "owner": owner,
+                            "requested_change": issue, "citation_ids": [], "request_excerpt": None}
+                           for index, issue in enumerate(report["issues"])]
+        corrections.sort(key=lambda item: item["issue_index"])
+        assessments = report.get("correction_reviews", [])
+        expected = {item["correction_id"] for item in previous_corrections}
+        if not isinstance(assessments, list) or len(assessments) > 64:
+            raise ValidationError("correction_reviews_list", "correction_reviews", "Return a bounded list of correction assessments.")
+        seen = set()
+        for index, item in enumerate(assessments):
+            if not isinstance(item, dict) or set(item) != {"correction_id", "status", "reason"}:
+                raise ValidationError("correction_review_fields", "correction_reviews", "Assess correction_id, status and reason only.", item_index=index)
+            key, status, reason = item["correction_id"], item["status"], item["reason"]
+            if not isinstance(key, str) or key not in expected or key in seen:
+                raise ValidationError("correction_review_id", "correction_reviews.correction_id", "Assess each supplied prior correction exactly once.", item_index=index)
+            if not isinstance(status, str) or status not in {"resolved", "unresolved"} or not isinstance(reason, str) or not 1 <= len(reason) <= 600 or not reason.strip():
+                raise ValidationError("correction_review_value", "correction_reviews", "Give resolved/unresolved status and a bounded nonempty reason.", item_index=index)
+            seen.add(key)
+        if "correction_reviews" in report and seen != expected:
+            raise ValidationError("correction_review_coverage", "correction_reviews", "Assess every prior correction against the current candidate.", expected_count=len(expected), actual_count=len(seen))
+        return corrections, assessments
+
+    def review(self, question, answer, evidence, visualization=None, numeric_coverage=None, claims=None, grounding=None, task_outcomes=None, require_sentiment=False, request_deliverables=None, previous_corrections=None):
         self.diagnostics["rejected_attempts"] = []
         checks = self.audit(answer, evidence, visualization)
         unresolved_numeric = any(item["status"] in {"pending", "error"} for item in numeric_coverage or [])
@@ -308,6 +400,7 @@ class ZeroSugarAgent:
             "review_warnings": attention, "computed_comparisons": comparisons[:64],
             "computed_comparisons_omitted": max(0, len(comparisons) - 64),
             "require_complete_sentiment": require_sentiment,
+            "request_deliverables": request_deliverables or [], "previous_corrections": previous_corrections or [],
             "grounding_contract": grounding.get("version") if grounding else "legacy narrative; no deterministic claim guarantee"}, ensure_ascii=False)
         if len(payload) > 150_000:
             raise ValueError("Review evidence is too large; narrow the question or query results.")
@@ -326,6 +419,7 @@ class ZeroSugarAgent:
             try:
                 report = self.validate(json.loads(call.arguments))
                 findings = self.validate_findings(report, blocks, evidence)
+                corrections, correction_reviews = self.validate_corrections(report, question, evidence, previous_corrections or [])
             except (ValueError, TypeError) as error:
                 record("structured_response_repair", agent="ZeroSugar", **error_summary(error))
                 self.diagnostics["rejected_attempts"].append(
@@ -333,17 +427,31 @@ class ZeroSugarAgent:
                 history.append({"type": "function_call_output", "call_id": call.call_id,
                                 "output": json.dumps(repair_feedback(error))})
                 continue
+            def add_coverage_issue(issue, owner):
+                if issue not in report["issues"]:
+                    index = len(report["issues"])
+                    report["issues"].append(issue)
+                    corrections.append({"correction_id": f"C{index + 1}", "issue_index": index,
+                                        "issue": issue, "kind": "coverage", "owner": owner,
+                                        "requested_change": issue, "citation_ids": [], "request_excerpt": None})
+                report["repair_targets"] = list(dict.fromkeys(report.get("repair_targets", []) + [owner]))
+
             if unresolved_numeric:
                 # Missing work requests a localized repair; it is not an integrity error
                 # that invalidates independently reviewed findings for other metrics.
-                report["issues"] = list(dict.fromkeys(report["issues"] + [
-                    "Some planned numeric requests remain unresolved; do not infer absent data."]))
-                report["repair_targets"] = list(dict.fromkeys(report.get("repair_targets", []) + ["Cherry"]))
+                add_coverage_issue("Some planned numeric requests remain unresolved; do not infer absent data.", "Cherry")
             if require_sentiment and not any(e.get("kind") == "survey_sentiment" and e.get("complete") is True
                                             for e in evidence):
-                report["issues"] = list(dict.fromkeys(report["issues"] + [
-                    "Requested full comment classification remains incomplete; no partial percentages may be released."]))
-                report["repair_targets"] = list(dict.fromkeys(report.get("repair_targets", []) + ["Vanilla"]))
+                add_coverage_issue("Requested full comment classification remains incomplete; no partial percentages may be released.", "Vanilla")
+            # Retain unresolved prior requirements even if the model forgets to repeat
+            # them in issues. Their status is model judgment, not a prose-pattern gate.
+            for assessment in correction_reviews:
+                if assessment["status"] == "unresolved":
+                    prior = next(item for item in previous_corrections if item["correction_id"] == assessment["correction_id"])
+                    if prior["issue"] not in report["issues"]:
+                        report["issues"].append(prior["issue"])
+                        corrections.append({**prior, "issue_index": len(report["issues"]) - 1,
+                                            "correction_id": f"C{len(report['issues'])}"})
             must_revise = bool(checks or report["issues"]) or any(rating["score"] == 1 for rating in report["ratings"].values())
             must_revise = must_revise or report["ratings"]["Accuracy"]["score"] < 3 or report["ratings"]["Safety / Appropriateness"]["score"] < 3
             must_revise = must_revise or any(f["status"] != "supported" for f in findings)
@@ -361,10 +469,11 @@ class ZeroSugarAgent:
             record("verification_finished", agent="ZeroSugar", decision=decision,
                    deterministic_issues=len(checks), model_issues=len(report["issues"]))
             targets = report.get("repair_targets", [])
+            targets = sorted(set(targets) | {item["owner"] for item in corrections})
             if decision == "revise" and not targets:
                 targets = ["Original"]
             return VerificationResult(decision, report["ratings"], report["issues"], report["uncertainty"], checks, self.mode,
-                                      findings, targets, report.get("clarification_question"), report.get("suggestions", []))
+                                       findings, targets, report.get("clarification_question"), report.get("suggestions", []), corrections, correction_reviews)
         raise RuntimeError("Verifier did not return a valid structured verdict.")
 
     def run(self, artifact):
@@ -384,8 +493,9 @@ class ZeroSugarAgent:
                              claims=artifact.get("claims") or None, grounding=artifact.get("grounding") or None,
                              task_outcomes=[{"agent": child["agent"], "status": child["status"],
                                              "task_outcome": child.get("task_outcome", {})}
-                                            for child in artifact.get("delegations", [])],
-                             require_sentiment=artifact.get("diagnostics", {}).get("requires_sentiment", False))
+                                             for child in artifact.get("delegations", [])],
+                             require_sentiment=artifact.get("diagnostics", {}).get("requires_sentiment", False),
+                             request_deliverables=artifact.get("diagnostics", {}).get("request_deliverables", []))
         return AgentResult(self.name, artifact["question"], "Review decision: " + review.decision,
                            self.scope.__dict__, artifact["evidence"], mode=self.mode, verification=asdict(review))
 

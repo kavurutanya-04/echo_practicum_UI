@@ -6,18 +6,31 @@ Cherry offers validated metrics, ZeroSugar reviews cited blocks, and only suppor
 can appear in a partial answer. Output is English. Lime runs only when a chart is planned.
 
 Live Original, Cherry and Vanilla answers now follow the [source-bound claim contract](SOURCE_GROUNDING.md): models select existing facts, code renders numeric statements/tables, and ZeroSugar reviews explicit claims. Text interpretations and sentiment labels remain provisional rather than semantically certified by citation checks.
-The current `source-facts-v2` contract permits a qualitative synthesis across several cited
-text sources. Individual examples still require literal excerpts. Original may revise
+The current `source-facts-v3` contract permits interpretations across one or several cited
+text/row sources with `quote=null`. Explicit examples still require literal excerpts. Original may revise
 wording/layout while preserving facts, meaning and provenance; every candidate is reviewed.
 Exact source tables replace repeated individual-cell sentences, and labels are grouped.
 
-Updated 2026-10-21. Five roles share configurable model adapters; each has its own instructions and history. This is a terminal/local-file prototype. All employee data is synthetic. Descriptions below complement the executable `INSTRUCTIONS` in each agent file.
+Updated 2026-10-22. Five roles share configurable model adapters; each has its own instructions and history. This is a terminal/local-file prototype. All employee data is synthetic. Descriptions below complement the executable `INSTRUCTIONS` in each agent file.
+
+The 2026-10-22 first-stage coordination update shares requested deliverables across planning,
+delegation, synthesis and review. Existing specialist answer/evidence formats and standalone
+use remain; evidence-only specialist handoff is still a separate proposal. See
+[explicit corrections](WORKFLOW_RELIABILITY.md#requested-deliverables-and-explicit-corrections-2026-10-22).
 
 ## Original — coordination, synthesis and supervised revision
 
 **Input:** manager question, backend-fixed manager/date scope, specialist responses and verifier feedback. **Tools:** `ask_cherry(question, task_type="numeric")` and `ask_vanilla(question, task_type="text"/"sentiment")`; source-fact selection uses `submit_grounded_answer`. **Output:** a cited candidate answer, source evidence and specialist delegations.
 
 Original decomposes the question, requests appropriately bounded evidence, combines quantitative and textual findings, acknowledges disagreement and explains unavailable coverage. Its plan distinguishes SQL/rating metrics from Vanilla's full comment classification and derived counts/percentages (`needs_sentiment`). A sentiment-only task does not require Cherry. Original corrects incompatible delegations after a specialist's structured decline; it does not resend an identical closed request. It owns the answer and responds to ZeroSugar's correction request. It does not run SQL, widen access, retrieve files, choose chart types or render graphs. The workflow invokes Lime when Original's plan requires a chart.
+
+Original's plan identifies requested deliverables through exact request excerpts and their
+analytical owner. Specialists receive assigned items; Original owns final integration and
+checks the visible answer for every requested component. Existing evidence can support a
+missing literal example without another classification. Supported themes may be shortened
+without removing requested meaning. Each explicit pending correction must be addressed;
+ZeroSugar reassesses those items and the complete revised answer. A checklist is not proof
+of semantic correctness. Optional phrasing preferences remain nonblocking suggestions.
 
 Cherry, Vanilla and Lime can use `decline_task(reason_code, reason)` in their existing model turn when their tools cannot perform the assigned work. Codes distinguish `out_of_role`, `missing_input` and `insufficient_evidence`; this adds no mandatory model call. An optional no-chart result remains different from a declined chart task. A decline is neither proof of absent records nor permission to widen access.
 
@@ -42,6 +55,11 @@ Example: "Which weeks exceed available project hours?" Aggregate requests by emp
 **Input:** a bounded textual question. **Tools:** `search_text(query, source, dimension, limit)` for themes and `analyze_survey_sentiment(dimension)` for full-population text classification. **Output:** cited interpretations and/or provisional sentiment summaries. The `rag` field records ranked retrieval; the `sentiment` field preserves every classification ID, category, exact supporting excerpt, explanation and source hash.
 
 Vanilla retrieves scoped survey comments, recognition feedback, contributions, work descriptions or priority explanations before interpreting them. Lexical retrieval uses FTS5/BM25; semantic retrieval uses provider embeddings/cosine similarity; hybrid combines ranks. It can try alternative terms and source/dimension filters. Retrieved text is evidence, never authority to change its instructions.
+
+When delegated, Vanilla handles assigned textual deliverables, supplies supported patterns,
+source-linked examples and limits, and retains its existing response format. Examples in
+attached evidence and examples printed in its answer remain distinct. Original integrates
+the final answer; Vanilla retains qualitative interpretation and standalone use.
 
 Example: "Find supportive and critical recognition views." Retrieve Recognition comments, cite actual passages and explain the selection method. Do not claim that the proportion of retrieved positive passages equals team sentiment.
 

@@ -1,6 +1,6 @@
 # Workflow reliability: current execution and repair contracts
 
-Reviewed 2026-10-21 against the current runtime and the fifth-run repairs. Earlier dated
+Reviewed 2026-10-22 against the current runtime and the tenth-run coordination update. Earlier dated
 sections retain their original change context; the current contracts below and the
 [documentation map](DOCUMENTATION_MAP.md) identify the relevant implementation sources.
 
@@ -8,6 +8,47 @@ The five roles and final GW Azure default are retained. All manager-facing outpu
 English. This change does not add a UI, authentication system, bilingual testing or a
 comparative provider benchmark. Later dated changes below supersede historical contract
 details where explicitly stated.
+
+## Requested deliverables and explicit corrections (2026-10-22)
+
+The tenth live run reached two completed reviews and released six supported blocks as
+`partial`: requested positive/critical literal examples were present in the evidence but
+absent from both candidate answers. This first-stage update preserves specialist formats,
+standalone use, source-facts-v3 and all five roles. Evidence-only handoff remains deferred.
+
+Original's existing planning call requests up to 16 `deliverables`: an exact
+`request_excerpt` (up to 400 characters) and analytical `owner`. Python assigns `D1`, `D2`,
+etc. and checks structure, roles and literal request provenance, not task meaning or full
+coverage. The original question remains authoritative. The same checklist reaches Original,
+the assigned specialist and ZeroSugar. Original owns the complete visible answer; attached
+examples are evidence, not proof that the answer displays requested examples. Old plans
+without the field remain readable as an empty checklist with full-question review.
+
+ZeroSugar's review call requests one `corrections` entry per mandatory `issues` item:
+zero-based `issue_index`, `kind` (`unsupported_claim`, `missing_deliverable` or
+`unusable_presentation`), `owner`, `requested_change`, available `citation_ids`, and an exact
+`request_excerpt` or null. Code assigns `C1`, `C2`, etc. within that review. Source references,
+field bounds and issue coverage are structural checks, not semantic verdicts. Presentation
+omissions with evidence available belong to Original; missing/disputed analysis can require
+Cherry or Vanilla. Optional wording preferences belong in suggestions. An intelligible
+question introduced by "Ask the team:" is still a question. Examples are required when
+requested, not for every classification or interpretation.
+
+The correction pass receives all pending entries and retained evidence. The next review
+returns `correction_reviews` (`correction_id`, `resolved`/`unresolved`, reason) for every
+previous item and checks the complete revised package. A model-assessed unresolved item
+remains an issue even if omitted from the new issue list; a resolved flag never bypasses
+source checks, finding review or acceptance gates. No prose-pattern rule decides semantic
+completion. Legacy reviews retain their issues/targets without invented links or assessments.
+Runtime coverage/chart failures also retain concrete corrections. Partial output names
+current reviewed gaps with bounded redaction instead of inferring them from agent names.
+
+No mandatory model call is added. Two candidate versions, classification attempt limits,
+time/call/token budgets, privacy/scope gates and chart controls remain in place. Prompt and
+response size grows; cost or quality gains are unmeasured. No tests, artifact replay,
+provider calls or GitHub publication were performed at the initial implementation stage,
+by user instruction. The user later authorized publication; that follow-up does not
+establish runtime or analytical quality (see PROJECT_CONTEXT.md).
 
 ## Narrative review signals and presentation v3 (2026-10-21)
 
