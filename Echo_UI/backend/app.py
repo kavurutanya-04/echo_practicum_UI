@@ -6,6 +6,8 @@ streamed to the browser from Echo's own JSONL execution log.
 """
 
 import asyncio
+import re
+import shutil
 import csv
 import json
 import os
@@ -31,6 +33,8 @@ DATABASE = ECHO / "data" / "echo.db"
 LOGS = ECHO / "reports" / "logs"
 DICTIONARY = ROOT / "files_update" / "QA_data_dictionary.csv"
 RUNS = Path(__file__).resolve().parents[1] / "runs"
+CACHE = Path(__file__).resolve().parents[1] / "cache"
+RECORDINGS = CACHE / "recordings.json"
 FRONTEND = Path(__file__).resolve().parents[1] / "frontend" / "dist"
 PYTHON = ECHO / ".venv" / "bin" / "python"
 LOCAL_CONNECTIONS = ECHO / "connections.local.json"
@@ -39,6 +43,8 @@ FREE_TIER_DAILY_LIMIT = 20
 
 sys.path.insert(0, str(ECHO))
 from agents.data_access import AccessScope, ScopedData  # noqa: E402
+from pulse import pulse as build_pulse  # noqa: E402
+import offline  # noqa: E402
 
 RUNS.mkdir(parents=True, exist_ok=True)
 PROCESSES: dict[str, subprocess.Popen] = {}
@@ -177,6 +183,22 @@ def manager_overview(manager_id: str, start: str = SCOPE_MIN, end: str = SCOPE_M
         data.close()
 
 
+@app.get("/api/managers/{manager_id}/pulse")
+def manager_pulse(manager_id: str, start: str = SCOPE_MIN, end: str = SCOPE_MAX, generate: bool = False):
+    """Survey mood per topic, plus cached AI theme bullets (generated on request, one model call)."""
+    try:
+        scope = AccessScope(manager_id, start, end)
+        data = ScopedData(DATABASE, scope)
+    except ValueError as error:
+        raise HTTPException(400, str(error))
+    try:
+        settings = private_settings()
+        key = os.getenv("GOOGLE_API_KEY") or settings.get("GOOGLE_API_KEY")
+        return build_pulse(data, scope, CACHE, api_key=key, generate=generate)
+    finally:
+        data.close()
+
+
 @app.get("/api/data/tables")
 def tables():
     dictionary = {}
@@ -245,6 +267,27 @@ class RunRequest(BaseModel):
     run_seconds: int = Field(default=900, ge=30, le=3600)
 
 
+def question_key(question):
+    return re.sub(r"[^a-z0-9]+", " ", question.lower()).strip()
+
+
+def recording_key(manager_id, start, end, question):
+    return f"{manager_id.upper()}|{start}|{end}|{question_key(question)}"
+
+
+def recordings():
+    return read_json(RECORDINGS, {})
+
+
+def save_recording(info):
+    """Keep the latest verified live answer per manager, period and question for demo replay."""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    saved = recordings()
+    saved[recording_key(info["manager_id"], info["start_date"], info["end_date"], info["question"])] = {
+        "run_id": info["id"], "question": info["question"], "recorded_at": info.get("finished_at")}
+    write_json(RECORDINGS, saved)
+
+
 def summarize(run_id):
     path = RUNS / run_id
     meta_info = read_json(path / "meta.json", {})
@@ -267,6 +310,46 @@ def watch(run_id, process):
     info["finished_at"] = datetime.now(timezone.utc).isoformat()
     info["state"] = "cancelled" if code == 130 else (artifact.get("status") or ("failed" if code else "complete"))
     write_json(path / "meta.json", info)
+    if info.get("mode") == "live" and info["state"] == "complete" and (artifact.get("verification") or {}).get("decision") == "accept":
+        save_recording(info)
+
+
+def offline_run(run_id, path, request):
+    """Demo mode without a saved answer: real numbers for suggested questions, templated wording, no AI."""
+    scope = AccessScope(request.manager_id, request.start_date, request.end_date)
+    built = offline.build(DATABASE, scope, request.question.strip()) or offline.unsupported(scope, request.question.strip())
+    artifact, log = built
+    write_json(path / "artifact.json", artifact)
+    (path / "log.jsonl").write_text("\n".join(json.dumps(event) for event in log) + "\n", encoding="utf-8")
+    (path / "console.txt").write_text(f"Execution log: {path / 'log.jsonl'}\nOffline demo answer (no AI).\n", encoding="utf-8")
+    now = datetime.now(timezone.utc).isoformat()
+    info = {"id": run_id, "question": request.question.strip(), "typed_question": request.question.strip(),
+            "manager_id": request.manager_id, "start_date": request.start_date, "end_date": request.end_date,
+            "mode": "offline", "profile": "offline demo (no AI)", "created_at": now, "finished_at": now,
+            "state": artifact["status"], "exit_code": 0}
+    write_json(path / "meta.json", info)
+    return info
+
+
+def replay_run(run_id, path, request, recording):
+    """Demo mode with a saved answer: copy a verified live run so it replays without any API calls."""
+    source = RUNS / recording["run_id"]
+    shutil.copy(source / "artifact.json", path / "artifact.json")
+    if (source / "charts").is_dir():
+        shutil.copytree(source / "charts", path / "charts")
+    original_log = log_path(source)
+    if original_log and original_log.is_file():
+        shutil.copy(original_log, path / "log.jsonl")
+    (path / "console.txt").write_text(f"Execution log: {path / 'log.jsonl'}\nReplayed from saved live run {recording['run_id']}.\n",
+                                      encoding="utf-8")
+    source_meta = read_json(source / "meta.json", {})
+    info = {"id": run_id, "question": recording["question"], "typed_question": request.question.strip(),
+            "manager_id": request.manager_id, "start_date": request.start_date, "end_date": request.end_date,
+            "mode": "replay", "profile": source_meta.get("profile", "saved live run"), "replay_of": recording["run_id"],
+            "recorded_at": recording.get("recorded_at"), "created_at": datetime.now(timezone.utc).isoformat(),
+            "finished_at": datetime.now(timezone.utc).isoformat(), "state": source_meta.get("state", "complete"), "exit_code": 0}
+    write_json(path / "meta.json", info)
+    return info
 
 
 @app.post("/api/runs")
@@ -282,6 +365,11 @@ def start_run(request: RunRequest):
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6]
     path = RUNS / run_id
     path.mkdir(parents=True)
+    if request.mode == "demo" and request.question.strip():
+        recording = recordings().get(recording_key(request.manager_id, request.start_date, request.end_date, request.question))
+        if recording and (RUNS / recording["run_id"] / "artifact.json").is_file():
+            return replay_run(run_id, path, request, recording)
+        return offline_run(run_id, path, request)
     command = [str(PYTHON if PYTHON.is_file() else sys.executable), "-u", "run_agent.py", "original",
                "--manager", request.manager_id, "--start", request.start_date, "--end", request.end_date,
                "--output", str(path / "artifact.json"), "--charts-dir", str(path / "charts")]
@@ -316,6 +404,31 @@ def list_runs():
     return sorted(runs, key=lambda item: item.get("created_at", ""), reverse=True)
 
 
+@app.get("/api/recordings")
+def list_recordings(manager_id: str, start: str = SCOPE_MIN, end: str = SCOPE_MAX):
+    prefix = f"{manager_id.upper()}|{start}|{end}|"
+    return [{"question": item["question"], "recorded_at": item.get("recorded_at")}
+            for key, item in recordings().items() if key.startswith(prefix) and (RUNS / item["run_id"]).is_dir()]
+
+
+def how_it_was_made(artifact):
+    """Counts only, for the manager's one-line 'How this answer was made'."""
+    evidence = list(artifact.get("evidence") or []) + [e for d in artifact.get("delegations") or [] for e in d.get("evidence") or []]
+    ids = {}
+    for item in evidence:
+        ids.setdefault(item.get("citation_id"), item)
+    verification = artifact.get("verification") or {}
+    return {
+        "specialists": sorted({d.get("agent") for d in artifact.get("delegations") or [] if d.get("agent")}),
+        "queries": sum(1 for e in ids.values() if isinstance(e.get("sql"), str)),
+        "survey_sources": sum(1 for e in ids.values() if e.get("source") == "HR_survey_comments"),
+        "sentiment_runs": len(artifact.get("sentiment") or {}),
+        "charts": len((artifact.get("visualization") or {}).get("charts") or []),
+        "findings_checked": len(artifact.get("findings") or []),
+        "drafts_checked": verification.get("drafts_checked") or len(verification.get("reviews") or []),
+    }
+
+
 def without_comment_text(artifact):
     """Manager view: keep comment citations but never send comment text to the browser."""
     if not artifact:
@@ -336,6 +449,7 @@ def without_comment_text(artifact):
         "verification": {"decision": (artifact.get("verification") or {}).get("decision")},
         "limitations": artifact.get("limitations", []),
         "findings": [], "next_steps": [], "clarification_questions": [], "sentiment": {}, "execution": {},
+        "made": how_it_was_made(artifact),
     }
 
 

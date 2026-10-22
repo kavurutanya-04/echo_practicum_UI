@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { ArrowRight, ArrowUp, LogOut, MessageSquarePlus, Moon, PanelLeft, ShieldAlert, Sparkles, Square, Sun, Wrench, X } from 'lucide-react'
+import { ArrowRight, ArrowUp, History, LogOut, MessageSquarePlus, MessagesSquare, Moon, PanelLeft, ShieldAlert, Sparkles, Square, Sun, Wrench, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTheme } from '../components/Layout'
@@ -8,6 +8,7 @@ import { agentStates, useRunEvents } from '../lib/events'
 import { useAsync } from '../lib/useAsync'
 import AgentStrip, { agentActivity } from './AgentStrip'
 import AnswerBubble, { PendingBubble } from './AnswerBubble'
+import TeamPulse from './TeamPulse'
 import { loadConversations, loadManagerCode, saveConversations, saveManagerCode, type Conversation, type Message } from './store'
 
 const SUGGESTED = [
@@ -93,7 +94,7 @@ function Entry({ onEnter }: { onEnter: (manager: Manager) => void }) {
 
 /* ---------------- chat ---------------- */
 
-function MessageRow({ message, active, status, refreshKey }: { message: Message; active: boolean; status: string; refreshKey: number }) {
+function MessageRow({ message, active, status, refreshKey, onOpenPulse }: { message: Message; active: boolean; status: string; refreshKey: number; onOpenPulse: () => void }) {
   const run = useAsync(() => api.managerRun(message.runId), [message.runId, active, refreshKey])
   return (
     <div className="space-y-4">
@@ -106,7 +107,7 @@ function MessageRow({ message, active, status, refreshKey }: { message: Message;
           {active || run.data?.meta.state === 'running' ? (
             <PendingBubble status={status} />
           ) : run.data ? (
-            <AnswerBubble meta={run.data.meta} artifact={run.data.artifact} />
+            <AnswerBubble meta={run.data.meta} artifact={run.data.artifact} onOpenPulse={onOpenPulse} />
           ) : run.error ? (
             <p className="text-sm text-slate-500">This answer is no longer available.</p>
           ) : (
@@ -132,13 +133,20 @@ function Workspace({ manager, onLeave }: { manager: Manager; onLeave: () => void
   const [period, setPeriod] = useState('all')
   const [mode, setMode] = useState<'demo' | 'live'>('demo')
   const [activeRun, setActiveRun] = useState<string | null>(null)
+  const [activePace, setActivePace] = useState(0)
   const [refreshKey, setRefreshKey] = useState(0)
   const [error, setError] = useState('')
   const [sidebar, setSidebar] = useState(false)
+  const [pulseOpen, setPulseOpen] = useState(false)
+  const range = PERIODS.find((p) => p.id === period)!
+  const saved = useAsync(() => api.savedAnswers(manager.Manager_ID, range.start, range.end), [period, refreshKey])
+  const savedSet = new Set((saved.data ?? []).map((s) => s.question.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()))
+  const isSaved = (q: string) => savedSet.has(q.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim())
   const bottom = useRef<HTMLDivElement>(null)
 
   const current = conversations.find((c) => c.id === currentId) ?? null
-  const stream = useRunEvents(activeRun ?? undefined, mode === 'demo' ? 70 : 0, 0)
+  // Offline answers replay their steps slowly enough to watch; saved live runs have more steps, so they replay faster.
+  const stream = useRunEvents(activeRun ?? undefined, activePace, 0)
   const states = useMemo(() => agentStates(stream.events), [stream.events])
   const activity = useMemo(() => agentActivity(stream.events), [stream.events])
   const busy = activeRun !== null
@@ -168,7 +176,6 @@ function Workspace({ manager, onLeave }: { manager: Manager; onLeave: () => void
     if (!q || busy) return
     if (mode === 'live' && !connection) return setError('No live model is configured. Use demo mode, or add a key in the technical view.')
     setError('')
-    const range = PERIODS.find((p) => p.id === period)!
     try {
       const run = await api.startRun({
         manager_id: manager.Manager_ID,
@@ -187,6 +194,7 @@ function Workspace({ manager, onLeave }: { manager: Manager; onLeave: () => void
         setCurrentId(conversation.id)
       }
       setQuestion('')
+      setActivePace(run.mode === 'offline' ? 280 : run.mode === 'replay' ? 80 : run.mode === 'demo' ? 70 : 0)
       setActiveRun(run.id)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -285,6 +293,13 @@ function Workspace({ manager, onLeave }: { manager: Manager; onLeave: () => void
                 <option key={p.id} value={p.id}>{p.label}</option>
               ))}
             </select>
+            <button
+              onClick={() => setPulseOpen(true)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:text-slate-200 dark:hover:border-indigo-500"
+              title="What your team is saying in surveys"
+            >
+              <MessagesSquare className="size-3.5" /> <span className="hidden sm:inline">Team pulse</span>
+            </button>
             <ThemeButton />
           </div>
           <div className="mx-auto mt-3 max-w-4xl">
@@ -312,13 +327,21 @@ function Workspace({ manager, onLeave }: { manager: Manager; onLeave: () => void
                       className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm transition hover:border-indigo-300 hover:shadow-sm disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500"
                     >
                       {q}
+                      {mode === 'demo' && isSaved(q) && (
+                        <span className="mt-1 flex items-center gap-1 text-[11px] font-medium text-indigo-600 dark:text-indigo-400">
+                          <History className="size-3" /> Saved answer — replays free
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
+                <button onClick={() => setPulseOpen(true)} className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+                  <MessagesSquare className="size-4" /> See what your team is saying in surveys
+                </button>
               </div>
             ) : (
               current.messages.map((message) => (
-                <MessageRow key={message.runId} message={message} active={message.runId === activeRun} status={status} refreshKey={refreshKey} />
+                <MessageRow key={message.runId} message={message} active={message.runId === activeRun} status={status} refreshKey={refreshKey} onOpenPulse={() => setPulseOpen(true)} />
               ))
             )}
             <div ref={bottom} />
@@ -330,7 +353,8 @@ function Workspace({ manager, onLeave }: { manager: Manager; onLeave: () => void
             {current && current.messages.length > 0 && !busy && (
               <div className="short-hide mb-2 flex gap-2 overflow-x-auto pb-1">
                 {SUGGESTED.map((q) => (
-                  <button key={q} onClick={() => ask(q)} className="shrink-0 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-500">
+                  <button key={q} onClick={() => ask(q)} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-500">
+                    {mode === 'demo' && isSaved(q) && <History className="size-3 text-indigo-500" />}
                     {q}
                   </button>
                 ))}
@@ -354,7 +378,7 @@ function Workspace({ manager, onLeave }: { manager: Manager; onLeave: () => void
                     ask(question)
                   }
                 }}
-                placeholder={busy ? 'Echo is working on your question…' : 'Ask about your team…'}
+                placeholder={busy ? 'Echo is working on your question…' : mode === 'demo' ? 'Demo: pick a suggested question, or switch to Live AI to ask anything' : 'Ask about your team…'}
                 disabled={busy}
                 className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-[15px] outline-none placeholder:text-slate-400"
               />
@@ -388,6 +412,7 @@ function Workspace({ manager, onLeave }: { manager: Manager; onLeave: () => void
           </div>
         </footer>
       </div>
+      {pulseOpen && <TeamPulse managerId={manager.Manager_ID} start={range.start} end={range.end} periodLabel={range.label} onClose={() => setPulseOpen(false)} />}
     </div>
   )
 }
