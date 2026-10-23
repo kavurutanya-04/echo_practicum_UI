@@ -215,12 +215,18 @@ class ScriptedDemoModel:
             return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id,
                 "name": call.name, "arguments": call.arguments}])
         if self.agent_name == "ZeroSugar":
+            if tools and tools[0]["name"] == "submit_completeness_review":
+                call = ToolCall("demo-completeness", "submit_completeness_review", json.dumps({
+                    "decision": "accept", "score": 3, "rationale": "Scripted fixture; not a quality judgment.",
+                    "issues": [], "suggestions": []}))
+                return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id,
+                    "name": call.name, "arguments": call.arguments}])
             payload = json.loads(history[0]["content"])
             report = {"decision": "accept", "ratings": {name: {"score": 3, "rationale": "Scripted fixture score; no LLM judgment was performed."}
                 for name in ("Accuracy", "Relevance", "Completeness", "Clarity", "Instruction Following", "Usefulness", "Safety / Appropriateness")},
                 "issues": [], "uncertainty": "Offline fixture: answer quality has not been assessed by a model."}
             report.update(finding_reviews=[{"finding_id": b["finding_id"], "decision": "supported",
-                "citation_ids": b["citation_ids"], "reason": "Scripted fixture, not semantic validation."}
+                "reason": "Scripted fixture, not semantic validation."}
                 for b in payload.get("findings", [])], repair_targets=[], clarification_question=None)
             call = ToolCall("demo-review", "submit_review", json.dumps(report))
             return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id, "name": call.name, "arguments": call.arguments}])

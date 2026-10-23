@@ -25,6 +25,8 @@ class SequenceModel:
 
     def respond(self, instructions, history, tools, require_tool=False):
         self.histories.append(json.loads(json.dumps(history)))
+        if tools and tools[0]["name"] == "submit_completeness_review":
+            return completeness_turn()
         return next(self.turns)
 
 
@@ -33,6 +35,12 @@ def tool_turn(name, arguments, identifier="test-call"):
     return ModelTurn(calls=[call], output_items=[{
         "type": "function_call", "call_id": call.call_id, "name": call.name,
         "arguments": call.arguments}])
+
+
+def completeness_turn(decision="accept", issues=(), suggestions=(), score=3):
+    """Default coverage fixture for tests focused on the separate source-review stage."""
+    return tool_turn("submit_completeness_review", {"decision": decision, "score": score,
+        "rationale": "Controlled visible-answer review fixture.", "issues": list(issues), "suggestions": list(suggestions)})
 
 
 class StructuredAgentTests(unittest.TestCase):

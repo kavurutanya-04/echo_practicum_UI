@@ -124,11 +124,10 @@ class ClarificationPolicyTests(unittest.TestCase):
                 feedback = json.loads(model.calls[1][1][-1]["output"])
                 self.assertEqual(feedback["validation_code"], code)
 
-    def test_basis_without_a_question_is_not_silently_accepted(self):
+    def test_unused_basis_is_normalized_without_an_extra_call(self):
         model = ObservedModel([planned(basis=missing("Show recognition.")), planned()])
         self.assertIsNone(self.agent(model).plan("Show recognition.")["clarification_basis"])
-        self.assertEqual(json.loads(model.calls[1][1][-1]["output"])["validation_code"],
-                         "unexpected_clarification_basis")
+        self.assertEqual(len(model.calls), 1)
 
     def test_persistent_invalid_clarifications_fail_bounded_without_questioning_user(self):
         turn = planned("Which manager?", missing("Show recognition.", "manager_id"))
@@ -151,23 +150,23 @@ class ClarificationPolicyTests(unittest.TestCase):
 
     def test_late_clarification_cannot_bypass_reconsideration_or_get_a_third_attempt(self):
         turn = planned("Which recognition definition?", missing("Check recognition."))
-        model = ObservedModel([planned(basis=missing("Check recognition.")), turn])
+        model = ObservedModel([tool_turn("submit_plan", {}), turn])
         with self.assertRaisesRegex(RuntimeError, "valid bounded analysis plan"):
             self.agent(model).plan("Check recognition.")
         self.assertEqual(len(model.calls), 2)
 
-    def test_diagnostics_record_recheck_code_without_prompt_or_basis_text(self):
-        turn = planned("Which recognition definition?", missing("Private task detail: recognition"))
+    def test_diagnostics_record_recheck_code_with_bounded_redaction(self):
+        turn = planned("Which recognition definition?", missing("private@example.invalid recognition"))
         model = ObservedModel([turn, planned()])
         agent = self.agent(model)
         with TemporaryDirectory() as directory:
             with RunLog(directory) as log:
-                agent.plan("Private task detail: recognition")
+                agent.plan("private@example.invalid recognition")
                 log.finish(0)
             raw = log.path.read_text(encoding="utf-8")
         self.assertIn("clarification_recheck", raw)
-        self.assertNotIn("Private task detail", raw)
-        self.assertNotIn("Different recognition definitions", raw)
+        self.assertNotIn("private@example.invalid", raw)
+        self.assertIn("[REDACTED]", raw)
 
 
 class SharedCallPathTests(unittest.TestCase):
@@ -232,7 +231,7 @@ class SharedCallPathTests(unittest.TestCase):
         self.assertEqual(child_history[0]["content"], "Compare the two survey dimensions.")
         self.assertEqual(json.loads(child_history[1]["content"])["original_request"], MEDIUM_QUESTION)
         self.assertEqual(result.scope, SCOPE.__dict__)
-        self.assertEqual([len(m.calls) for m in (coordinator, cherry, verifier)], [3, 1, 1])
+        self.assertEqual([len(m.calls) for m in (coordinator, cherry, verifier)], [3, 1, 2])
         for model in models.values():
             self.assert_policy(model)
 

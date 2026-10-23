@@ -1,8 +1,31 @@
 # What can be tested without an API, and how to verify RAG
 
-Updated 2026-10-22. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
+Updated 2026-10-23. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
 
-Latest update, 2026-10-22: requested-deliverable coordination and explicit corrections
+Latest update, 2026-10-23: the selected autonomy/two-stage review changes passed the full
+242-test offline agent suite, including 19 new tests in `tests/test_review_stages.py`.
+The initial baseline had 15 failures and 4 errors in 223 tests; historical v2 checks and
+older normalization/provider-log expectations were aligned with their actual contracts,
+and partial-output compatibility was fixed. Current v3 signals and explicit quote checks
+are covered separately. No API/model/embedding call was run. Scripted review decisions
+verify isolation and release mechanics, not model compliance or classifier accuracy.
+
+Tests cover evidence isolation in the first review, independent support rejection,
+nonblocking style suggestions, finding-ID citation attachment, bounded phase retries,
+shared model/tool limits, failed phase statuses, redacted metadata, actual pending-item
+continuity, legacy checklist input and current/historical grounding contracts. Windows
+Python 3.12.14 was used from the existing UI environment, without installing dependencies:
+
+```powershell
+..\Echo_UI\.venv-windows\Scripts\python.exe -B -m unittest discover -s tests
+```
+
+The additional completeness call consumes the existing shared call/time budgets. GitHub
+publication is authorized after validation. Preserve run eleven and use a fresh artifact
+such as `reports/apinex_prueba_vanilla_12.json` for a later authorized live evaluation.
+See the [current workflow](WORKFLOW_RELIABILITY.md#autonomous-synthesis-and-two-stage-review-2026-10-23).
+
+Historical update, 2026-10-22: requested-deliverable coordination and explicit corrections
 retain source-facts-v3 and specialist formats. No tests, saved-artifact replay or provider
 calls were run, by user instruction; GitHub publication was initially deferred and later
 authorized separately (see PROJECT_CONTEXT.md). Static review
@@ -88,7 +111,7 @@ excerpts, bounded failures, shared budgets, safe diagnostics and every analysis 
 They also check that a normal plan adds no reconsideration call. These are scripted
 engineering checks, not proof that Luna always recognizes ambiguity correctly. See
 [shared rules and clarification handling](WORKFLOW_RELIABILITY.md#shared-rules-and-initial-planning-clarifications-2026-10-21).
-The latest local suite passed 207 tests on 2026-10-21, including 16 policy/clarification,
+The historical local suite passed 207 tests on 2026-10-21, including 16 policy/clarification,
 15 rejection-diagnostic and 22 sentiment-workflow regressions, with zero generation API calls.
 The user's fourth live Luna run completed with nine successful calls and source-matching
 results; it also exposed four corrected source-submission rejections. The diagnostic

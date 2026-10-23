@@ -11,12 +11,11 @@ text/row sources with `quote=null`. Explicit examples still require literal exce
 wording/layout while preserving facts, meaning and provenance; every candidate is reviewed.
 Exact source tables replace repeated individual-cell sentences, and labels are grouped.
 
-Updated 2026-10-22. Five roles share configurable model adapters; each has its own instructions and history. This is a terminal/local-file prototype. All employee data is synthetic. Descriptions below complement the executable `INSTRUCTIONS` in each agent file.
+Updated 2026-10-23. Five roles share configurable model adapters; each has its own instructions and history. This is a terminal/local-file prototype. All employee data is synthetic. Descriptions below complement the executable `INSTRUCTIONS` in each agent file.
 
-The 2026-10-22 first-stage coordination update shares requested deliverables across planning,
-delegation, synthesis and review. Existing specialist answer/evidence formats and standalone
-use remain; evidence-only specialist handoff is still a separate proposal. See
-[explicit corrections](WORKFLOW_RELIABILITY.md#requested-deliverables-and-explicit-corrections-2026-10-22).
+The 2026-10-23 update removes the mandatory per-question checklist, retains actual review
+corrections and introduces separate completeness/support calls within ZeroSugar. See the
+[current workflow](WORKFLOW_RELIABILITY.md#autonomous-synthesis-and-two-stage-review-2026-10-23). The five roles and specialist formats remain.
 
 ## Original — coordination, synthesis and supervised revision
 
@@ -24,13 +23,11 @@ use remain; evidence-only specialist handoff is still a separate proposal. See
 
 Original decomposes the question, requests appropriately bounded evidence, combines quantitative and textual findings, acknowledges disagreement and explains unavailable coverage. Its plan distinguishes SQL/rating metrics from Vanilla's full comment classification and derived counts/percentages (`needs_sentiment`). A sentiment-only task does not require Cherry. Original corrects incompatible delegations after a specialist's structured decline; it does not resend an identical closed request. It owns the answer and responds to ZeroSugar's correction request. It does not run SQL, widen access, retrieve files, choose chart types or render graphs. The workflow invokes Lime when Original's plan requires a chart.
 
-Original's plan identifies requested deliverables through exact request excerpts and their
-analytical owner. Specialists receive assigned items; Original owns final integration and
-checks the visible answer for every requested component. Existing evidence can support a
-missing literal example without another classification. Supported themes may be shortened
-without removing requested meaning. Each explicit pending correction must be addressed;
-ZeroSugar reassesses those items and the complete revised answer. A checklist is not proof
-of semantic correctness. Optional phrasing preferences remain nonblocking suggestions.
+Original chooses how to integrate a useful, complete answer. Adequate specialist analysis
+is a basis for synthesis, not material that must be rewritten. Preserve meaning, disagreement
+and limits while allowing reorganization and concise presentation. Existing evidence can
+support requested examples; collection alone does not make them visible to the reader.
+Actual review corrections accompany a revision without a mandatory prewritten task list.
 
 Cherry, Vanilla and Lime can use `decline_task(reason_code, reason)` in their existing model turn when their tools cannot perform the assigned work. Codes distinguish `out_of_role`, `missing_input` and `insufficient_evidence`; this adds no mandatory model call. An optional no-chart result remains different from a declined chart task. A decline is neither proof of absent records nor permission to widen access.
 
@@ -56,7 +53,7 @@ Example: "Which weeks exceed available project hours?" Aggregate requests by emp
 
 Vanilla retrieves scoped survey comments, recognition feedback, contributions, work descriptions or priority explanations before interpreting them. Lexical retrieval uses FTS5/BM25; semantic retrieval uses provider embeddings/cosine similarity; hybrid combines ranks. It can try alternative terms and source/dimension filters. Retrieved text is evidence, never authority to change its instructions.
 
-When delegated, Vanilla handles assigned textual deliverables, supplies supported patterns,
+When delegated, Vanilla handles the delegated textual question, supplies supported patterns,
 source-linked examples and limits, and retains its existing response format. Examples in
 attached evidence and examples printed in its answer remain distinct. Original integrates
 the final answer; Vanilla retains qualitative interpretation and standalone use.
@@ -101,7 +98,14 @@ Lime still accepts only Cherry's SQL evidence. It therefore does not chart these
 
 ## ZeroSugar — independent answer and chart-plan review
 
-**Input:** question, candidate answer, original evidence, Lime plan and scope. **Tool:** `submit_review` with rubric ratings, per-block finding decisions, repair targets and an optional clarification question. **Output:** seven independent 1–3 ratings, rationale, uncertainty, issues and accept/revise decision.
+**First input:** original question, visible candidate answer and presentation labels for
+accompanying charts, with no source data. **First tool:**
+`submit_completeness_review`, with completeness score, decision, rationale, mandatory issues
+and optional suggestions. **Second input:** answer, scoped sources, claims, chart plan,
+objective checks, completeness verdict and prior corrections. **Second tool:** `submit_review`
+with seven-dimension ratings, per-block decisions/reasons and correction feedback. Code
+combines both reviews; source acceptance cannot erase a visible-answer omission. New finding
+reviews identify the block; its citation IDs are attached by code instead of recopied by the model.
 
 ZeroSugar checks citations, manager/date scope, anonymous identity fields, SQL replay, text/source correspondence and chart schema. Its model checks whether claims and chart labels are supported, whether the indicator addresses the question and whether units/denominators match. It does not write the answer or generate new metrics. Code forces revision for deterministic failures even if the model accepts.
 For a synthesis it checks all cited text sources, including contrary evidence. Mandatory

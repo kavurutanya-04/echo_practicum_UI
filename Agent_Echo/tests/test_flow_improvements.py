@@ -14,7 +14,7 @@ from agents.runtime import Specialist, function_tool, RunBudget, AgentRunError, 
 from agents.tools import SQLReader
 from agents.zero_sugar import DIMENSIONS
 from agents.cherry import CherryAgent
-from test_agents import SequenceModel, tool_turn
+from test_agents import SequenceModel, tool_turn, completeness_turn
 
 
 SCOPE = AccessScope("M14", "2026-07-01", "2026-09-30")
@@ -63,6 +63,8 @@ class ReviewModel:
 
     def respond(self, instructions, history, tools, require_tool=False):
         self.calls += 1
+        if tools and tools[0]["name"] == "submit_completeness_review":
+            return completeness_turn()
         payload = json.loads(history[0]["content"])
         outcome = next(self.outcomes)
         report = {"decision": "accept" if outcome == "accept" else "revise",
@@ -71,7 +73,7 @@ class ReviewModel:
             "issues": [] if outcome == "accept" else ["Correct the specified issue."], "uncertainty": "Test fixture.",
             "finding_reviews": [{"finding_id": b["finding_id"],
                 "decision": "revise" if "fabricated" in b["text"] else "supported",
-                "citation_ids": b["citation_ids"], "reason": "Controlled test decision."} for b in payload["findings"]],
+                "reason": "Controlled test decision."} for b in payload["findings"]],
             "repair_targets": [] if outcome == "accept" else ["Lime" if outcome == "chart" else "Original"],
             "clarification_question": None}
         return tool_turn("submit_review", report)

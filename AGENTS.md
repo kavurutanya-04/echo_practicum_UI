@@ -8,7 +8,7 @@ Read this guidance and [Agent_Echo/PROJECT_CONTEXT.md](Agent_Echo/PROJECT_CONTEX
 - Keep implemented behavior, observed results, proposals, and unresolved decisions distinct.
 - When changing synthesis or presentation, preserve facts and provenance without freezing wording. Keep the role instructions, answer/replay contract and review schema aligned; distinguish mandatory corrections from optional suggestions, and retain compatibility for saved answer versions.
 - Keep objective integrity checks separate from model judgment. Narrative digits, quantifiers and repairable presentation are not proof of false meaning. Current source-facts-v3 sends those signals to ZeroSugar without making them deterministic failures; preserve v1/v2 replay. Retain source/scope, quote-literalness, coverage and structured arithmetic checks. Do not add language-pattern rejection rules as substitutes for semantic review.
-- Preserve the 2026-10-22 first-stage separation: request-derived deliverables accompany delegation and final review; Original owns the complete visible answer, specialists retain their current answer/evidence formats, and ZeroSugar distinguishes mandatory corrections from optional phrasing. Explicit prior-correction assessments do not replace full-package review or establish semantic correctness. Evidence-only specialist handoff remains a separate proposal.
+- Preserve the 2026-10-23 selected behavior: no mandatory per-question deliverable checklist; Original integrates specialist meaning with presentation autonomy, actual review corrections persist, and ZeroSugar separates visible-answer completeness from evidence support. Code retains citations by finding ID. New trace metadata must avoid copying questions or source text. Both reviews and source/scope controls remain required for acceptance.
 - Preserve the existing five roles unless the user requests a role change. Echo is the overall system, not an additional agent.
 - Preserve manager/date scoping, read-only data tools, citations, independent finding review, and withholding of unsupported output.
 - Do not invent numbers, missing coverage, causal effects, benchmark results, or successful provider access. Demo and connection tests do not establish analytical quality.
@@ -17,6 +17,8 @@ Read this guidance and [Agent_Echo/PROJECT_CONTEXT.md](Agent_Echo/PROJECT_CONTEX
 - For code changes, use the checks documented in `Agent_Echo/TESTING_AND_RAG.md` as appropriate. Report what was actually run. Documentation-only changes need link/content review, not live API calls.
 - Respect a user instruction to skip tests or live calls. The 2026-10-21 v3 update was authorized for code/documentation and GitHub publication without local tests or API calls; earlier test counts do not validate it. A future successful-answer claim requires inspecting the actual new run and completed review.
 - The 2026-10-22 coordination update was initially authorized locally without tests or GitHub publication; the user subsequently authorized publication. Do not treat publication, earlier checks or run ten as validation of this update. Preserve historical artifacts and verify a fresh completed run before claiming that omission/repair behavior improved.
+
+- The user authorized tests and GitHub publication for the 2026-10-23 selected update. Report offline test results separately from unverified live-model behavior; preserve run eleven and use a fresh output filename for any later live evaluation.
 
 ## Maintain continuity
 

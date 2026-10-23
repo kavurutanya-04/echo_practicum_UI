@@ -17,7 +17,7 @@ from agents.grounding import FactCatalog, render_answer
 from agents.model import ModelTurn
 from agents.runtime import RunBudget, AgentRunError, AgentResult
 from agents.validation import ValidationError, rejection_diagnostic
-from test_agents import SequenceModel, tool_turn
+from test_agents import SequenceModel, tool_turn, completeness_turn
 from test_flow_improvements import ReviewModel
 
 DATABASE = Path(__file__).resolve().parents[1] / "data" / "echo.db"
@@ -62,6 +62,8 @@ class ActionModel:
         self.histories.append(deepcopy(history))
         self.instructions.append(instructions)
         self.tool_sets.append([t["name"] for t in tools])
+        if tools and tools[0]["name"] == "submit_completeness_review":
+            return completeness_turn()
         action = next(self.actions)
         if isinstance(action, BaseException):
             raise action

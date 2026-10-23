@@ -39,7 +39,8 @@ class RejectionDiagnosticTests(unittest.TestCase):
 
     def caught(self, data, role="Original", catalog=None):
         with self.assertRaises(ValidationError) as caught:
-            render_answer(data, catalog or self.catalog, role)
+            # Preserve rejection checks for the historical v2 replay contract.
+            render_answer(data, catalog or self.catalog, role, "source-facts-v2")
         return caught.exception
 
     def test_fact_rejections_distinguish_type_count_item_type_and_unknown_id(self):

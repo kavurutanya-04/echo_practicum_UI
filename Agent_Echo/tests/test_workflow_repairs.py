@@ -173,6 +173,9 @@ class ReviewRepairs(unittest.TestCase):
                 self.history = None
             def respond(self, instructions, history, tools, require_tool=False):
                 self.history = deepcopy(history)
+                if tools and tools[0]["name"] == "submit_completeness_review":
+                    from test_agents import completeness_turn
+                    return completeness_turn()
                 return tool_turn("submit_review", {"decision": "accept", "ratings": {},
                     "issues": [], "uncertainty": "offline-private-text"})
         model = BrokenReviewer()

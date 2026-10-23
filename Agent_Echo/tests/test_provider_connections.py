@@ -168,7 +168,9 @@ class TrialProviderTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "finish reason: " + expected) as raised:
                     model.respond("Use evidence.", [], [])
                 self.assertNotIn("offline-private-provider-detail", str(raised.exception))
-                logged.assert_called_once_with("model_response_rejected", adapter="chat", finish_reason=expected)
+                logged.assert_any_call("model_response_rejected", adapter="chat", finish_reason=expected)
+                self.assertEqual(logged.call_args_list[-1].kwargs["finish_reason"], expected)
+                self.assertNotIn("offline-private-provider-detail", str(logged.call_args_list))
                 self.assertEqual(model.successful_requests, 0)
 
     def test_missing_trial_key_does_not_use_another_providers_key(self):

@@ -1,6 +1,6 @@
 # Workflow reliability: current execution and repair contracts
 
-Reviewed 2026-10-22 against the current runtime and the tenth-run coordination update. Earlier dated
+Reviewed 2026-10-23 against the current runtime and the selected autonomy/review update. Earlier dated
 sections retain their original change context; the current contracts below and the
 [documentation map](DOCUMENTATION_MAP.md) identify the relevant implementation sources.
 
@@ -9,7 +9,69 @@ English. This change does not add a UI, authentication system, bilingual testing
 comparative provider benchmark. Later dated changes below supersede historical contract
 details where explicitly stated.
 
+## Autonomous synthesis and two-stage review (2026-10-23)
+
+The user selected options 1A, 2A, 3A, 4A, 5B, 6A, 7B and 8A after reviewing run eleven.
+Original's overlapping instructions are consolidated around role ownership and complete,
+useful answers. It uses adequate specialist analysis as the basis for integration and
+preserves supported meaning, differences and limits without freezing wording. Vanilla
+retains textual interpretation, the existing answer/evidence format and standalone use.
+The mandatory per-question deliverable checklist is retired from planning, delegation and
+review. Old plans carrying that field remain readable; it is ignored. Only corrections
+arising from an actual review are retained between candidate versions.
+
+ZeroSugar performs two sequential calls, with separate histories, for every candidate:
+
+1. `submit_completeness_review` sees the original question and exact visible answer,
+   with titles/axis labels/units for accompanying charts when present. These descriptions
+   contain no source IDs, SQL, rows or provenance.
+   It judges task coverage, allowing useful presentation and explanations of unavailable
+   evidence. It has no attached sources, specialist prose or predefined checklist.
+2. `submit_review` receives the answer, scoped evidence, claims, chart plan, objective
+   checks, the completeness verdict and any prior corrections. It checks support and
+   interpretation, including disagreement and context across sources, and reviews prior
+   pending items against the complete revised package.
+
+An omission identified in the first stage remains an issue even when its content exists
+in attached evidence or the support reviewer accepts. The combined Completeness score
+cannot exceed either stage's score. Optional suggestions do not force revision. Supported
+blocks may still be released as partial output under the existing scope/safety gates.
+Each phase has up to three structured-response attempts within the same shared model,
+tool and elapsed-time budget; failures never constitute approval. The two-candidate
+Original revision limit is retained. A normally valid review adds one model call per
+candidate compared with the former single-stage path. Latency, cost and live analytical
+improvement remain unmeasured for this update.
+
+New source-review findings return `finding_id`, `decision` and `reason`. Code attaches the
+unchanged citation IDs from the candidate block. The reviewer still judges whether those
+sources support the meaning. Legacy findings that echo citations remain readable and are
+checked for a match when supplied. Unknown, repeated or missing finding IDs remain errors.
+New corrections need no literal copy of the user question; legacy correction excerpts are
+accepted for compatibility but not retained in new correction metadata.
+
+`diagnostics.review_phases` and phase log events retain only phase, status, attempt count,
+decision and issue count. They do not duplicate questions or source text. Actual issue,
+correction and finding-review records remain in the ignored local artifact; existing
+bounded/redacted narrative diagnostics are unchanged. Reports and logs are not published.
+The UI's answer/status/findings interface is retained; backend manager-view allowlists do
+not expose the new technical diagnostics.
+
+Sentiment classification, literal-excerpt validation/repair and routing flags are retained.
+No model/provider change, new agent, SQL permission, identity field or chart control is added.
+The source-facts-v3 answer contract and historical v1/v2 replay remain in place.
+
+Validation: the initial 223-test suite had 15 failures and 4 errors before edits. Historical
+v2/normalization assertions and fixtures were aligned with their declared contracts instead
+of restoring superseded restrictions in v3; a partial-result compatibility defect was fixed.
+The final agent suite passed 242 offline tests on Windows Python 3.12.14, including 19 new
+phase-isolation, release, citation, privacy, budget and repair regressions. Tests use
+scripted/mocked judgments; no live generation/embedding provider request was performed.
+GitHub publication is authorized after validation. A fresh live run remains necessary to
+assess actual model behavior; preserve run eleven and use a new artifact filename.
+
 ## Requested deliverables and explicit corrections (2026-10-22)
+
+Historical: the mandatory checklist below was retired by the 2026-10-23 update above.
 
 The tenth live run reached two completed reviews and released six supported blocks as
 `partial`: requested positive/critical literal examples were present in the evidence but

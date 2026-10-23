@@ -3,7 +3,7 @@
 Echo's Python code, prompts, configuration and operating documentation are in English.
 The local SQLite database is built from eleven application tables (630,339 synthetic rows
 in the inspected dataset). A new clone runs `import_data.py` once; an existing database
-does not need another import to configure a provider. Reviewed: 2026-10-22. See
+does not need another import to configure a provider. Reviewed: 2026-10-23. See
 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for observed results and the
 [reference map](DOCUMENTATION_MAP.md) for current guides and historical notes.
 
@@ -17,12 +17,13 @@ does not need another import to configure a provider. Reviewed: 2026-10-22. See
 
 Original, Cherry, Vanilla and ZeroSugar retain their existing names; Lime is the fifth role. Engagement, recognition and priority conflicts are analysis topics across these roles. Detailed responsibilities, outputs, tools and worked examples are in [AGENT_ROLES.md](AGENT_ROLES.md).
 
-The 2026-10-22 coordination update shares request-derived deliverables with specialists
-and the reviewer. ZeroSugar identifies concrete mandatory corrections and assesses prior
-pending items on the revised answer; optional phrasing remains a suggestion. Partial output
-names current reviewed gaps. Specialist formats, standalone commands and source-facts-v3
-remain. No tests or provider calls were run for this update, by request. See
-[coordination and corrections](WORKFLOW_RELIABILITY.md#requested-deliverables-and-explicit-corrections-2026-10-22).
+The 2026-10-23 update simplifies Original's synthesis instructions and retires the mandatory
+deliverable checklist. ZeroSugar first reviews visible-answer completeness without sources,
+then separately reviews support with the evidence. Both stages participate in acceptance;
+actual pending corrections survive revision, while optional wording stays a suggestion.
+New finding reviews use block IDs and code retains their citations. Normal review adds
+one model call per candidate within existing budgets. The 242-test offline agent suite
+passed; real-model answer quality remains pending. See the [current workflow](WORKFLOW_RELIABILITY.md#autonomous-synthesis-and-two-stage-review-2026-10-23).
 
 ## Start with the correct kind of test
 

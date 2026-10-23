@@ -14,81 +14,38 @@ from .findings import safe_follow_up, clarification_question, unresolved_follow_
 from .policies import with_policies
 from .validation import ValidationError, repair_feedback, planning_value
 
-INSTRUCTIONS = """You are Original, Echo's coordinator. Keep ownership of the final
-manager-facing answer. All answers are in English. Use ask_cherry for quantitative metrics, comparisons, recognition
-counts, workload, program participation and priority records. Use ask_vanilla for anonymous
-opinions, narrative contribution evidence, work descriptions and decision explanations.
-The backend already supplies the authorized manager's roster and selected period. The
-manager ID is not an Employee_ID; never infer missing team membership from such a lookup.
-Survey text sentiment classification/counts/percentages belong to Vanilla's
-analyze_survey_sentiment, which enumerates all eligible scoped comments. Request that
-tool explicitly in the delegated question. Do not substitute numeric survey scores or
-selected search examples. Disclose provisional model labels and comment denominators.
-Counts/percentages computed from sentiment labels are Vanilla's work; they do not require
-Cherry or survey-score metrics. A specialist can return declined or incomplete. Correct
-an incompatible delegation, never switch to Cherry to obtain raw comments. Reuse validated
-classification progress; do not restart the same task to bypass its attempt limit.
-Delegate a bounded question to one or both specialists as needed, preserving the original
-manager/date scope. Combine their evidence, acknowledge disagreement and missing coverage,
-and explain findings with the exact source IDs returned by the tools. Top-k examples do not
-measure prevalence. Synthetic associations do not establish causality or actual impact.
-Recommend practical actions for human review with a measurable follow-up when warranted.
-An independent verifier will check your candidate before release.
-When revision feedback is supplied, correct the specified issues using the supplied evidence
-or ask a specialist for additional evidence. Do not merely hide limitations.
-The supplied request_deliverables are a planning checklist, not proof of completeness.
-Delegate every relevant requested component to its specialist, including interpretation,
-examples and limits when requested; you still own the complete final answer. A specialist's
-answer and its evidence are different: usable excerpts can already be in evidence.examples
-or canonical response text even when absent from the specialist's prose. Include requested
-examples in the final answer using the existing literal quote field and source IDs.
-Before submission, check each requested deliverable against the visible answer, not merely
-against evidence collected. Use the original question to catch omissions in the checklist.
-During repair, address every pending_correction explicitly while preserving other requested
-content. Reuse supplied evidence for presentation omissions; ask a specialist only for
-missing or disputed analysis/evidence. A concise supported synthesis can replace repeated
-prose; removing a requested interpretation or example does not resolve redundancy.
-Workflow examples:
-- A quarterly Recognition trend with anonymous context: ask Cherry for Survey_Date,
-  Team, Responses and Mean_Score, then Vanilla for supportive and critical passages.
-- Cross-team work without recorded recognition: ask Cherry for distinct contribution
-  counts and their denominator; ask Vanilla for documented deliverables and feedback.
-- Recorded workload conflicts: Cherry compares employee/week demand with capacity;
-  Vanilla retrieves the recorded priority explanations. Do not reconstruct unrecorded history.
-- A request for another manager's employees or anonymous identities: do not delegate a
-  scope-expanding task. Explain why the authorized evidence cannot answer it.
-Output should connect finding -> cited evidence -> limitation -> proposed human action
-and a measurable follow-up where warranted. Do not force both specialists when one suffices.
-For a purely numerical count, do not request textual examples unless they are needed to
-answer the actual question. Prefer Cherry's validated metrics for recurring calculations.
-During repairs preserve supported facts, their meaning and provenance. You may reorganize,
-combine qualitative evidence, rephrase and remove duplicate presentation to address review
-feedback. The revised candidate is reviewed again; do not hide contrary evidence or limits.
-If a chart is planned, obtain appropriately aggregated numeric rows through Cherry.
-Lime is invoked only for a planned chart; ZeroSugar reviews the released package.
-Do not invent numerical targets. Any suggested target must be explicitly a proposal,
-not a measurement or source-derived threshold. Write short cited finding blocks so each
-can be reviewed independently. If evidence is incomplete, state which requested part remains open.
-Numeric task status is supplied by code in numeric_coverage. A pending/error request is
-not evidence of absent data. Ask Cherry only for missing work and reuse completed results.
-You coordinate these tasks and synthesize their evidence; do not repeat Cherry's calculations
-or replace ZeroSugar's independent review. Cite each substantive block using [citation_id].
-In live mode select numeric facts through submit_grounded_answer; synthesize text through
-its interpretations field and proposed follow-up through proposals. Interpretations of
-cited text or source rows use quote=null, with one or several sources; illustrative
-examples require literal quotes. Narrative quantities/quantifiers receive semantic review,
-not automatic rejection. Keep values, units, dates and denominators tied to evidence;
-prefer catalog tables/comparisons instead of duplicating arithmetic in prose. Write
-requested team questions as direct questions. Use task_type=numeric for Cherry and task_type=text
-or sentiment for Vanilla. A numerical survey comparison does not require comment
-classification; do not delegate sentiment to Cherry or substitute scores for text labels.
-Include source tables when asked. Select code-computed differences/comparison coverage
-instead of inventing terms such as improved, declined, always or every quarter in prose.
-Prefer the combined survey comparison table when available; do not duplicate it with
-the individual source tables. Select the relevant date-to-date changes and cross-dimension
-coverage facts needed for the question rather than repeating every numeric cell.
-For any source table, do not also select its individual cells unless a distinct calculation
-adds needed information. Explain the main qualitative patterns, not merely a list of examples.
+INSTRUCTIONS = """You are Original, Echo's coordinator and owner of the final manager-facing
+answer. Answer the user's complete request in clear English, using the authorized scope.
+Choose the presentation and level of detail that make the answer useful; distinguish
+observations, provisional interpretation, uncertainty and proposed human action.
+
+Delegate structured calculations to Cherry and text retrieval/interpretation to Vanilla.
+Full comment sentiment classification and its counts/percentages belong to Vanilla's
+analyze_survey_sentiment tool, not numerical survey ratings or selected search examples.
+Delegate the relevant analytical question with the original context. Specialists supply
+analysis and evidence; you integrate one final answer without repeating their work.
+Use an adequate specialist interpretation as the basis for synthesis. Edit as needed for
+integration and clarity while preserving its supported meaning, disagreements and limits.
+An example existing in attached evidence is different from showing it to the reader.
+
+Reuse completed evidence and classification progress. Correct incompatible routing after
+a specialist decline; never resend an identical closed task or widen scope. Missing work,
+failed execution and absent records are different. The manager ID is not an Employee_ID.
+Use pending numeric coverage to request only unresolved calculations. Charts are selected
+by Lime when planned; ZeroSugar independently reviews the complete candidate.
+
+Finish through submit_grounded_answer. Select source facts for numeric tables/calculations,
+interpret cited text or rows through interpretations, and place proposed follow-up in
+proposals. Literal examples use the quote field; other interpretations use quote=null.
+Keep citations, numerical units and denominators tied to supplied evidence. A source table
+already displays its cells; interpretation should explain meaning rather than repeat them.
+Sentiment percentages describe comments, not employees; labels remain provisional.
+
+When review identifies pending corrections, resolve them with retained evidence or request
+missing/disputed specialist analysis. Preserve requested content and supported meaning
+while allowing rephrasing and removing redundancy. The whole revised answer is reviewed
+again. Optional style suggestions do not require correction or another specialist call.
+Explain unresolved work honestly when evidence or execution limits prevent completion.
 """
 
 
@@ -131,12 +88,6 @@ class OriginalAgent(Specialist):
                 "dimension": {"type": ["string", "null"], "description":
                     "Exact survey topic for survey_trend; null for cross-team counts. Never a time grouping."}},
                 "required": ["metric", "dimension"], "additionalProperties": False}},
-            "deliverables": {"type": "array", "maxItems": 16, "description":
-                "All explicitly requested output components, quoted from the original question; no added requirements. Owner supplies the analysis, Original owns final presentation.",
-                "items": {"type": "object", "properties": {
-                    "request_excerpt": {"type": "string", "minLength": 1, "maxLength": 400},
-                    "owner": {"type": "string", "enum": ["Original", "Cherry", "Vanilla", "Lime"]}},
-                    "required": ["request_excerpt", "owner"], "additionalProperties": False}},
         })]
         history = [{"role": "user", "content": json.dumps({"question": question, "scope": self.scope.__dict__})}]
         reconsidered_clarification = False
@@ -157,10 +108,6 @@ class OriginalAgent(Specialist):
                 "dimension explicitly needed by the user's rating question. Never copy example dimensions or add unrequested metrics. Cross-team counts use "
                 "cross_team_contributions with dimension=null. Use metrics=[] for custom SQL or no numeric work. "
                 "The application prepares these metrics; Cherry keeps tools to complete additional calculations. "
-                "List all explicitly requested output components in deliverables, using exact contiguous excerpts "
-                "from the question and the role supplying the analysis. Include requested examples, synthesis, "
-                "limitations and follow-up questions, not only calculations. Original owns final integration. "
-                "Do not invent output requirements or select additional roles just to fill the checklist. "
                 "All output is English. Use clarification_question=null and clarification_basis=null unless a necessary "
                 "task detail prevents proceeding. Otherwise supply a concrete missing_detail, blocking_reason and exact "
                 "request_excerpt after reading the COMPLETE request. Your proposed clarification will be returned once "
@@ -188,10 +135,9 @@ class OriginalAgent(Specialist):
                     plan.setdefault("clarification_basis", None)
                     plan.setdefault("needs_sentiment", False)
                 if isinstance(plan, dict):
-                    # Older submissions did not carry a checklist; the full question
-                    # remains authoritative and must still receive independent review.
-                    plan.setdefault("deliverables", [])
-                if not isinstance(plan, dict) or set(plan) != {"needs_numbers", "needs_text", "needs_sentiment", "include_chart", "clarification_question", "clarification_basis", "metrics", "deliverables"}:
+                    # Read old saved/fixture plans without retaining the retired checklist.
+                    plan.pop("deliverables", None)
+                if not isinstance(plan, dict) or set(plan) != {"needs_numbers", "needs_text", "needs_sentiment", "include_chart", "clarification_question", "clarification_basis", "metrics"}:
                     raise ValueError("Plan fields differ from the required schema.")
                 if any(type(plan[k]) is not bool for k in ("needs_numbers", "needs_text", "needs_sentiment", "include_chart")):
                     raise ValueError("Plan flags must be booleans.")
@@ -240,7 +186,6 @@ class OriginalAgent(Specialist):
                                              ", ".join(dimensions) + ". A quarter is a time grouping, not a survey dimension.")
                         request["dimension"] = matches[0] if matches else request["dimension"].strip()
                 plan["metrics"] = list({(r["metric"], r["dimension"]): r for r in plan["metrics"]}.values())
-                plan["deliverables"] = self.validate_deliverables(plan["deliverables"], question)
                 record("workflow_plan", agent="Original", needs_numbers=plan["needs_numbers"],
                        needs_text=plan["needs_text"], needs_sentiment=plan["needs_sentiment"], include_chart=plan["include_chart"], needs_clarification=q is not None,
                        metric_count=len(plan["metrics"]))
@@ -252,23 +197,6 @@ class OriginalAgent(Specialist):
                 history.append({"type": "function_call_output", "call_id": call.call_id,
                                 "output": json.dumps(feedback)})
         raise RuntimeError("Original did not return a valid bounded analysis plan.")
-
-    @staticmethod
-    def validate_deliverables(items, question):
-        """Validate source/structure only; the reviewer still judges task meaning."""
-        if not isinstance(items, list) or len(items) > 16:
-            raise ValidationError("deliverables_list", "deliverables", "Return at most 16 requested deliverables.")
-        result = []
-        for index, item in enumerate(items):
-            if not isinstance(item, dict) or set(item) != {"request_excerpt", "owner"}:
-                raise ValidationError("deliverable_fields", "deliverables", "Each deliverable needs request_excerpt and owner only.", item_index=index)
-            excerpt, owner = item["request_excerpt"], item["owner"]
-            if not isinstance(excerpt, str) or not 1 <= len(excerpt) <= 400 or not excerpt.strip() or excerpt not in question:
-                raise ValidationError("deliverable_excerpt", "deliverables.request_excerpt", "Copy a nonempty exact excerpt from the original question, up to 400 characters.", item_index=index)
-            if not isinstance(owner, str) or owner not in {"Original", "Cherry", "Vanilla", "Lime"}:
-                raise ValidationError("deliverable_owner", "deliverables.owner", "Choose an existing analysis role.", item_index=index)
-            result.append({"deliverable_id": f"D{index + 1}", **item})
-        return result
 
     def record_planning_attempt(self, attempt, status, received, feedback, feedback_sent,
                                 validation_code=None, **details):
@@ -352,8 +280,7 @@ class OriginalAgent(Specialist):
                 retained.update({item["citation_id"]: item for item in prepared})
                 prepared = list(retained.values())
             context = ([{"role": "user", "content": json.dumps({"original_request": self.original_request,
-                        "assigned_deliverables": [item for item in getattr(self, "request_deliverables", []) if item["owner"] == name],
-                        "note": "Address the assigned analytical components within your role and fixed scope. Return the existing answer/evidence format. Original owns final integration; distinguish analysis, source examples and unavailable evidence."})}]
+                        "note": "Use the original request as context for this bounded task and preserve your role and fixed scope. Return supported analysis and evidence in the existing format; Original owns final integration."})}]
                        if getattr(self, "original_request", None) else [])
             result = child.run(question, initial_evidence=prepared, context=context)
         except AgentRunError as error:
@@ -386,7 +313,6 @@ class OriginalAgent(Specialist):
             tool_limit=48 + 2 * max(0, self.model_call_limit - 32), seconds=self.run_seconds)
         self.last_result, self.last_verdict = None, None
         self.planned_metrics, self.prepared_metrics, self.repair_round = [], {}, 0
-        self.request_deliverables = []
         self.coordinator_diagnostics = {}
         self.planning_diagnostics = []
         self.declined_requests = {}
@@ -442,8 +368,6 @@ class OriginalAgent(Specialist):
             raise ValueError("Question must contain 1 to 4,000 characters.")
         plan = self.plan(question)
         self.coordinator_diagnostics["planning_attempts"] = self.planning_diagnostics
-        self.request_deliverables = plan.get("deliverables", [])
-        self.coordinator_diagnostics["request_deliverables"] = self.request_deliverables
         self.numeric_requested = plan["needs_numbers"] or plan["needs_sentiment"]
         self.planned_metrics = plan["metrics"]
         if "Cherry" in self.specialists:
@@ -472,9 +396,7 @@ class OriginalAgent(Specialist):
                 pending_coverage = numeric_child.numeric_coverage(evidence) if numeric_child else [
                     {**request, "status": "pending", "citation_id": None} for request in self.planned_metrics]
                 task_context = [{"role": "user", "content": json.dumps({
-                    "numeric_coverage": pending_coverage, "request_deliverables": self.request_deliverables,
-                    "pending_corrections": pending_corrections,
-                    "completion_check": "Before submitting, account for every requested component in the visible answer or explain unavailable evidence. Evidence existing internally does not make a requested example visible. Checklist and prior support do not establish semantic correctness."})}]
+                    "numeric_coverage": pending_coverage, "pending_corrections": pending_corrections})}]
                 self.active_stage = "coordination"
                 candidate = super().run(question, initial_evidence=evidence, context=context + task_context,
                                         diagnostics=self.coordinator_diagnostics)
@@ -529,7 +451,7 @@ class OriginalAgent(Specialist):
                                       grounding=candidate.grounding or None,
                                       task_outcomes=[{"agent": c["agent"], "status": c["status"], "task_outcome": c.get("task_outcome", {})}
                                                      for c in self.child_results], require_sentiment=plan["needs_sentiment"],
-                                      request_deliverables=self.request_deliverables, previous_corrections=pending_corrections)
+                                      previous_corrections=pending_corrections)
             if chart_failure:
                 verdict.decision = "revise"
                 verdict.repair_targets = sorted(set(verdict.repair_targets) | {"Lime"})
@@ -540,6 +462,7 @@ class OriginalAgent(Specialist):
                 candidate.failure = chart_failure
             reviews.append(asdict(verdict))
             candidate.diagnostics["verification"] = verifier.diagnostics
+            candidate.diagnostics["review_phases"] = verifier.diagnostics.get("review_phases", [])
             self.last_verdict, self.attempt_reviews = verdict, reviews
             self.active_stage = "release"
             candidate.findings = verdict.findings
@@ -580,7 +503,7 @@ class OriginalAgent(Specialist):
                  "while allowing rephrasing, reordering, qualitative synthesis and removal of redundant presentation. "
                  "Reuse existing evidence; the revised candidate will be reviewed again. Answer in English. " +
                  json.dumps({"review": asdict(verdict), "pending_corrections": pending_corrections,
-                             "request_deliverables": self.request_deliverables, "evidence": evidence}, ensure_ascii=False)}]
+                             "evidence": evidence}, ensure_ascii=False)}]
         # Rejected drafts are preserved in the local artifact, never released as findings.
         candidate.verification = {"decision": "revise", "status": "completed", "reviews": reviews, "drafts_checked": len(candidates), "rejected_drafts": candidates}
         candidate.delegations, candidate.tool_trace = self.child_results, coordinator_trace

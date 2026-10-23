@@ -40,7 +40,7 @@ class RecoveryFeedbackTests(unittest.TestCase):
         for text in ("Q3 includes 13 comments.", "The majority appreciated recognition in Q3.",
                      "Recognition changed on 2026-02-30."):
             with self.assertRaises(ValidationError) as caught:
-                render_answer(answer(text), catalog, "Vanilla")
+                render_answer(answer(text), catalog, "Vanilla", "source-facts-v2")
             self.assertEqual(caught.exception.details["validation_code"], "numeric_interpretation")
 
     def test_source_error_identifies_position_without_persisting_bad_value(self):

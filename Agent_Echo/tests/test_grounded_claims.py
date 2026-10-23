@@ -126,7 +126,7 @@ class GroundedClaimTests(unittest.TestCase):
         catalog = FactCatalog([{"citation_id": "CMT1", "text": "Helpful manager."}], SCOPE.__dict__)
         for text,quote in (("Support seems positive.","invented"), ("Most people are positive: 80%.", "Helpful")):
             with self.assertRaises(ValidationError):
-                render_answer(self.payload(interpretations=[{"text":text,"citation_ids":["CMT1"],"quote":quote}]), catalog, "Vanilla")
+                render_answer(self.payload(interpretations=[{"text":text,"citation_ids":["CMT1"],"quote":quote}]), catalog, "Vanilla", "source-facts-v2")
 
     def test_available_facts_cannot_be_recast_as_absent_data_by_empty_selection(self):
         with self.assertRaises(ValidationError) as caught:
@@ -154,7 +154,7 @@ class GroundedClaimTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             render_answer(self.payload([key]), self.catalog, "Vanilla")
         with self.assertRaises(ValidationError):
-            render_answer(self.payload(proposals=[{"text":"Aim for 99% support.","citation_ids":["SQL2"],"quote":None}]), self.catalog, "Original")
+            render_answer(self.payload(proposals=[{"text":"Aim for 99% support.","citation_ids":["SQL2"],"quote":None}]), self.catalog, "Original", "source-facts-v2")
 
     def test_changed_table_cell_is_detected_by_independent_reconstruction(self):
         key = next(k for k,f in self.catalog.facts.items() if f["kind"] == "table")
@@ -206,7 +206,7 @@ class GroundedClaimTests(unittest.TestCase):
         self.addCleanup(agent.close)
         result = agent.run("Compare Recognition and manager support with a table.")
         self.assertEqual(result.status, "complete")
-        self.assertEqual(result.grounding["version"], "source-facts-v2")
+        self.assertEqual(result.grounding["version"], "source-facts-v3")
         self.assertEqual(len(result.claims), len(result.findings))
         self.assertTrue(all(c["status"] == "supported" for c in result.findings))
 

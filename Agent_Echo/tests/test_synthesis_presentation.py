@@ -50,10 +50,10 @@ class SynthesisPresentationTests(unittest.TestCase):
     def test_individual_examples_still_require_literal_quotes(self):
         for quote, code in ((None, "interpretation_quote_type"), ("Fabricated excerpt.", "interpretation_quote_not_literal")):
             with self.subTest(code=code), self.assertRaises(ValidationError) as caught:
-                render_answer(payload(["survey:CMT1"], quote), self.catalog, "Original")
+                render_answer(payload(["survey:CMT1"], quote), self.catalog, "Original", "source-facts-v2")
             self.assertEqual(caught.exception.details["validation_code"], code)
         with self.assertRaises(ValidationError):
-            render_answer(payload(["survey:CMT1", "survey:CMT1"]), self.catalog, "Original")
+            render_answer(payload(["survey:CMT1", "survey:CMT1"]), self.catalog, "Original", "source-facts-v2")
 
     def test_synthesis_cannot_use_unknown_or_numeric_only_sources_or_prevalence(self):
         numeric = {"citation_id": "SQL1", "producer": "Cherry", "rows": [{"Value": 5}], "scope": SCOPE.__dict__}
@@ -61,12 +61,12 @@ class SynthesisPresentationTests(unittest.TestCase):
         for data, code in ((payload(["survey:CMT1", "SQL404"]), "narrative_source_unknown"),
                            (payload(["survey:CMT1", "SQL1"]), "interpretation_source_not_text")):
             with self.subTest(code=code), self.assertRaises(ValidationError) as caught:
-                render_answer(data, catalog, "Original")
+                render_answer(data, catalog, "Original", "source-facts-v2")
             self.assertEqual(caught.exception.details["validation_code"], code)
         data = payload()
         data["interpretations"][0]["text"] = "The majority appreciate recognition."
         with self.assertRaises(ValidationError) as caught:
-            render_answer(data, self.catalog, "Original")
+            render_answer(data, self.catalog, "Original", "source-facts-v2")
         self.assertEqual(caught.exception.details["validation_code"], "numeric_interpretation")
 
     def test_exact_table_cells_are_not_repeated_and_legacy_format_still_replays(self):

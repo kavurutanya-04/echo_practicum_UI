@@ -1,7 +1,7 @@
 # Echo documentation map
 
-Reviewed: 2026-10-22 (America/New_York), against the current local implementation
-and the saved live artifacts through run ten. Current answers use source-facts-v3;
+Reviewed: 2026-10-23 (America/New_York), against the current local implementation
+and the saved live artifacts through run eleven. Current answers use source-facts-v3;
 historical test/replay counts below predate it. This is an index and maintenance guide, not an
 additional runtime policy or a benchmark. No new provider request was made for this review.
 
@@ -59,19 +59,18 @@ them or approve their proposals.
 5. Generated Codex memory, classroom sources, source datasets and license text are not
    automatically edited by project-document maintenance.
 
-The first-stage coordination update is documented in
-[workflow reliability](WORKFLOW_RELIABILITY.md#requested-deliverables-and-explicit-corrections-2026-10-22),
-role responsibilities and the source contract. Runtime ownership remains in Original and
-ZeroSugar; specialist answer/evidence formats are retained. No new reference file is needed.
+The selected 2026-10-23 update is documented in the [current workflow](WORKFLOW_RELIABILITY.md#autonomous-synthesis-and-two-stage-review-2026-10-23), role guide, source contract,
+README and testing guide. It retires mandatory deliverable planning and adds separate
+completeness/support review calls with metadata-only phase traces. Specialist interfaces,
+source replay and the manager UI artifact interface are retained. The full agent suite
+passed 242 offline tests; no live provider call was made. GitHub publication is authorized.
 
-For a later authorized attempt, repeat the Recognition-comments question with the same
-M14/Q3 2026 scope and `--profile apinex_test --run-seconds 1000`, saving a fresh artifact
-such as `reports/apinex_prueba_vanilla_11.json`. Run ten is preserved and recorded in
-PROJECT_CONTEXT.md. Per user instruction, no tests, replay, API calls or GitHub publication
-were performed at the initial stage of the 2026-10-22 update; publication was later
-authorized separately (see PROJECT_CONTEXT.md). A supplied command is not proof of completion.
-The group's manager chat UI is now available locally (see PROJECT_CONTEXT.md).
-Natural-language date resolution, authentication and enterprise writes remain deferred.
+Run eleven and its false completeness acceptance are recorded in PROJECT_CONTEXT.md.
+For a later authorized repetition keep M14/Q3 2026 and `--profile apinex_test --run-seconds
+1000`, preserving earlier artifacts with a fresh output such as
+`reports/apinex_prueba_vanilla_12.json`. These offline checks do not certify the next live answer.
+The group's manager chat UI remains available locally; natural-language date resolution,
+authentication and enterprise writes remain deferred.
 
 Historical documentation review checks: 17 Markdown references and 147 relative file/heading links checked without
 errors; documented CLI options checked against `--help`. License text was unchanged.

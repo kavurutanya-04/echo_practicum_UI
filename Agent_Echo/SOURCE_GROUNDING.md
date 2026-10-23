@@ -1,6 +1,6 @@
 # Source-bound facts and claim review
 
-Reviewed 2026-10-22. The initial 2026-10-20 contract addresses the incorrect comparisons released in
+Reviewed 2026-10-23. The initial 2026-10-20 contract addresses the incorrect comparisons released in
 `reports/apinex_prueba_media_actualizada.json`. The source rows were correct, but
 Original wrote contradictory prose and ZeroSugar accepted it. Source replay and valid
 citations did not establish entailment. A successful API call or model approval is
@@ -98,15 +98,15 @@ facts, meaning and provenance; each revised candidate goes through review again.
 review's `issues` are mandatory corrections; `suggestions` are optional and do not alone
 force revision. Missing requested synthesis/questions and unsupported meaning remain issues.
 
-The 2026-10-22 update adds request-derived deliverables and explicit corrections to planning
-and review, not to the source-facts-v3 answer payload. Specialist answer/evidence formats and
-renderer/replay branches remain. ZeroSugar checks the checklist and original question against
-the visible candidate; examples existing only in evidence do not fulfill a display request.
-`corrections` identify each mandatory issue's change, owner and available source references;
-`correction_reviews` assess previous pending items while the entire candidate is reviewed.
-Reference/coverage checks validate structure; correction meaning/completion remain model
-judgments. Old payloads without these fields remain readable and saved artifacts are not
-rewritten. See the [coordination contract](WORKFLOW_RELIABILITY.md#requested-deliverables-and-explicit-corrections-2026-10-22).
+The 2026-10-23 update retires the mandatory deliverable checklist and preserves the answer
+payload/replay versions. ZeroSugar first reviews the question and exact visible answer
+without evidence, then reviews sources/claims and prior corrections in a separate call.
+The first verdict's omissions remain mandatory even if the support stage accepts. Every
+revised package undergoes both calls. Source-review outputs identify findings by ID; the
+application retains their original citation IDs. Old finding submissions with citations
+are still checked when supplied. New phase traces contain metadata only, not copied user
+requests or comments. Actual corrections remain local; no checklist field is required in
+new plans. See the [current workflow](WORKFLOW_RELIABILITY.md#autonomous-synthesis-and-two-stage-review-2026-10-23). These controls do not prove semantic correctness.
 
 Narrative warning markers never enter `deterministic_issues`. ZeroSugar explains the
 flagged claim's support or uncertainty in its existing per-finding reason, checking value,

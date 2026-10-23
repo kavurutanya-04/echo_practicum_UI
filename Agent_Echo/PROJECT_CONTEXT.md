@@ -1,6 +1,6 @@
 # Echo: current project context
 
-Reviewed: 2026-10-22 (America/New_York). This is a short entry point for future chats. It describes the local files inspected on this date; verify relevant sources before changing behavior. It is not a benchmark report or a transcript of every project conversation.
+Reviewed: 2026-10-23 (America/New_York). This is a short entry point for future chats. It describes the local files inspected on this date; verify relevant sources before changing behavior. It is not a benchmark report or a transcript of every project conversation.
 
 ## Purpose and architecture
 
@@ -40,7 +40,25 @@ instruction file and local historical reference. `AGENTS.md` guides project main
 
 ## Current implemented contracts
 
-First-stage coordination update, 2026-10-22, after run ten: Original's existing plan now
+Selected autonomy/review update, 2026-10-23: implemented 1A/2A/3A/4A/5B/6A/7B/8A.
+Original's role instructions are consolidated and favor integration of adequate specialist
+analysis without losing meaning. The mandatory deliverable checklist is retired; only
+actual review corrections persist. ZeroSugar now performs separate visible-answer
+completeness and evidence-support calls. The first call sees question/answer and visible
+chart labels when present, without source data; its
+omissions cannot be overridden by later source acceptance. Code attaches citations to
+reviewed finding IDs. New phase diagnostics contain counts/status metadata only. Existing
+five roles, specialist formats, sentiment repair, routing flags, scope/privacy gates and
+source-facts-v3/v1/v2 replay remain. No provider/model configuration is changed. The agent
+suite passed 242 offline tests on Windows Python 3.12.14, including 19 new regressions;
+initial baseline was 223 tests with 15 failures and 4 errors. Earlier tests were aligned
+with explicit v2 replay/current v3 contracts, and partial-result compatibility was repaired.
+No live provider call was performed. The user authorized GitHub publication after tests.
+One additional normal review call per candidate consumes the existing budgets; live quality,
+cost and latency are still unmeasured. See the [current workflow](WORKFLOW_RELIABILITY.md#autonomous-synthesis-and-two-stage-review-2026-10-23).
+
+
+Historical first-stage coordination update, 2026-10-22, after run ten (checklist retired on 2026-10-23): Original's existing plan now
 requests literal request-derived deliverables with analytical owners. The checklist
 accompanies specialist assignment, final synthesis and review; the original question
 remains authoritative. Existing Vanilla/Cherry answer/evidence formats and standalone
@@ -171,6 +189,20 @@ Eighth-run observation: `apinex_prueba_vanilla_8.json` and
 25.187 seconds. Original's plans were rejected for `unexpected_clarification_basis` then
 `clarification_basis_required`. No specialist, data tool or independent review ran. The
 planning update above follows this failure; the saved run is preserved unchanged.
+
+Eleventh-run observation, 2026-10-22: `apinex_prueba_vanilla_11.json` and
+`logs/20261022_185013_34573b500c0b.jsonl` record `complete`, 9 successful calls
+(Original 3, Vanilla 4, ZeroSugar 2), 172.812 seconds and one candidate. Source coverage,
+hashes, excerpts and aggregation matched 13 comments (8 positive, 2 negative, 3 mixed)
+in the read-only audit. Vanilla repaired one nonliteral excerpt; ZeroSugar repaired an
+F2 citation submission, then accepted all eight blocks. Requested literal examples were
+still absent from both visible answers, despite being present in attached evidence. The
+verifier's completeness rationale incorrectly treated them as displayed. No Original
+correction pass ran. Synthesis also blurred favorable recognition with access concerns.
+The deliverable list was not persisted by the diagnostic allowlist, so its contents cannot
+be reconstructed. This exposed review/trace limitations, not validated classifier quality.
+The selected 2026-10-23 update follows this result. Preserve run eleven; a later authorized
+live attempt should use a fresh filename such as `apinex_prueba_vanilla_12.json`.
 
 Tenth-run observation, inspected 2026-10-21/22: `apinex_prueba_vanilla_10.json` and
 `logs/20261021_233751_93460f0e607c.jsonl` record `partial`, 12 successful Luna calls
