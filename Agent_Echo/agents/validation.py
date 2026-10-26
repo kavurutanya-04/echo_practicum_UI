@@ -2,6 +2,7 @@
 
 import json
 import re
+import hashlib
 
 
 class ValidationError(ValueError):
@@ -21,6 +22,45 @@ def validation_details(error):
     return {"validation_code": "invalid_structure", "field": "tool_arguments"}
 
 
+def schema_id(schema):
+    """Identify the application schema, never the model's payload."""
+    return hashlib.sha256(json.dumps(schema, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+
+
+def field_names(names, known=()):
+    """Field names only: bounded/redacted, without any rejected values."""
+    result = []
+    for name in sorted(name for name in names if isinstance(name, str))[:64]:
+        if name in known:
+            result.append(name[:160])
+        elif re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) and planning_value(name)["value"] == name:
+            result.append(name[:160])
+        else:
+            # An arbitrary key can itself contain source prose or an identifier.
+            result.append("redacted_field_" + hashlib.sha256(name.encode("utf-8")).hexdigest()[:16])
+    return result
+
+
+def object_fields(value, schema, code, field, message, **position):
+    """Check required/allowed keys against the same object schema sent to the model."""
+    required = set(schema.get("required", []))
+    allowed = set(schema["properties"])
+    actual = set(value) if isinstance(value, dict) else set()
+    missing, unexpected = required - actual, actual - allowed
+    if not isinstance(value, dict) or missing or (unexpected and schema.get("additionalProperties") is False):
+        raise ValidationError(code, field, message, **position, schema_id=schema_id(schema),
+            expected_type="dict", actual_type=type(value).__name__,
+            expected_fields=field_names(allowed, allowed), received_fields=field_names(actual, allowed),
+            missing_fields=field_names(missing, allowed), unexpected_fields=field_names(unexpected, allowed),
+            expected_count=len(required), actual_count=len(actual),
+            unexpected_field_count=len(unexpected),
+            field_names_truncated=any(len(names) > 64 or any(isinstance(name, str) and len(name) > 160 for name in names)
+                                      for names in (allowed, actual)),
+            field_names_redacted=any(isinstance(name, str) and field_names([name], allowed) != [name] for name in actual),
+            local_details=minimal_value(value))
+    return value
+
+
 def safe_validation_details(error):
     """Explicit persistence allowlist; repair feedback can retain its existing contract."""
     details, result = validation_details(error), {}
@@ -33,9 +73,17 @@ def safe_validation_details(error):
     for key in ("item_index", "source_index", "expected_count", "actual_count", "max_characters", "actual_characters", "line", "column", "unexpected_field_count"):
         if type(details.get(key)) is int and details[key] >= 0:
             result[key] = details[key]
-    if isinstance(details.get("missing_fields"), list):
-        result["missing_fields"] = [name for name in details["missing_fields"] if isinstance(name, str) and name in
-                                    {"fact_ids", "interpretations", "proposals"}]
+    for key in ("expected_fields", "received_fields", "missing_fields", "unexpected_fields"):
+        if isinstance(details.get(key), list):
+            result[key] = field_names(details[key], details.get("expected_fields", []))
+    for key in ("expected_type", "actual_type"):
+        if isinstance(details.get(key), str) and details[key] in {"dict", "list", "str", "int", "float", "bool", "NoneType"}:
+            result[key] = details[key]
+    for key in ("field_names_truncated", "field_names_redacted"):
+        if type(details.get(key)) is bool:
+            result[key] = details[key]
+    if isinstance(details.get("schema_id"), str) and re.fullmatch(r"[0-9a-f]{16}", details["schema_id"]):
+        result["schema_id"] = details["schema_id"]
     return result
 
 
@@ -49,6 +97,18 @@ def repair_feedback(error):
         if detail:
             feedback["condition"] = detail
         feedback["correction"] = "Correct the indicated field in your previous submission; preserve already valid fields."
+        if "expected_fields" in feedback:
+            # Use sanitized metadata in both persistence and model feedback.
+            feedback.update(safe_validation_details(error))
+            actions = ["Return a JSON object at " + feedback["field"] + "."]
+            if feedback["missing_fields"]:
+                actions.append("Add required fields: " + json.dumps(feedback["missing_fields"]) + ".")
+            if feedback["unexpected_fields"]:
+                actions.append("Remove additional fields: " + json.dumps(feedback["unexpected_fields"]) + ".")
+            if feedback.get("field_names_redacted"):
+                actions.append("Redacted field markers identify omitted original names; remove every key outside the allowed list.")
+            actions.append("Allowed fields: " + json.dumps(feedback["expected_fields"]) + ". Preserve already valid values; follow the declared field types.")
+            feedback["correction"] = " ".join(actions)
     return feedback
 
 

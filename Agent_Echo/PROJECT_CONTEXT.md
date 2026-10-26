@@ -1,5 +1,29 @@
 # Echo: current project context
 
+## Run fourteen and field diagnostics, 2026-10-26
+
+Observed `apinex_prueba_vanilla_14.json` / `20261026_101230_bbbaadd0c825.jsonl`:
+failed after 12 successful calls / 233.438 seconds, with 20 model calls and about 770
+seconds remaining. Planning correctly selected Vanilla only. All 13 source texts,
+hashes, labels (9 positive, 2 negative, 2 mixed), literal excerpts and aggregates matched;
+the first candidate included the requested examples and used v4 without automatic
+synthetic-data wording. Completeness repaired an object-valued suggestion, then returned
+five issues including unjustified scope/source/method/layout objections. All three
+support submissions failed top-level field validation. Their exact missing/extra fields
+were not captured and cannot be recovered from this log. No completed support review or
+Original revision occurred; the original artifact is retained unchanged and ignored.
+
+Implemented the authorized diagnostic-only follow-up: schema-derived field comparisons,
+bounded/redacted missing/additional-field capture in artifacts/logs/model feedback, and
+phase/candidate/schema/condition identity across retries. Repeated versus changed errors
+are distinguished; valid submission repairs emit a linked event. No semantic review rule,
+provider setting, source contract, role or execution budget changes in this follow-up.
+Completion-scope/source-legitimacy behavior and provider strict-mode compatibility remain
+separate pending work. See [workflow details](WORKFLOW_RELIABILITY.md#field-error-diagnostics-follow-up-2026-10-26)
+and [validation](TESTING_AND_RAG.md). The 279-test offline suite passed, including
+nine new diagnostic regressions, on Windows Python 3.12.10. No new live-provider
+request was made.
+
 ## Review/data update after runs twelve and thirteen, 2026-10-26
 
 Implemented the user-selected general update: data-origin-neutral analysis across all
@@ -14,7 +38,8 @@ budgets, classification rubric and the five roles are unchanged.
 See the [current workflow](WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26)
 and [validation record](TESTING_AND_RAG.md). All 270 offline tests passed on Windows
 Python 3.12.10, the frontend production build succeeded, and runs twelve/thirteen
-replayed exactly. New live behavior remains unverified.
+replayed exactly. Run fourteen above exercises this version; a complete successful
+live result remains unverified.
 
 Observed run twelve: `apinex_prueba_vanilla_12.json`, log
 `20261026_091358_6b0386f57c31.jsonl`: failed after 12 successful calls / 231.75s;

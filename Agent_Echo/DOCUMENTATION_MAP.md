@@ -1,7 +1,7 @@
 # Echo documentation map
 
 Reviewed: 2026-10-26 (America/New_York), against the current local implementation
-and the saved live artifacts through run thirteen. Current answers use source-facts-v4;
+and the saved live artifacts through run fourteen. Current answers use source-facts-v4;
 historical test/replay counts below predate it. This is an index and maintenance guide, not an
 additional runtime policy or a benchmark. No new provider request was made for this review.
 
@@ -45,6 +45,13 @@ them or approve their proposals.
 | [echo_brainstorm_resumen_y_decisiones.md](../echo_brainstorm_resumen_y_decisiones.md) | Product/architecture proposals and unresolved decisions. Current reliability repairs preserve the five roles; proposed business execution is not implemented. |
 | [brainstorm_employee_engagement.md](../brainstorm_employee_engagement.md) | September problem exploration, retained as history rather than current runtime specifications. |
 | [alternativas_employee_engagement.md](../alternativas_employee_engagement.md) | September project/market comparison, not a refreshed market assessment or final selection. |
+
+## Current field-diagnostic follow-up (2026-10-26)
+
+The [diagnostic contract](WORKFLOW_RELIABILITY.md#field-error-diagnostics-follow-up-2026-10-26)
+updates validation.py, ZeroSugar field checks/repair records and focused regressions.
+Current guides/context are aligned; source versions, semantics, roles, UI and provider
+settings remain unchanged by this follow-up. Preserve run fourteen as observed evidence.
 
 ## Current review/data update (2026-10-26)
 

@@ -1,5 +1,9 @@
 # Source-bound facts and claim review
 
+Diagnostic follow-up, 2026-10-26: the source-facts-v4 and v1/v2/v3 replay contracts are
+unchanged. The shared validation metadata now preserves bounded/redacted structural
+field names for review errors as well as grounded answers. See the [diagnostic contract](WORKFLOW_RELIABILITY.md#field-error-diagnostics-follow-up-2026-10-26).
+
 ## Current v4 and review-v2 addendum (2026-10-26)
 
 `source-facts-v4` preserves v3 source-fact arithmetic, quote controls and narrative review

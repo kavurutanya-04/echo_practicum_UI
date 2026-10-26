@@ -10,7 +10,8 @@ from .data_access import ScopedData
 from .tools import SQLReader
 from .execution_log import record, error_summary
 from .findings import cited_findings, clarification_question
-from .validation import ValidationError, repair_feedback, rejection_diagnostic, planning_value, review_messages, minimal_value
+from .validation import (ValidationError, repair_feedback, rejection_diagnostic, planning_value,
+                         review_messages, minimal_value, object_fields, schema_id)
 from .grounding import FactCatalog, audit_claims
 from .policies import with_policies
 
@@ -315,14 +316,21 @@ class ZeroSugarAgent:
         extended = basic | {"finding_reviews", "repair_targets", "clarification_question"}
         optional = {"suggestions", "corrections", "correction_reviews"}
         if not isinstance(report, dict) or set(report) - optional not in (basic, extended):
-            raise ValidationError("review_fields", "review", "Review fields differ from the required review schema.")
+            required = extended if isinstance(report, dict) and set(report) & (extended - basic) else basic
+            object_fields(report, {"properties": {key: {} for key in required | optional}, "required": sorted(required),
+                                   "additionalProperties": False}, "review_fields", "review",
+                          "Review fields differ from the required legacy review schema.")
         if not isinstance(report["decision"], str) or report["decision"] not in {"accept", "revise"} or not isinstance(report["uncertainty"], str):
             raise ValidationError("review_decision", "decision/uncertainty", "Invalid review decision or uncertainty.")
         if not isinstance(report["ratings"], dict) or set(report["ratings"]) != set(DIMENSIONS):
-            raise ValidationError("rating_dimensions", "ratings", "All seven rubric dimensions are required.")
+            object_fields(report["ratings"], {"properties": {key: {} for key in DIMENSIONS}, "required": list(DIMENSIONS),
+                                             "additionalProperties": False}, "rating_dimensions", "ratings",
+                          "All seven rubric dimensions are required.")
         for name, rating in report["ratings"].items():
             if not isinstance(rating, dict) or set(rating) != {"score", "rationale"}:
-                raise ValidationError("rating_fields", "ratings." + name, "Each rating requires a score and rationale.")
+                object_fields(rating, {"properties": {"score": {}, "rationale": {}}, "required": ["score", "rationale"],
+                                       "additionalProperties": False}, "rating_fields", "ratings." + name,
+                              "Each rating requires a score and rationale.")
             if type(rating["score"]) is not int or not 1 <= rating["score"] <= 3 or not isinstance(rating["rationale"], str):
                 raise ValidationError("rating_value", "ratings." + name, "Scores must be integers from 1 to 3, with a rationale.")
         review_messages(report["issues"], "issues", "review_issues", max_items=64)
@@ -352,7 +360,9 @@ class ZeroSugarAgent:
         seen, checked = set(), []
         for index, review in enumerate(reviews):
             if not isinstance(review, dict) or set(review) not in ({"finding_id", "decision", "reason"}, {"finding_id", "decision", "citation_ids", "reason"}):
-                raise ValidationError("finding_fields", "finding_reviews", "Finding review fields are invalid.", item_index=index)
+                schema = self.tools[0]["parameters"]["properties"]["finding_reviews"]["items"]
+                object_fields(review, {**schema, "properties": {**schema["properties"], "citation_ids": {}}},
+                              "finding_fields", f"finding_reviews[{index}]", "Finding review fields are invalid.", item_index=index)
             key = review["finding_id"]
             if not isinstance(key, str) or key not in lookup or key in seen or not isinstance(review["decision"], str) or review["decision"] not in {"supported", "revise"}:
                 raise ValidationError("finding_identity", "finding_reviews.finding_id/decision", "Unknown, repeated or invalid finding review.", item_index=index)
@@ -390,7 +400,9 @@ class ZeroSugarAgent:
             fields = {"issue_index", "kind", "owner", "requested_change", "citation_ids"}
             for index, item in enumerate(supplied):
                 if not isinstance(item, dict) or set(item) not in (fields, fields | {"request_excerpt"}):
-                    raise ValidationError("correction_fields", "corrections", "Use the declared correction fields only.", item_index=index)
+                    object_fields(item, {"properties": {key: {} for key in fields | {"request_excerpt"}},
+                                         "required": sorted(fields), "additionalProperties": False},
+                                  "correction_fields", f"corrections[{index}]", "Use the declared correction fields only.", item_index=index)
                 issue_index = item["issue_index"]
                 if type(issue_index) is not int or not 0 <= issue_index < len(report["issues"]) or issue_index in seen:
                     raise ValidationError("correction_issue", "corrections.issue_index", "Reference each current mandatory issue once using its zero-based index.", item_index=index)
@@ -427,7 +439,10 @@ class ZeroSugarAgent:
         seen = set()
         for index, item in enumerate(assessments):
             if not isinstance(item, dict) or set(item) not in ({"correction_id", "status", "reason"}, {"correction_id", "status", "reason", "replacement_id"}):
-                raise ValidationError("correction_review_fields", "correction_reviews", "Assess correction_id, status, reason and optional replacement_id only.", item_index=index)
+                object_fields(item, {"properties": {key: {} for key in ("correction_id", "status", "reason", "replacement_id")},
+                                     "required": ["correction_id", "status", "reason"], "additionalProperties": False},
+                              "correction_review_fields", f"correction_reviews[{index}]",
+                              "Assess correction_id, status, reason and optional replacement_id only.", item_index=index)
             key, status, reason = item["correction_id"], item["status"], item["reason"]
             if not isinstance(key, str) or key not in expected or key in seen:
                 raise ValidationError("correction_review_id", "correction_reviews.correction_id", "Assess each supplied prior correction exactly once.", item_index=index)
@@ -451,22 +466,19 @@ class ZeroSugarAgent:
                 raise ValidationError("correction_replacement", "correction_reviews", "Consolidation must retain an unresolved obligation.")
         return corrections, assessments
 
-    @staticmethod
-    def normalize_review(report):
+    def normalize_review(self, report):
         """Read the new single-list submission through the existing internal/export shape."""
-        required = {"decision", "ratings", "suggestions", "uncertainty", "finding_reviews",
-                    "clarification_question", "corrections", "correction_reviews", "numeric_reviews"}
-        if not isinstance(report, dict) or set(report) != required:
-            raise ValidationError("review_fields", "review", "Use the declared review-v2 fields only.")
+        schema = self.tools[0]["parameters"]
+        object_fields(report, schema, "review_fields", "review", "Use the declared review-v2 fields only.")
         supplied = report["corrections"]
         if not isinstance(supplied, list) or len(supplied) > 32:
             raise ValidationError("corrections_list", "corrections", "Use a list of at most 32 new corrections.",
                                   expected_count=32, actual_count=len(supplied) if isinstance(supplied, list) else 0,
                                   local_details=minimal_value(supplied))
-        fields = {"issue", "kind", "owner", "requested_change", "citation_ids"}
+        item_schema = schema["properties"]["corrections"]["items"]
         for index, item in enumerate(supplied):
-            if not isinstance(item, dict) or set(item) != fields:
-                raise ValidationError("correction_fields", "corrections", "Use the declared correction fields.", item_index=index)
+            object_fields(item, item_schema, "correction_fields", f"corrections[{index}]",
+                          "Use the declared correction fields.", item_index=index)
             review_messages([item["issue"]], f"corrections[{index}].issue")
         return {**{k: v for k, v in report.items() if k != "numeric_reviews"},
                 "issues": [item["issue"] for item in supplied],
@@ -483,7 +495,9 @@ class ZeroSugarAgent:
         seen = set()
         for index, item in enumerate(reviews):
             if not isinstance(item, dict) or set(item) != {"request_id", "decision", "reason"}:
-                raise ValidationError("numeric_review_fields", "numeric_reviews", "Use request_id, decision and reason.", item_index=index)
+                object_fields(item, {"properties": {key: {} for key in ("request_id", "decision", "reason")},
+                                     "required": ["request_id", "decision", "reason"], "additionalProperties": False},
+                              "numeric_review_fields", f"numeric_reviews[{index}]", "Use request_id, decision and reason.", item_index=index)
             key = item["request_id"]
             if not isinstance(key, str) or key not in expected or key in seen:
                 raise ValidationError("numeric_review_identity", "numeric_reviews.request_id", "Use every supplied request ID once.", item_index=index)
@@ -493,8 +507,34 @@ class ZeroSugarAgent:
             seen.add(key)
         return reviews
 
+    def reject_review(self, error, tool, phase, attempt, call, history):
+        """Send and persist the same bounded diagnosis, with phase-local retry identity."""
+        entry = rejection_diagnostic(error, self.name, tool["name"], attempt, attempt)
+        entry.update(phase=phase, candidate_id=self.diagnostics.get("candidate_id"),
+                     schema_version=REVIEW_VERSION, tool_schema_id=schema_id(tool["parameters"]))
+        condition = {key: entry.get(key) for key in ("validation_code", "field", "item_index", "expected_type",
+                     "actual_type", "missing_fields", "unexpected_fields", "schema_id")}
+        condition["value_type"] = entry.get("detail", {}).get("value_type")
+        entry["condition_id"] = schema_id(condition)
+        previous = [item for item in self.diagnostics["rejected_attempts"]
+                    if item.get("phase") == phase and item.get("candidate_id") == entry["candidate_id"]]
+        entry["same_condition_attempts"] = 1 + sum(item.get("condition_id") == entry["condition_id"] for item in previous)
+        entry["condition_status"] = ("first_failure" if not previous else
+                                     "repeated" if previous[-1]["condition_id"] == entry["condition_id"] else "changed")
+        if previous:
+            entry["previous_condition_id"] = previous[-1]["condition_id"]
+        self.diagnostics["rejected_attempts"].append(entry)
+        record("structured_response_repair", **{**error_summary(error), **entry})
+        feedback = repair_feedback(error)
+        feedback.update({key: entry[key] for key in ("phase", "candidate_id", "schema_version", "tool_schema_id",
+                                                     "condition_id", "condition_status", "same_condition_attempts")})
+        if entry["same_condition_attempts"] > 1:
+            feedback["correction"] = "This condition recurred. Apply the indicated changes instead of resubmitting the same structure. " + feedback.get("correction", "")
+        history.append({"type": "function_call_output", "call_id": call.call_id, "output": json.dumps(feedback)})
+
     def review_completeness(self, question, answer, budget, visualization=None):
         """An independent call sees only the request and the exact visible answer."""
+        self.diagnostics.setdefault("candidate_id", candidate_id(answer))
         tool = function_tool("submit_completeness_review", "Review visible-answer completeness without attached evidence.", {
             "decision": {"type": "string", "enum": ["accept", "revise"]},
             "score": {"type": "integer", "minimum": 1, "maximum": 3},
@@ -533,10 +573,16 @@ class ZeroSugarAgent:
                 budget.consume("tool")
                 try:
                     report = json.loads(call.arguments)
-                    current = isinstance(report, dict) and "corrections" in report
-                    expected = {"decision", "score", "rationale", "suggestions", "corrections" if current else "issues"}
-                    if not isinstance(report, dict) or set(report) != expected:
-                        raise ValidationError("completeness_fields", "completeness_review", "Use the declared completeness review fields.")
+                    current = not (isinstance(report, dict) and "issues" in report and "corrections" not in report)
+                    schema = tool["parameters"]
+                    if not current:
+                        # Compatibility only: derive the old issues slot from the
+                        # current schema instead of maintaining a second root list.
+                        schema = {**schema, "properties": {**{key: value for key, value in schema["properties"].items()
+                                                              if key != "corrections"}, "issues": {}},
+                                  "required": ["issues" if key == "corrections" else key for key in schema["required"]]}
+                    object_fields(report, schema, "completeness_fields", "completeness_review",
+                                  "Use the declared completeness review fields.")
                     if report["decision"] not in ("accept", "revise") or type(report["score"]) is not int or not 1 <= report["score"] <= 3:
                         raise ValidationError("completeness_decision", "completeness_review", "Give accept/revise and a completeness score from 1 to 3.")
                     if not isinstance(report["rationale"], str) or not 1 <= len(report["rationale"].strip()) <= 1200 or len(report["rationale"]) > 1200:
@@ -549,8 +595,9 @@ class ZeroSugarAgent:
                                                   local_details=minimal_value(items))
                         normalized = []
                         for index, item in enumerate(items):
-                            if not isinstance(item, dict) or set(item) != {"issue", "requested_change"}:
-                                raise ValidationError("completeness_items", "completeness_review.corrections", "Use issue and requested_change only.", item_index=index)
+                            object_fields(item, tool["parameters"]["properties"]["corrections"]["items"],
+                                          "completeness_items", f"completeness_review.corrections[{index}]",
+                                          "Use issue and requested_change only.", item_index=index)
                             for key in ("issue", "requested_change"):
                                 review_messages([item[key]], f"completeness_review.corrections[{index}].{key}", "completeness_items")
                             normalized.append({**item, "correction_id": f"C_{candidate_id(answer + item['issue'])}_visible_{index + 1}",
@@ -562,11 +609,7 @@ class ZeroSugarAgent:
                     for key in ("issues", "suggestions"):
                         review_messages(report[key], "completeness_review." + key, "completeness_items")
                 except (ValueError, TypeError) as error:
-                    entry = rejection_diagnostic(error, self.name, "submit_completeness_review", attempt + 1, attempt + 1)
-                    entry["phase"] = "completeness"
-                    self.diagnostics["rejected_attempts"].append(entry)
-                    record("structured_response_repair", agent=self.name, phase="completeness", **error_summary(error))
-                    history.append({"type": "function_call_output", "call_id": call.call_id, "output": json.dumps(repair_feedback(error))})
+                    self.reject_review(error, tool, "completeness", attempt + 1, call, history)
                     continue
                 if report["issues"] or report["score"] == 1:
                     report["decision"] = "revise"
@@ -575,6 +618,10 @@ class ZeroSugarAgent:
                 for entry in self.diagnostics["rejected_attempts"]:
                     if entry.get("phase") == "completeness":
                         entry.update(resolution="accepted_completeness_submission", accepted_model_turn=attempt + 1)
+                        record("structured_response_repaired", agent=self.name, phase="completeness",
+                               candidate_id=entry.get("candidate_id"), condition_id=entry.get("condition_id"),
+                               rejected_model_turn=entry["model_turn"], accepted_model_turn=attempt + 1,
+                               resolution=entry["resolution"])
                 record("review_phase_finished", agent=self.name, **phase)
                 return report
             raise RuntimeError("Completeness verifier did not return a valid structured verdict.")
@@ -660,7 +707,7 @@ class ZeroSugarAgent:
                 raise
             try:
                 submitted = json.loads(call.arguments)
-                current = isinstance(submitted, dict) and "issues" not in submitted
+                current = not isinstance(submitted, dict) or "issues" not in submitted or "numeric_reviews" in submitted
                 report = self.validate(self.normalize_review(submitted) if current else submitted)
                 findings = self.validate_findings(report, blocks, evidence)
                 corrections, correction_reviews = self.validate_corrections(report, question, evidence,
@@ -671,11 +718,7 @@ class ZeroSugarAgent:
                     if any(item["correction_id"] in visible_ids and item["status"] == "resolved" for item in correction_reviews):
                         raise ValidationError("visible_correction_resolution", "correction_reviews", "A current visible omission needs unresolved, justified withdrawn or consolidated status; source acceptance does not resolve it.")
             except (ValueError, TypeError) as error:
-                record("structured_response_repair", agent="ZeroSugar", **error_summary(error))
-                self.diagnostics["rejected_attempts"].append(
-                    {**rejection_diagnostic(error, "ZeroSugar", "submit_review", attempt + 1, attempt + 1), "phase": "support"})
-                history.append({"type": "function_call_output", "call_id": call.call_id,
-                                "output": json.dumps(repair_feedback(error))})
+                self.reject_review(error, self.tools[0], "support", attempt + 1, call, history)
                 continue
             if current:
                 for index, correction in enumerate(corrections):
@@ -727,9 +770,7 @@ class ZeroSugarAgent:
             decision = "revise" if must_revise else report["decision"]
             if current and decision == "revise" and not corrections and not checks and not any(f["status"] != "supported" for f in findings):
                 error = ValidationError("review_actionable_revision", "corrections", "A blocking decision/rating needs an actionable correction; otherwise align the verdict with the supported answer.")
-                self.diagnostics["rejected_attempts"].append(
-                    {**rejection_diagnostic(error, "ZeroSugar", "submit_review", attempt + 1, attempt + 1), "phase": "support"})
-                history.append({"type": "function_call_output", "call_id": call.call_id, "output": json.dumps(repair_feedback(error))})
+                self.reject_review(error, self.tools[0], "support", attempt + 1, call, history)
                 continue
             for finding in findings:
                 if finding.get("review_warnings"):
@@ -742,6 +783,10 @@ class ZeroSugarAgent:
             for entry in self.diagnostics["rejected_attempts"]:
                 if entry.get("phase") == "support":
                     entry.update(resolution="accepted_review_submission", accepted_model_turn=attempt + 1)
+                    record("structured_response_repaired", agent=self.name, phase="support",
+                           candidate_id=entry.get("candidate_id"), condition_id=entry.get("condition_id"),
+                           rejected_model_turn=entry["model_turn"], accepted_model_turn=attempt + 1,
+                           resolution=entry["resolution"])
             phase.update(status="completed", decision=decision, issue_count=len(report["issues"]))
             record("review_phase_finished", agent=self.name, **phase)
             record("verification_finished", agent="ZeroSugar", decision=decision,

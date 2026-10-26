@@ -9,6 +9,39 @@ English. This change does not add a UI, authentication system, bilingual testing
 comparative provider benchmark. Later dated changes below supersede historical contract
 details where explicitly stated.
 
+## Field-error diagnostics follow-up (2026-10-26)
+
+After run fourteen, the user authorized a diagnostic-only update. Object-field errors
+now identify expected/received root types, allowed/received fields, missing required
+fields and additional fields, with an indexed path for nested items. New review roots
+and correction items are checked against the actual tool schema, not a duplicate root
+field list. Legacy review acceptance/compatibility is retained, with explicit diagnostics
+for its supported shapes. This does not relax field validation or guess default values.
+
+The same bounded/redacted field-name metadata survives error summaries, JSON artifacts,
+JSONL and model repair feedback. Up to 64 names of 160 characters are retained per list;
+counts/truncation metadata disclose limits. Unrecognized non-identifier keys are replaced
+with stable redacted-field markers so a key cannot copy source prose into the trace.
+Rejected values, complete arguments, prompts
+and source text are not added. The previous missing-field filter limited to grounded
+answer slots has been replaced. Feedback identifies fields to add/remove and preserves
+valid values, rather than merely repeating the schema instruction.
+
+Each rejection includes candidate/phase/attempt context, review version, the declared
+tool-schema fingerprint and a stable diagnostic condition ID. The validated object's
+schema fingerprint may differ for a nested or legacy shape. Retry state distinguishes
+first_failure, repeated and changed; a changed condition is not proof of a valid review.
+The existing three-attempt bounds remain. Final valid submission updates diagnostic
+resolution and emits structured_response_repaired events linked to the original rejected
+attempts. That event confirms structured submission repair, not factual/semantic approval.
+Both review stages and all publication gates remain required.
+
+No completion-scope/source-review rules, role responsibilities, provider strict-mode
+handling, model settings, budgets, source contracts or UI layouts are changed here.
+The incorrect completeness objections in run fourteen and provider-schema compatibility
+remain separate follow-up work. Old logs cannot retrospectively reveal missing keys
+that they never recorded. See [TESTING_AND_RAG.md](TESTING_AND_RAG.md) for validation.
+
 ## Review and data contract update (2026-10-26)
 
 Implemented after examining live runs twelve and thirteen. Those runs remain unchanged

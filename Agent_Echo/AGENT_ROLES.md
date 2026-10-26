@@ -1,5 +1,11 @@
 # Echo agent responsibilities and examples
 
+Diagnostic follow-up, 2026-10-26: ZeroSugar's structured field rejections now preserve
+missing/additional keys, types and positions through model feedback and bounded local
+records. Retry identity and valid-submission repair events distinguish transport repair
+from analytical acceptance. This does not change the roles or review judgments. See the
+[diagnostic contract](WORKFLOW_RELIABILITY.md#field-error-diagnostics-follow-up-2026-10-26).
+
 ## Current coordination contract (2026-10-26)
 
 All five roles analyze supplied data independently of its origin. Original distinguishes

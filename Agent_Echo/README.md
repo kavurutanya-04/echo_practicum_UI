@@ -1,5 +1,11 @@
 # Echo: five agents with interchangeable model connections
 
+Current diagnostic follow-up, 2026-10-26: review field mismatches now retain bounded
+expected/received/missing/additional field names and root types. The same detail reaches
+the model's repair feedback and local artifacts/logs; retry metadata distinguishes repeated
+or changed errors and eventual valid submission. Review semantics/provider settings are
+unchanged. See the [diagnostic contract](WORKFLOW_RELIABILITY.md#field-error-diagnostics-follow-up-2026-10-26).
+
 ## Current review and data contracts (2026-10-26)
 
 New answers use `source-facts-v4`; stored v1/v2/v3 remain reproducible. Echo treats

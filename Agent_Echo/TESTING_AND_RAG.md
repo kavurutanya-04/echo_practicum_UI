@@ -1,5 +1,29 @@
 # What can be tested without an API, and how to verify RAG
 
+## Field-error diagnostic checks (2026-10-26)
+
+The diagnostic-only follow-up passed the full **279-test offline suite** on Windows,
+using the existing Python **3.12.10** environment. Nine new regressions in
+`tests/test_review_field_diagnostics.py` cover missing/additional root fields, wrong
+root types, nested paths/indexes, comparison with the actual declared schema, both
+review phases, repeated versus changed conditions, explicit repair events, artifact/log/
+feedback delivery, invalid-submission withholding and bounded/redacted field names.
+A malformed key containing source prose is fingerprinted rather than copied to logs.
+Values from rejected fields are omitted. The tests use scripted responses, not APInex.
+
+Command actually run from `Agent_Echo`:
+
+```powershell
+& '.\.venv\Scripts\python.exe' -B -m unittest discover -s tests
+```
+
+The nine focused regressions also passed separately. Python source syntax and changed
+Markdown link paths were checked. No live-provider calls, model changes, strict-mode
+activation, UI rebuild or new semantic review rules were part of this follow-up.
+Use a fresh artifact for later live diagnosis; run fourteen's old missing/extra keys
+cannot be reconstructed from its retained generic errors.
+See the [diagnostic contract](WORKFLOW_RELIABILITY.md#field-error-diagnostics-follow-up-2026-10-26).
+
 ## Review/data update validation (2026-10-26)
 
 The full offline agent suite passed **270 tests** on Windows with the existing
