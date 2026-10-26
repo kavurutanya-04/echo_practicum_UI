@@ -1,5 +1,16 @@
 # Echo: five agents with interchangeable model connections
 
+## Current review and data contracts (2026-10-26)
+
+New answers use `source-facts-v4`; stored v1/v2/v3 remain reproducible. Echo treats
+supplied data by content/coverage/method and does not automatically label it synthetic.
+`review-v2` derives issues/repair targets from one correction list, reassesses every
+pending obligation, and judges pending metric relevance against the question. Original
+integrates manager action proposals without a mandatory checklist or a sixth agent.
+Partial outputs identify the reviewed source version separately from an unreviewed
+new draft. See the [current workflow](WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26)
+and [validation record](TESTING_AND_RAG.md). Provider configuration and budgets are unchanged.
+
 Echo's Python code, prompts, configuration and operating documentation are in English.
 The local SQLite database is built from eleven application tables (630,339 synthetic rows
 in the inspected dataset). A new clone runs `import_data.py` once; an existing database

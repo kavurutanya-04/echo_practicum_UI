@@ -70,7 +70,7 @@ function describeMade(made: Made) {
   if (made.survey_sources || made.sentiment_runs) parts.push('Vanilla reviewed survey responses')
   if (made.charts) parts.push(`Lime drew ${made.charts} chart${made.charts === 1 ? '' : 's'}`)
   else parts.push('Lime decided no chart was needed')
-  parts.push(`ZeroSugar checked ${made.drafts_checked > 1 ? `${made.drafts_checked} drafts` : 'the answer'}${made.findings_checked ? ` and ${made.findings_checked} finding${made.findings_checked === 1 ? '' : 's'}` : ''}`)
+  parts.push(`ZeroSugar completed ${made.completed_reviews ?? made.drafts_checked} review${(made.completed_reviews ?? made.drafts_checked) === 1 ? '' : 's'}${made.review_status === 'failed' ? '; the latest review did not finish' : ''}`)
   return parts.join(' · ')
 }
 
@@ -93,7 +93,7 @@ export default function AnswerBubble({ meta, artifact, onOpenPulse }: { meta: Ru
   for (const item of allEvidence) if (!sources.has(item.citation_id)) sources.set(item.citation_id, isSql(item) ? item : null)
   const chart = artifact.visualization?.charts?.[0]
   const chartSource = chart ? sources.get(chart.source_id) : null
-  const verified = artifact.verification?.decision === 'accept'
+  const verified = artifact.verification?.decision === 'accept' && artifact.verification?.status !== 'failed' && artifact.status === 'complete'
   const commentCount = allEvidence.filter((e) => !isSql(e) && (e as { source?: string }).source === 'HR_survey_comments').length
   const opened = openSource ? sources.get(openSource) : null
 

@@ -52,6 +52,24 @@ def repair_feedback(error):
     return feedback
 
 
+def review_messages(value, field, code="review_messages", max_items=16, max_characters=600):
+    """Explain the failed structural condition without retaining rejected prose."""
+    if not isinstance(value, list):
+        raise ValidationError(code, field, "Return a list of review messages.",
+                              local_details=minimal_value(value))
+    if len(value) > max_items:
+        raise ValidationError(code, field, "Too many review messages.",
+                              expected_count=max_items, actual_count=len(value))
+    for index, item in enumerate(value):
+        if not isinstance(item, str):
+            raise ValidationError(code, field, "Each review message must be a string.",
+                                  item_index=index, local_details=minimal_value(item))
+        if not item.strip() or len(item) > max_characters:
+            raise ValidationError(code, field, "Review messages must be nonempty and within the character limit.",
+                                  item_index=index, max_characters=max_characters, actual_characters=len(item))
+    return value
+
+
 def planning_value(value):
     """Retain bounded diagnostic values, redacting recognizable private identifiers."""
     if isinstance(value, str):

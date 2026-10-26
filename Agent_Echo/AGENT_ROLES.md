@@ -1,17 +1,29 @@
 # Echo agent responsibilities and examples
 
+## Current coordination contract (2026-10-26)
+
+All five roles analyze supplied data independently of its origin. Original distinguishes
+its internal analysis plan from manager-facing proposed actions, choosing depth and
+presentation without mandatory targets/resources/checklists. Cherry retains numeric
+ownership; Vanilla retains text/classification; Lime retains visualization. ZeroSugar
+retains separate completeness/support review and independently reassesses actual
+corrections, including justified withdrawal or consolidation. Source/scope/privacy gates
+cannot be withdrawn by model judgment. New reviews use `review-v2`, deriving routing from
+one correction list and assessing pending numeric relevance. New answers use v4; older
+answer contracts remain reproducible. See the [current workflow](WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26).
+
 The [workflow reliability update](WORKFLOW_RELIABILITY.md) supersedes unconditional role
 execution and all-or-nothing release described below: Original now plans required roles,
 Cherry offers validated metrics, ZeroSugar reviews cited blocks, and only supported blocks
 can appear in a partial answer. Output is English. Lime runs only when a chart is planned.
 
 Live Original, Cherry and Vanilla answers now follow the [source-bound claim contract](SOURCE_GROUNDING.md): models select existing facts, code renders numeric statements/tables, and ZeroSugar reviews explicit claims. Text interpretations and sentiment labels remain provisional rather than semantically certified by citation checks.
-The current `source-facts-v3` contract permits interpretations across one or several cited
+The current `source-facts-v4` contract permits interpretations across one or several cited
 text/row sources with `quote=null`. Explicit examples still require literal excerpts. Original may revise
 wording/layout while preserving facts, meaning and provenance; every candidate is reviewed.
 Exact source tables replace repeated individual-cell sentences, and labels are grouped.
 
-Updated 2026-10-23. Five roles share configurable model adapters; each has its own instructions and history. This is a terminal/local-file prototype. All employee data is synthetic. Descriptions below complement the executable `INSTRUCTIONS` in each agent file.
+Updated 2026-10-23. Five roles share configurable model adapters; each has its own instructions and history. This is a terminal/local-file prototype. The bundled dataset is synthetic; runtime analysis does not presume data origin. Descriptions below complement the executable `INSTRUCTIONS` in each agent file.
 
 The 2026-10-23 update removes the mandatory per-question checklist, retains actual review
 corrections and introduces separate completeness/support calls within ZeroSugar. See the
@@ -99,13 +111,13 @@ Lime still accepts only Cherry's SQL evidence. It therefore does not chart these
 ## ZeroSugar — independent answer and chart-plan review
 
 Since 2026-10-26, pending-correction coverage is enforced even if the model omits the
-entire `correction_reviews` field. Each previous correction needs one resolved/unresolved
+entire `correction_reviews` field. Each obligation needs one resolved/unresolved/withdrawn/consolidated
 assessment; code validates this coverage, while ZeroSugar judges semantic completion.
 Legacy reviews without prior corrections remain readable.
 
 **First input:** original question, visible candidate answer and presentation labels for
 accompanying charts, with no source data. **First tool:**
-`submit_completeness_review`, with completeness score, decision, rationale, mandatory issues
+`submit_completeness_review`, with completeness score, decision, rationale, mandatory corrections
 and optional suggestions. **Second input:** answer, scoped sources, claims, chart plan,
 objective checks, completeness verdict and prior corrections. **Second tool:** `submit_review`
 with seven-dimension ratings, per-block decisions/reasons and correction feedback. Code
@@ -114,7 +126,7 @@ reviews identify the block; its citation IDs are attached by code instead of rec
 
 ZeroSugar checks citations, manager/date scope, anonymous identity fields, SQL replay, text/source correspondence and chart schema. Its model checks whether claims and chart labels are supported, whether the indicator addresses the question and whether units/denominators match. It does not write the answer or generate new metrics. Code forces revision for deterministic failures even if the model accepts.
 For a synthesis it checks all cited text sources, including contrary evidence. Mandatory
-corrections belong in `issues`, optional improvements in `suggestions`; optional suggestions
+corrections belong in `corrections` (code derives `issues`), optional improvements in `suggestions`; optional suggestions
 alone do not block acceptance. Missing requested synthesis/questions remain mandatory.
 Lime's SQL-only input, Cherry's calculations and Vanilla's classification tools are unchanged.
 
@@ -128,7 +140,7 @@ opinion is positive or a conclusion is meaningful. Bounded redacted rejection/no
 context and warning assessments remain local. No tests or API calls were run for this
 update. The separate proposal to remove mandatory specialist presentation is not implemented.
 
-Example rejection: a title claiming causal engagement improvement from synthetic associations; an average labeled as a percentage; a chart built from truncated rows; invented sentiment prevalence from selected comments. Example acceptance: supported findings with source references, an appropriate chart and honest limitations, or a justified no-chart result.
+Example rejection: a title claiming causal engagement improvement from unsupported associations; an average labeled as a percentage; a chart built from truncated rows; invented sentiment prevalence from selected comments. Example acceptance: supported findings with source references, an appropriate chart and honest limitations, or a justified no-chart result.
 
 One localized correction round is allowed. A rejected full draft is withheld; independently supported blocks can be released as a partial answer. Charts remain withheld for incomplete packages. Model judgment remains fallible. ZeroSugar reviews structured specs and data, not a rendered image; human visual inspection is separate.
 

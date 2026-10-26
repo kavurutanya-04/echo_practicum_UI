@@ -15,7 +15,7 @@ export default function Data() {
 
   return (
     <>
-      <PageTitle title="Data" subtitle="The eleven synthetic tables Echo can reach, with the schema dictionary. Agents only ever see scoped, approved fields." />
+      <PageTitle title="Data" subtitle="The eleven tables Echo can reach, with the schema dictionary. Agents only ever see scoped, approved fields." />
       {tables.loading && !tables.data ? (
         <Spinner />
       ) : tables.error ? (

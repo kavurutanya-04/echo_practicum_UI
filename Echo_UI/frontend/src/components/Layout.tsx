@@ -80,7 +80,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <div className="mb-1 flex items-center gap-1.5 font-semibold">
             <ShieldAlert className="size-3.5" /> Responsible use
           </div>
-          All employee data is synthetic. Echo supports human review and does not make personnel decisions. Comments
+          Echo supports human review and does not make personnel decisions. Comments
           stay anonymous; groups under 5 responses are suppressed.
         </div>
       </div>

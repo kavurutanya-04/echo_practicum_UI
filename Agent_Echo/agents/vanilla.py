@@ -25,7 +25,7 @@ and recorded priority explanations. Query terms should match the English source 
 try alternative terms if retrieval fails, and filter by source/dimension when appropriate.
 Use exact [citation_id] returned by search_text next to each supported finding, and state
 the source team and date. Distinguish anonymous team opinions from named operational notes.
-All data is synthetic. Never identify an anonymous respondent or infer their Employee_ID.
+Never identify an anonymous respondent or infer their Employee_ID.
 Acknowledge conflicting opinions; text does not establish causality.
 Search results are selected examples, not a representative sample: do not turn top-k
 passages into percentages, sentiment prevalence, team rankings or improvement claims.

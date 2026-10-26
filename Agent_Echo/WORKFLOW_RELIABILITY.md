@@ -9,7 +9,74 @@ English. This change does not add a UI, authentication system, bilingual testing
 comparative provider benchmark. Later dated changes below supersede historical contract
 details where explicitly stated.
 
+## Review and data contract update (2026-10-26)
+
+Implemented after examining live runs twelve and thirteen. Those runs remain unchanged
+local evidence; this update is not a claim of improved live-model behavior.
+
+**Data and roles.** Echo analyzes supplied data by definitions, coverage and method,
+without presuming or warning that it is synthetic. Supplied assumptions remain inputs,
+not measured outcomes. Causal support depends on evidence/design. Model-label uncertainty,
+source integrity, anonymity, scope and denominator controls remain. Dataset-construction
+history stays in dataset documentation. The five roles and provider settings are retained.
+Original's internal analysis plan selects queries/specialists. Its manager-facing action
+plan proposes useful responses to findings when requested or useful, without mandatory
+per-question templates, invented targets, schedules or resources. No action is executed.
+
+**Single-list review.** New `review-v2` support submissions contain `corrections`, not
+parallel `issues` or `repair_targets`. Each new correction has issue, kind, owner,
+requested_change and citation_ids; code assigns IDs and derives compatibility fields.
+New completeness submissions contain only issue/requested_change corrections plus their
+verdict/rationale/suggestions. They see the exact visible answer and safe chart labels,
+never attached sources. Original owns visible-answer repairs with available evidence.
+Legacy review submissions remain readable through conservative normalization.
+
+**Independent reconsideration.** Support receives prior corrections and current visible
+corrections as `review_obligations`. Every ID requires an assessment: resolved,
+unresolved, withdrawn with reason, or consolidated into another unresolved obligation.
+Consolidation cannot cycle or point to a closed obligation. Existing unresolved IDs
+persist; code does not infer semantic equivalence from wording. Current visible omissions
+cannot be marked resolved merely by source acceptance. A withdrawal must explain an
+unjustified requirement or policy conflict. Original may challenge a correction, but
+ZeroSugar decides its disposition; objective source/scope checks remain non-overridable.
+Optional suggestions never create required repairs. Ratings/blocking decisions must have
+an actionable correction or an objective/finding failure; the existing publication
+thresholds remain. Both review stages must succeed before a complete release.
+
+**Plan relevance and autonomy.** Each pending numeric task gets a code-assigned request
+ID. ZeroSugar returns required/not_required/uncertain plus a reason against the question.
+Required and uncertain tasks stay open; a not-required catalog task is retired from the
+remaining internal plan. This judgment shares the existing support call. The original
+question also governs comparisons omitted by the plan. Correction owners determine
+repair targets; Original may use either analytical specialist when resolving integration
+work, subject to role/scope controls and retained-evidence reuse. Formatting an available
+excerpt does not require reclassification. No extra agent, ordinary review call, budget
+increase or natural-language rejection rule is added.
+
+**Diagnostics and release.** Structural repairs identify the failing type, index, count
+or length without storing rejected prose. Valid review fields are retained. Each completed
+phase is immediately saved locally with bounded/redacted review text; JSONL phase events
+contain metadata only. Finding events are provisional until the entire review validates.
+Original preserves per-candidate phase history, including a completed first phase if
+support fails. Candidate fingerprints include answer, evidence and charts. A partial
+artifact records the reviewed source candidate, released finding IDs, latest candidate
+ID and a separate unreviewed draft when applicable. Published claims/evidence come from
+the reviewed version, never a newer unreviewed draft; the partial wrapper is not itself
+a full grounded selection. `audit_grounding.py` replays the source candidate and checks
+the released selection. UI payloads expose only review status/counts/IDs, not retained
+drafts or review traces; completed-review counts differ from attempted draft counts.
+
+**Replay/export.** New answers use `source-facts-v4`, removing automatic origin claims.
+Stored v1/v2/v3 keep their original rendering; v3 narrative warnings remain warnings.
+SVG descriptions and new provenance exports no longer assert `synthetic=True`. Existing
+artifacts/exports and source records are not rewritten. See [SOURCE_GROUNDING.md](SOURCE_GROUNDING.md)
+and [TESTING_AND_RAG.md](TESTING_AND_RAG.md) for compatibility and validation boundaries.
+
 ## Audit follow-up: review coverage, output limits and request deadlines (2026-10-26)
+
+The later [review/data contract update](#review-and-data-contract-update-2026-10-26)
+supersedes the review formats and automatic pending-metric blocking described in the
+earlier sections. Provider deadline/output-limit changes remain in effect.
 
 ZeroSugar must assess every prior correction, even when its response omits the entire
 `correction_reviews` field. Missing, empty or partial assessments fail validation when

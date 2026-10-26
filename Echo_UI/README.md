@@ -1,5 +1,7 @@
 # Echo Console
 
+Current update, 2026-10-26: [review/data contracts](../Agent_Echo/WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26) retain the five roles, add review-v2 and new v4 answers with historical replay, remove automatic data-origin claims, and distinguish completed reviews from attempted drafts. Original retains manager action proposals. The UI preserves status/version metadata without exposing retained drafts. No new live-provider validation is claimed.
+
 A local web interface for the Echo multi-agent prototype. Echo's agents are not modified: every
 analysis runs `Agent_Echo/run_agent.py` as a subprocess, so the console gets exactly the same scope
 checks, evidence rules and ZeroSugar verification as the terminal. Progress streams to the browser

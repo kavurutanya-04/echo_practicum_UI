@@ -429,6 +429,8 @@ def how_it_was_made(artifact):
         "charts": len((artifact.get("visualization") or {}).get("charts") or []),
         "findings_checked": len(artifact.get("findings") or []),
         "drafts_checked": verification.get("drafts_checked") or len(verification.get("reviews") or []),
+        "completed_reviews": verification.get("completed_reviews", len(verification.get("reviews") or [])),
+        "review_status": verification.get("status", "completed"),
     }
 
 
@@ -443,13 +445,15 @@ def without_comment_text(artifact):
 
     # Allow-list only what the manager page renders; traces and retrieval logs can carry comment text.
     visualization = artifact.get("visualization") or {}
+    verification = artifact.get("verification") or {}
     return {
         "question": artifact.get("question"), "answer": artifact.get("answer", ""),
         "status": artifact.get("status"), "mode": artifact.get("mode"), "scope": artifact.get("scope"),
         "evidence": clean(artifact.get("evidence")),
         "delegations": [{"agent": d.get("agent"), "evidence": clean(d.get("evidence"))} for d in artifact.get("delegations") or []],
         "visualization": {"charts": visualization.get("charts", []), "reason": visualization.get("reason", "")},
-        "verification": {"decision": (artifact.get("verification") or {}).get("decision")},
+        "verification": {key: verification.get(key) for key in
+                         ("decision", "status", "completed_reviews", "latest_candidate_id", "released_candidate_id")},
         "limitations": artifact.get("limitations", []),
         "findings": [{"finding_id": f.get("finding_id"), "text": f.get("text"), "citation_ids": f.get("citation_ids", []),
                       "status": f.get("status")} for f in artifact.get("findings") or []],

@@ -1,8 +1,37 @@
 # What can be tested without an API, and how to verify RAG
 
+## Review/data update validation (2026-10-26)
+
+The full offline agent suite passed **270 tests** on Windows with the existing
+`Agent_Echo/.venv` Python **3.12.10**. Twenty new regressions cover review-v2 obligation
+coverage, withdrawal/consolidation, real visible omissions, precise structural feedback,
+metric relevance/retirement, phase persistence, reviewed-version partial release,
+manager payload redaction, origin-neutral chart export and v3/v4 replay. The scripted
+revision fixture now explicitly assesses its prior corrections; the default-version
+assertion now expects v4. Scripted judgments test contracts, not semantic accuracy.
+
+Commands actually run from `Agent_Echo`:
+
+```powershell
+& '.\.venv\Scripts\python.exe' -B -m unittest discover -s tests
+```
+
+The existing frontend dependencies built successfully with `npm run build` from
+`Echo_UI/frontend` (TypeScript and production bundling). Python source syntax checks
+passed for agents and UI backend. Payload-boundary tests execute the actual pure backend
+helpers without starting a server or reading credentials. No browser interaction,
+server restart, dependency installation or live-provider request was performed.
+
+The stored v3 text AND claims in `apinex_prueba_vanilla_12.json` and
+`apinex_prueba_vanilla_13.json` reproduced exactly with the new code; both local artifacts
+remain unchanged. This replay proves compatibility, not that their labels are correct.
+Use a fresh filename for a later authorized live evaluation. Confirm complete reviews,
+visible requested examples, actual source support, relevant calculations and the final
+version displayed. Human classifier evaluation remains separate.
+
 Updated 2026-10-26. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
 
-Latest focused update, 2026-10-26: the audit follow-up covers mandatory assessment of
+Earlier focused update, 2026-10-26: the audit follow-up covers mandatory assessment of
 pending corrections, configured Responses output limits and Chat deadline checks before
 explicit HTTP attempts, including after pacing/retry waits. Eight new regressions use
 scripted responses, fake clients and a fake clock; old revision/demo fixtures now explicitly

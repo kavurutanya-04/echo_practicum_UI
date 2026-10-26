@@ -75,7 +75,10 @@ class ReviewModel:
                 "decision": "revise" if "fabricated" in b["text"] else "supported",
                 "reason": "Controlled test decision."} for b in payload["findings"]],
             "repair_targets": [] if outcome == "accept" else ["Lime" if outcome == "chart" else "Original"],
-            "clarification_question": None}
+            "clarification_question": None,
+            "correction_reviews": [{"correction_id": item["correction_id"], "status": "resolved",
+                                    "reason": "Scripted resolution against the revised fixture."}
+                                   for item in payload.get("previous_corrections", [])]}
         return tool_turn("submit_review", report)
 
 

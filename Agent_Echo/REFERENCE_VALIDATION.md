@@ -1,5 +1,13 @@
 # Validation against classroom references
 
+## Current implementation addendum (2026-10-26)
+
+The [review/data contract update](WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26)
+introduces review-v2 and new source-facts-v4 answers, preserving v1/v2/v3 replay. Data
+origin is not an analytical rejection criterion. Original retains manager action
+proposals and coordination; no agent is added. This does not revise classroom sources
+or certify model judgment. See [TESTING_AND_RAG.md](TESTING_AND_RAG.md) for current checks.
+
 Classroom-source inspection: 2026-10-06. Current implementation comparison reviewed:
 2026-10-21, against local code/configuration and the documented runs. This refresh does
 not claim that classroom notebooks, external documentation or provider access were newly

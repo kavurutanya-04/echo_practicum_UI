@@ -1,5 +1,21 @@
 # Source-bound facts and claim review
 
+## Current v4 and review-v2 addendum (2026-10-26)
+
+`source-facts-v4` preserves v3 source-fact arithmetic, quote controls and narrative review
+signals, but removes the renderer's automatic data-origin claim. `source-facts-v1`, v2
+and v3 retain their original text/claims on replay; v3 does not revert to numeric prose
+rejection when the default advances to v4. No source facts or old artifacts are rewritten.
+New chart descriptions/metadata do not presume dataset origin. Unvalidated classifier
+labels and comment denominators remain substantive method limitations.
+
+Review-v2 uses canonical corrections and assessed obligations; earlier unconditional
+issue-merging descriptions below are historical. A partial wrapper has no full selection
+contract: its `verification.released_candidate` holds the reviewed selection/contract,
+`released_finding_ids` identify publishable blocks, and a newer unreviewed draft is stored
+separately. Published claims/evidence must match that reviewed selection. Offline audit
+checks these links. See the [current workflow](WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26).
+
 Reviewed 2026-10-23. The initial 2026-10-20 contract addresses the incorrect comparisons released in
 `reports/apinex_prueba_media_actualizada.json`. The source rows were correct, but
 Original wrote contradictory prose and ZeroSugar accepted it. Source replay and valid
@@ -38,10 +54,10 @@ its read-only metric/schema/SQL tools and selects only numeric source facts. Typ
 delegation restricts Cherry to `numeric` and Vanilla to `text`/`sentiment`; it does not
 make arbitrary natural-language task interpretation infallible.
 
-New answers use `source-facts-v3`. If an exact source table and its individual numeric
+New answers use `source-facts-v4`. If an exact source table and its individual numeric
 cells are selected together, the renderer displays the table and omits only the repeated
 cell sentences. Calculated comparisons remain separate. Numeric facts, operations and
-source IDs remain unchanged. Stored `source-facts-v1` and `source-facts-v2` answers replay
+source IDs remain unchanged. Stored `source-facts-v1`, `source-facts-v2` and `source-facts-v3` answers replay
 with their original rendering and validation rules; new normalization and review signals
 are not imposed on older artifacts.
 

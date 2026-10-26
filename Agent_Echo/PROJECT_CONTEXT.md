@@ -1,5 +1,36 @@
 # Echo: current project context
 
+## Review/data update after runs twelve and thirteen, 2026-10-26
+
+Implemented the user-selected general update: data-origin-neutral analysis across all
+five roles and new outputs; Original retains analysis coordination and manager action
+proposals without a checklist or another agent. `review-v2` uses one correction list,
+complete obligation assessments, explicit withdrawal/consolidation, and model review
+of pending metric relevance. Existing objective gates and two review stages remain.
+`source-facts-v4` removes automatic origin claims; v1/v2/v3 replay is preserved. Partial
+release retains the reviewed version separately from a newer unreviewed draft. UI text,
+status/count projection and new chart exports are aligned. Configuration, source data,
+budgets, classification rubric and the five roles are unchanged.
+See the [current workflow](WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26)
+and [validation record](TESTING_AND_RAG.md). All 270 offline tests passed on Windows
+Python 3.12.10, the frontend production build succeeded, and runs twelve/thirteen
+replayed exactly. New live behavior remains unverified.
+
+Observed run twelve: `apinex_prueba_vanilla_12.json`, log
+`20261026_091358_6b0386f57c31.jsonl`: failed after 12 successful calls / 231.75s;
+13 labels (9 positive, 2 negative, 2 mixed), sources/excerpts/aggregation reproduced.
+Visible excerpts were absent. Completeness requested revision; support had three
+invalid submissions. An unrequested pending survey trend could also force Cherry work.
+
+Observed run thirteen: `apinex_prueba_vanilla_13.json`, log
+`20261026_092301_3a80945b0f39.jsonl`: partial after 14 successful calls / 265.375s;
+identical source hashes and labels. The first review supported seven blocks and requested
+repairs. Original added literal positive/critical/mixed excerpts in its second draft;
+that draft's completeness review failed three structural attempts. Published blocks
+came from the first reviewed draft. Review feedback also contained duplicate repairs,
+unjustified data-origin objections and inconsistent routing. Classification semantics
+remain unvalidated. Both original artifacts are preserved and not committed.
+
 Reviewed: 2026-10-26 (America/New_York). This is a short entry point for future chats. It describes the local files inspected on this date; verify relevant sources before changing behavior. It is not a benchmark report or a transcript of every project conversation.
 
 ## Audit follow-up, 2026-10-26
@@ -25,7 +56,7 @@ Local UI setup, 2026-10-22: copied only `Echo_UI/` from `origin/main` at `fcc014
 
 | Role | Current responsibility | Main implementation |
 | --- | --- | --- |
-| Original | Plan the analysis, select specialists, combine evidence, and coordinate corrections. | [original.py](agents/original.py) |
+| Original | Plan the analysis, select specialists, integrate proposed actions, and coordinate corrections. | [original.py](agents/original.py) |
 | Cherry | Obtain scoped numeric evidence through SQL and prepared metrics. | [cherry.py](agents/cherry.py), [metrics.py](agents/metrics.py) |
 | Vanilla | Retrieve source-linked text and classify scoped survey sentiment when requested. | [vanilla.py](agents/vanilla.py), [tools.py](agents/tools.py), [semantic_search.py](agents/semantic_search.py) |
 | Lime | Select supported charts from Cherry's evidence and export accepted SVG/CSV/provenance artifacts. | [lime.py](agents/lime.py), [chart_export.py](agents/chart_export.py) |

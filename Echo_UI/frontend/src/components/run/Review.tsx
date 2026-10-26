@@ -23,7 +23,7 @@ export default function Review({ artifact }: { artifact: Artifact }) {
           Final decision: {artifact.verification.decision ?? '—'}
         </Badge>
         <span className="text-sm text-slate-500">
-          {artifact.verification.drafts_checked ?? reviews.length} draft{(artifact.verification.drafts_checked ?? reviews.length) === 1 ? '' : 's'} checked · average {average.toFixed(2)} / 3
+          {artifact.verification.completed_reviews ?? reviews.length} completed review{(artifact.verification.completed_reviews ?? reviews.length) === 1 ? '' : 's'}{artifact.verification.status === 'failed' ? ' · latest review unfinished' : ''} · average {average.toFixed(2)} / 3
         </span>
         {reviews.length > 1 && (
           <div className="ml-auto flex gap-1">

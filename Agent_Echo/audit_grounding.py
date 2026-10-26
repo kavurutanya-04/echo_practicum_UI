@@ -13,7 +13,7 @@ from agents.grounding import FactCatalog, audit_claims
 from agents.tools import SQLReader
 from agents.metrics import MetricCatalog
 from agents.vanilla import validate_sentiment_labels
-from agents.zero_sugar import ZeroSugarAgent
+from agents.zero_sugar import ZeroSugarAgent, candidate_id
 
 HERE = Path(__file__).resolve().parent
 
@@ -42,14 +42,27 @@ def audit_artifact(path, database=HERE / "data" / "echo.db"):
                 document_lookup=text_lookup, sentiment_reports=reports,
                 sentiment_documents=sentiment_documents)
             evidence = node.get("evidence", [])
-            candidate = "\n\n".join(c["text"] for c in node.get("claims", [])) or node.get("answer", "")
+            released = node.get("verification", {}).get("released_candidate")
+            selection = released or node
+            candidate = "\n\n".join(c["text"] for c in selection.get("claims", [])) or selection.get("answer", "")
             issues = verifier.audit(candidate, evidence)
-            contract = node.get("grounding", {}).get("version")
+            contract = selection.get("grounding", {}).get("version")
             catalog = FactCatalog(evidence, scope.__dict__)
             if contract:
-                issues += audit_claims(node.get("claims", []), candidate, catalog, node["grounding"])
+                issues += audit_claims(selection.get("claims", []), candidate, catalog, selection["grounding"])
             else:
                 issues.append("Legacy narrative has no reproducible claim-selection contract; audit prose manually.")
+            if released:
+                verification = node["verification"]
+                identity = released.get("candidate_id")
+                review = next((item for item in verification.get("reviews", []) if item.get("candidate_id") == identity), None)
+                ids = verification.get("released_finding_ids", [])
+                if identity != candidate_id(released["answer"], evidence, released.get("visualization")) or review is None or any(
+                    key not in {f["finding_id"] for f in review["findings"] if f["status"] == "supported"} for key in ids):
+                    issues.append("Partial release lacks a matching completed finding review.")
+                expected = [claim for claim in released.get("claims", []) if claim["finding_id"] in ids]
+                if node.get("claims", []) != expected or any(claim["text"] not in node.get("answer", "") for claim in expected):
+                    issues.append("Published claims differ from the reviewed release selection.")
             output["runs"].append({"agent": node.get("agent"), "question": node.get("question"),
                 "recorded_status": node.get("status"), "provenance_issues": list(dict.fromkeys(issues)),
                 "available_facts": catalog.public(), "published_answer": node.get("answer", ""),

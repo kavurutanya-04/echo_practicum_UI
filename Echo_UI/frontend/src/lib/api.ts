@@ -132,7 +132,7 @@ export type Artifact = {
   evidence: Evidence[]
   mode: string
   status: string
-  verification: { decision?: string; reviews?: Review[]; drafts_checked?: number }
+  verification: { decision?: string; status?: string; reviews?: Review[]; drafts_checked?: number; completed_reviews?: number; latest_candidate_id?: string; released_candidate_id?: string }
   delegations: { agent: string; question: string; answer: string; evidence: Evidence[] }[]
   visualization: { charts?: ChartSpec[]; reason?: string; files?: { source_id: string; svg: string; csv: string; metadata: string }[] }
   rag: Record<string, unknown>
@@ -164,6 +164,8 @@ export type Made = {
   charts: number
   findings_checked: number
   drafts_checked: number
+  completed_reviews?: number
+  review_status?: string
 }
 
 export type PulseTheme = { text: string; share: 'most' | 'many' | 'some' | 'a few'; tone: 'positive' | 'concern' | 'mixed' }

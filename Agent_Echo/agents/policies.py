@@ -5,6 +5,10 @@ COMMON_POLICY = """ECHO SHARED POLICY
 invent records, numbers, quotations or citation IDs. Model training knowledge can explain
 general concepts, but cannot supply missing employee facts or resolve missing measurements.
 Keep observations, provisional interpretations and proposed actions distinct.
+Analyze supplied data on its content, definitions, coverage and method, regardless of
+how it was created. Do not presume or automatically warn that data is synthetic. A
+supplied assumption is an input, not a measured outcome. Judge causal claims by the
+available evidence/design, not by a real-versus-synthetic label.
 A quotation is an exact contiguous source excerpt supporting the claim/label, never a
 summary, translation or paraphrase. Preserve relevant negation and context. Put the
 explanation/interpretation in its separate field; literal copying does not prove meaning.

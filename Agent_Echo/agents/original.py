@@ -1,12 +1,13 @@
 """Original: coordinator with mandatory verification and bounded revision."""
 
 from dataclasses import asdict
+from copy import deepcopy
 import json
 import hashlib
 
 from .cherry import CherryAgent
 from .vanilla import VanillaAgent
-from .zero_sugar import ZeroSugarAgent
+from .zero_sugar import ZeroSugarAgent, candidate_id
 from .lime import LimeAgent
 from .runtime import RunBudget, Specialist, function_tool, AgentResult, AgentRunError, reject_calls
 from .execution_log import record, error_summary, explain_failure
@@ -18,6 +19,12 @@ INSTRUCTIONS = """You are Original, Echo's coordinator and owner of the final ma
 answer. Answer the user's complete request in clear English, using the authorized scope.
 Choose the presentation and level of detail that make the answer useful; distinguish
 observations, provisional interpretation, uncertainty and proposed human action.
+Your internal analysis plan chooses queries and specialists; it is not the manager's
+action plan. When useful or requested, integrate proposed actions tied to findings and
+explain how they might help. Choose the depth and presentation; do not require targets,
+dates, owners or resources without adequate context. Proposed effects are not measured
+results. You may explain why a review correction is unnecessary or contradictory;
+ZeroSugar must reassess it. Never silently drop a pending correction or approve yourself.
 
 Delegate structured calculations to Cherry and text retrieval/interpretation to Vanilla.
 Full comment sentiment classification and its counts/percentages belong to Vanilla's
@@ -312,6 +319,8 @@ class OriginalAgent(Specialist):
         self.budget = RunBudget(model_limit=self.model_call_limit,
             tool_limit=48 + 2 * max(0, self.model_call_limit - 32), seconds=self.run_seconds)
         self.last_result, self.last_verdict = None, None
+        self.reviewed_candidate = None
+        self.review_history = []
         self.planned_metrics, self.prepared_metrics, self.repair_round = [], {}, 0
         self.coordinator_diagnostics = {}
         self.planning_diagnostics = []
@@ -325,6 +334,7 @@ class OriginalAgent(Specialist):
             candidate.failure = error_summary(error)
             candidate.failure["stage"] = candidate.diagnostics.get("stage", self.active_stage) if self.active_stage == "coordination" else self.active_stage
             candidate.diagnostics["verification"] = self.verification_diagnostics
+            candidate.diagnostics["review_history"] = self.review_history
             candidate.diagnostics["planning_attempts"] = self.planning_diagnostics
             candidate.delegations = self.child_results
             candidate.sentiment = {key: value for child in self.child_results for key, value in child.get("sentiment", {}).items()}
@@ -336,7 +346,21 @@ class OriginalAgent(Specialist):
             return self.incomplete(candidate, self.last_verdict)
 
     def incomplete(self, candidate, verdict):
-        candidate.findings = verdict.findings if verdict else []
+        latest = {"candidate_id": candidate_id(candidate.answer, candidate.evidence, candidate.visualization), "answer": candidate.answer,
+                  "claims": candidate.claims, "grounding": candidate.grounding, "visualization": candidate.visualization}
+        reviewed = getattr(self, "reviewed_candidate", None) if verdict else None
+        candidate.verification["latest_candidate_id"] = latest["candidate_id"]
+        candidate.verification["completed_reviews"] = len(candidate.verification.get("reviews", []))
+        if reviewed:
+            candidate.verification["released_candidate_id"] = reviewed["candidate_id"]
+            candidate.verification["released_candidate"] = {key: reviewed[key] for key in
+                                                            ("candidate_id", "answer", "claims", "grounding", "visualization")}
+            candidate.evidence = deepcopy(reviewed["evidence"])
+            candidate.sentiment = deepcopy(reviewed["sentiment"])
+        if not reviewed or reviewed["candidate_id"] != latest["candidate_id"]:
+            candidate.verification["unreviewed_candidate"] = latest
+        candidate.findings = [{**finding, "finding_id": finding.get("finding_id", f"F{index + 1}")}
+                              for index, finding in enumerate(verdict.findings)] if verdict else []
         targets = verdict.repair_targets if verdict else ["Original"]
         candidate.limitations = (unresolved_follow_up(verdict) if verdict else []) or safe_follow_up(targets) or ["The requested analysis could not be fully verified."]
         if candidate.failure:
@@ -346,6 +370,14 @@ class OriginalAgent(Specialist):
         if verdict and (verdict.deterministic_issues or verdict.ratings["Safety / Appropriateness"]["score"] < 3):
             supported = []
             candidate.findings = [{**f, "status": "withheld"} for f in candidate.findings]
+        released_ids = [f["finding_id"] for f in candidate.findings if f["status"] == "supported"]
+        candidate.verification["released_finding_ids"] = released_ids
+        candidate.claims = [deepcopy(claim) for claim in reviewed["claims"] if claim["finding_id"] in released_ids] if reviewed else []
+        # Partial wrappers are not a full renderer selection. The reviewed source
+        # candidate retains its own replay contract separately from released blocks.
+        candidate.grounding = {}
+        if reviewed and reviewed["candidate_id"] != latest["candidate_id"]:
+            candidate.limitations.insert(0, "A newer draft remains unverified. Published blocks and the unresolved items below refer to the earlier reviewed version.")
         question = verdict.clarification_question if verdict and "clarify" in targets and not verdict.deterministic_issues \
             and verdict.ratings["Safety / Appropriateness"]["score"] == 3 else None
         if question and verdict.ratings["Safety / Appropriateness"]["score"] == 3:
@@ -446,17 +478,28 @@ class OriginalAgent(Specialist):
             candidate.diagnostics["requires_sentiment"] = plan["needs_sentiment"]
             self.active_stage = "verification"
             self.verification_diagnostics = verifier.diagnostics
+            self.review_history.append(verifier.diagnostics)
+            candidate.diagnostics["review_history"] = self.review_history
             verdict = verifier.review(question, candidate.answer, candidate.evidence, candidate.visualization,
                                       numeric_coverage=coverage, claims=candidate.claims or None,
                                       grounding=candidate.grounding or None,
                                       task_outcomes=[{"agent": c["agent"], "status": c["status"], "task_outcome": c.get("task_outcome", {})}
                                                      for c in self.child_results], require_sentiment=plan["needs_sentiment"],
                                       previous_corrections=pending_corrections)
+            pending_numeric = [item for item in coverage if item["status"] in {"pending", "error"}]
+            retired = [pending_numeric[int(item["request_id"][1:]) - 1] for item in verdict.numeric_reviews
+                       if item["decision"] == "not_required"]
+            if retired:
+                self.planned_metrics = [request for request in self.planned_metrics if not any(
+                    all(request.get(key) == item.get(key) for key in ("metric", "dimension")) for item in retired)]
+                if cherry:
+                    cherry.required_metrics = self.planned_metrics
+                candidate.diagnostics["retired_numeric_requests"] = retired
             if chart_failure:
                 verdict.decision = "revise"
                 verdict.repair_targets = sorted(set(verdict.repair_targets) | {"Lime"})
                 verdict.issues.append("The planned chart could not be completed.")
-                verdict.corrections.append({"correction_id": f"C{len(verdict.issues)}",
+                verdict.corrections.append({"correction_id": f"C_{candidate_id(candidate.answer)}_chart",
                     "issue_index": len(verdict.issues) - 1, "issue": verdict.issues[-1], "kind": "coverage",
                     "owner": "Lime", "requested_change": verdict.issues[-1], "citation_ids": [], "request_excerpt": None})
                 candidate.failure = chart_failure
@@ -464,11 +507,17 @@ class OriginalAgent(Specialist):
             candidate.diagnostics["verification"] = verifier.diagnostics
             candidate.diagnostics["review_phases"] = verifier.diagnostics.get("review_phases", [])
             self.last_verdict, self.attempt_reviews = verdict, reviews
+            self.reviewed_candidate = deepcopy({"candidate_id": verdict.candidate_id, "answer": candidate.answer,
+                                                "claims": candidate.claims, "grounding": candidate.grounding,
+                                                "evidence": candidate.evidence, "sentiment": candidate.sentiment,
+                                                "visualization": candidate.visualization})
             self.active_stage = "release"
             candidate.findings = verdict.findings
             candidate.diagnostics["pending_corrections"] = verdict.corrections
             if verdict.decision == "accept":
-                candidate.verification = {"decision": "accept", "status": "completed", "reviews": reviews, "drafts_checked": len(candidates)}
+                candidate.verification = {"decision": "accept", "status": "completed", "reviews": reviews, "drafts_checked": len(candidates),
+                                          "completed_reviews": len(reviews), "latest_candidate_id": verdict.candidate_id,
+                                          "released_candidate_id": verdict.candidate_id}
                 candidate.delegations = self.child_results
                 candidate.tool_trace = coordinator_trace
                 candidate.connections = self.connection_summary
@@ -497,7 +546,7 @@ class OriginalAgent(Specialist):
                 break
             if targets == {"Lime"} and (candidate.visualization.get("task_outcome") or {}).get("status") == "declined":
                 break
-            self.set_delegations(targets & {"Cherry", "Vanilla"})
+            self.set_delegations({"Cherry", "Vanilla"} if "Original" in targets else targets & {"Cherry", "Vanilla"})
             context = [{"role": "assistant", "content": candidate.answer},
                 {"role": "user", "content": "Repair the specified mandatory issues. Preserve supported facts, meaning and sources, "
                  "while allowing rephrasing, reordering, qualitative synthesis and removal of redundant presentation. "

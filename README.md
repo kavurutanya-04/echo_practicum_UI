@@ -1,12 +1,14 @@
 # Echo practicum prototype
 
+Current update, 2026-10-26: [review/data contracts](Agent_Echo/WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26) retain the five roles, add review-v2 and new v4 answers with historical replay, remove automatic data-origin claims, and distinguish completed reviews from attempted drafts. Original retains manager action proposals. The UI preserves status/version metadata without exposing retained drafts. No new live-provider validation is claimed.
+
 Echo combines five agents: Original (coordination/synthesis), Cherry (Text-to-SQL), Vanilla (textual RAG and systematic survey sentiment), Lime (indicator charts), and ZeroSugar (answer/evidence/chart-plan review). Sentiment uses source-linked provisional model labels and code-computed percentages; human quality validation remains pending. All employee data is synthetic. The prototype supports human review; it does not make personnel decisions. It currently runs in a terminal and exports local files.
 
 Agent responsibilities and examples are in [Agent_Echo/AGENT_ROLES.md](Agent_Echo/AGENT_ROLES.md). [Agent_Echo/TESTING_AND_RAG.md](Agent_Echo/TESTING_AND_RAG.md) distinguishes offline engineering checks from real model evaluation, explains secure API setup and shows how to inspect retrieval traces. No API configuration means no real LLM evaluation; demo responses and judge scores are explicitly scripted.
 
 Documentation reviewed 2026-10-21. Start with [project context](Agent_Echo/PROJECT_CONTEXT.md)
 and the [complete reference map](Agent_Echo/DOCUMENTATION_MAP.md). Historical engineering
-checks include 207 offline tests; those results predate the current source-facts-v3 change.
+checks include 207 offline tests; those results predate the then-current source-facts-v3 change.
 Luna's fourth run completed a numeric comparison; run seven reached review with partial
 output. Run nine retained 13 classifications but failed on answer validation before review.
 V3 replaces narrative digit/quantifier rejection with review signals and normalizes

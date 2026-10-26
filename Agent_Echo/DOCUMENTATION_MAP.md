@@ -1,7 +1,7 @@
 # Echo documentation map
 
 Reviewed: 2026-10-26 (America/New_York), against the current local implementation
-and the saved live artifacts through run eleven. Current answers use source-facts-v3;
+and the saved live artifacts through run thirteen. Current answers use source-facts-v4;
 historical test/replay counts below predate it. This is an index and maintenance guide, not an
 additional runtime policy or a benchmark. No new provider request was made for this review.
 
@@ -45,6 +45,13 @@ them or approve their proposals.
 | [echo_brainstorm_resumen_y_decisiones.md](../echo_brainstorm_resumen_y_decisiones.md) | Product/architecture proposals and unresolved decisions. Current reliability repairs preserve the five roles; proposed business execution is not implemented. |
 | [brainstorm_employee_engagement.md](../brainstorm_employee_engagement.md) | September problem exploration, retained as history rather than current runtime specifications. |
 | [alternativas_employee_engagement.md](../alternativas_employee_engagement.md) | September project/market comparison, not a refreshed market assessment or final selection. |
+
+## Current review/data update (2026-10-26)
+
+The current [workflow contract](WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26)
+covers origin-neutral role instructions, canonical corrections/reassessment, metric relevance,
+phase persistence, versioned partial release, v4/v1-v3 replay, export neutrality and the UI
+projection. Update these guides together; historical sections retain their dated meaning.
 
 ## Maintenance rules
 

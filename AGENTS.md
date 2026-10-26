@@ -7,7 +7,7 @@ Read this guidance and [Agent_Echo/PROJECT_CONTEXT.md](Agent_Echo/PROJECT_CONTEX
 - Verify current code/configuration before changing behavior. Do not reread the entire repository for each question.
 - Keep implemented behavior, observed results, proposals, and unresolved decisions distinct.
 - When changing synthesis or presentation, preserve facts and provenance without freezing wording. Keep the role instructions, answer/replay contract and review schema aligned; distinguish mandatory corrections from optional suggestions, and retain compatibility for saved answer versions.
-- Keep objective integrity checks separate from model judgment. Narrative digits, quantifiers and repairable presentation are not proof of false meaning. Current source-facts-v3 sends those signals to ZeroSugar without making them deterministic failures; preserve v1/v2 replay. Retain source/scope, quote-literalness, coverage and structured arithmetic checks. Do not add language-pattern rejection rules as substitutes for semantic review.
+- Keep objective integrity checks separate from model judgment. Narrative digits, quantifiers and repairable presentation are not proof of false meaning. Current source-facts-v4 (and stored v3) sends those signals to ZeroSugar without making them deterministic failures; preserve v1/v2/v3 replay. Retain source/scope, quote-literalness, coverage and structured arithmetic checks. Do not add language-pattern rejection rules as substitutes for semantic review.
 - Preserve the 2026-10-23 selected behavior: no mandatory per-question deliverable checklist; Original integrates specialist meaning with presentation autonomy, actual review corrections persist, and ZeroSugar separates visible-answer completeness from evidence support. Code retains citations by finding ID. New trace metadata must avoid copying questions or source text. Both reviews and source/scope controls remain required for acceptance.
 - Preserve the existing five roles unless the user requests a role change. Echo is the overall system, not an additional agent.
 - Preserve manager/date scoping, read-only data tools, citations, independent finding review, and withholding of unsupported output.
@@ -19,6 +19,13 @@ Read this guidance and [Agent_Echo/PROJECT_CONTEXT.md](Agent_Echo/PROJECT_CONTEX
 - The 2026-10-22 coordination update was initially authorized locally without tests or GitHub publication; the user subsequently authorized publication. Do not treat publication, earlier checks or run ten as validation of this update. Preserve historical artifacts and verify a fresh completed run before claiming that omission/repair behavior improved.
 
 - The user authorized tests and GitHub publication for the 2026-10-23 selected update. Report offline test results separately from unverified live-model behavior; preserve run eleven and use a fresh output filename for any later live evaluation.
+
+## Current review/data contract (2026-10-26)
+
+- Treat supplied data by content, definitions and method; do not presume or automatically warn about synthetic origin. Preserve dataset history and objective source/scope/quote/arithmetic/privacy gates.
+- New answers use source-facts-v4, preserving v1/v2/v3 rendering. New reviews use review-v2: one correction list, derived routing, complete obligation assessments and justified withdrawal/consolidation. Never drop actual omissions because evidence exists off-screen.
+- Original retains both internal analysis coordination and manager action proposals without mandatory per-question templates or another agent. Model judgment evaluates metric relevance; planned tasks are not automatically user requirements.
+- Preserve phase diagnostics and source-version identity for partial release. Update UI projections/export descriptions alongside shared contracts. Runs twelve and thirteen are retained evidence, not validation of the new implementation.
 
 ## Maintain continuity
 

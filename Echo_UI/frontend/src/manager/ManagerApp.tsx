@@ -86,10 +86,10 @@ function Entry({ onEnter }: { onEnter: (manager: Manager) => void }) {
             </button>
           </div>
           {error && <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">{error}</p>}
-          <p className="mt-4 text-xs text-slate-500">Prototype access: the code selects which team's synthetic data Echo may use. It is not a secure login.</p>
+          <p className="mt-4 text-xs text-slate-500">Prototype access: the code selects which team's data Echo may use. It is not a secure login.</p>
         </form>
         <p className="mt-6 text-center text-xs text-slate-400">
-          All employee data is synthetic · Echo supports human review and does not make personnel decisions
+          Echo supports human review and does not make personnel decisions
         </p>
       </div>
     </div>

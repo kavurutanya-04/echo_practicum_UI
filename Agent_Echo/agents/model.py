@@ -210,7 +210,7 @@ class ScriptedDemoModel:
                 and "Team" in row for row in item["rows"])), None)
             charts = [] if eligible is None else [{"source_id": eligible["citation_id"], "kind": "line",
                 "x": "Survey_Date", "y": "Mean_Score", "series": "Team",
-                "title": "Recognition survey trend (synthetic data)", "x_label": "Survey date",
+                "title": "Recognition survey trend", "x_label": "Survey date",
                 "y_label": "Mean recognition score", "unit": "Score (1-5)", "denominator": "Responses"}]
             plan = {"charts": charts, "reason": "Scripted chart choice; this checks evidence-bound rendering, not model judgment."
                 if charts else "No eligible numeric table in the scripted fixture."}
@@ -221,19 +221,22 @@ class ScriptedDemoModel:
             if tools and tools[0]["name"] == "submit_completeness_review":
                 call = ToolCall("demo-completeness", "submit_completeness_review", json.dumps({
                     "decision": "accept", "score": 3, "rationale": "Scripted fixture; not a quality judgment.",
-                    "issues": [], "suggestions": []}))
+                    "corrections": [], "suggestions": []}))
                 return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id,
                     "name": call.name, "arguments": call.arguments}])
             payload = json.loads(history[0]["content"])
             report = {"decision": "accept", "ratings": {name: {"score": 3, "rationale": "Scripted fixture score; no LLM judgment was performed."}
                 for name in ("Accuracy", "Relevance", "Completeness", "Clarity", "Instruction Following", "Usefulness", "Safety / Appropriateness")},
-                "issues": [], "uncertainty": "Offline fixture: answer quality has not been assessed by a model."}
+                "corrections": [], "suggestions": [],
+                "numeric_reviews": [{"request_id": item["request_id"], "decision": "required", "reason": "Scripted requested metric."}
+                                    for item in payload.get("pending_numeric_requests", [])],
+                "uncertainty": "Offline fixture: answer quality has not been assessed by a model."}
             report.update(finding_reviews=[{"finding_id": b["finding_id"], "decision": "supported",
                 "reason": "Scripted fixture, not semantic validation."}
-                for b in payload.get("findings", [])], repair_targets=[], clarification_question=None,
+                for b in payload.get("findings", [])], clarification_question=None,
                 correction_reviews=[{"correction_id": item["correction_id"], "status": "resolved",
-                    "reason": "Scripted fixture, not semantic validation."}
-                    for item in payload.get("previous_corrections", [])])
+                    "reason": "Scripted fixture, not semantic validation.", "replacement_id": None}
+                    for item in payload.get("review_obligations", [])])
             call = ToolCall("demo-review", "submit_review", json.dumps(report))
             return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id, "name": call.name, "arguments": call.arguments}])
         if self.agent_name == "Original":

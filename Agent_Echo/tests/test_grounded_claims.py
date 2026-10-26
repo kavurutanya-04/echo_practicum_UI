@@ -206,7 +206,7 @@ class GroundedClaimTests(unittest.TestCase):
         self.addCleanup(agent.close)
         result = agent.run("Compare Recognition and manager support with a table.")
         self.assertEqual(result.status, "complete")
-        self.assertEqual(result.grounding["version"], "source-facts-v3")
+        self.assertEqual(result.grounding["version"], "source-facts-v4")
         self.assertEqual(len(result.claims), len(result.findings))
         self.assertTrue(all(c["status"] == "supported" for c in result.findings))
 

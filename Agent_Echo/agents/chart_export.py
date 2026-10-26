@@ -39,7 +39,7 @@ def svg_chart(chart, rows, scope):
     elements = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img">',
         f'<title>{escape(chart["title"])}</title>',
         f'<desc>{escape(chart["kind"])} chart of {escape(chart["y"])} by {escape(chart["x"])}. '
-        f'Source {escape(chart["source_id"])}; synthetic data; missing values are not zero.</desc>',
+        f'Source {escape(chart["source_id"])}; missing values are not zero.</desc>',
         '<rect width="100%" height="100%" fill="#ffffff"/>',
         '<g font-family="Arial, sans-serif" fill="#222222">']
     def text(x, y, value, size=15, anchor="start", extra=""):
@@ -117,7 +117,7 @@ def export_charts(charts, evidence, scope, output_dir):
             writer = csv.DictWriter(handle, columns)
             writer.writeheader()
             writer.writerows({key: row[key] for key in columns} for row in rows)
-        meta_path.write_text(json.dumps({"chart": chart, "scope": scope.__dict__, "synthetic": True,
+        meta_path.write_text(json.dumps({"chart": chart, "scope": scope.__dict__,
             "source_agent": source["producer"], "source_sql": source["sql"], "row_count": len(rows), "truncated": False}, indent=2), encoding="utf-8")
         files.append({"source_id": chart["source_id"], "svg": str(svg_path), "csv": str(csv_path), "metadata": str(meta_path)})
     return files

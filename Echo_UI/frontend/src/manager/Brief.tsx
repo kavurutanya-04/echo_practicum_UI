@@ -148,7 +148,7 @@ export default function Brief({
   const queries = [...sources.values()].filter((e): e is SqlEvidence => !!e && !e.sql.startsWith('--'))
   const chart = artifact.visualization?.charts?.[0]
   const chartSource = chart ? sources.get(chart.source_id) : null
-  const verified = artifact.verification?.decision === 'accept'
+  const verified = artifact.verification?.decision === 'accept' && artifact.verification?.status !== 'failed' && artifact.status === 'complete'
   const opened = openSource ? sources.get(openSource) : null
   const made = artifact.made
   const modeNote = artifact.status === 'declined'
