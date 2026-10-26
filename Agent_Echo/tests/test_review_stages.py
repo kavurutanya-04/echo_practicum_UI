@@ -189,6 +189,32 @@ class ReviewStageTests(unittest.TestCase):
         self.assertEqual(result.decision, 'revise')
         self.assertIn('Missing explanation.', result.issues)
 
+    def test_prior_corrections_require_complete_assessments_even_if_field_is_omitted(self):
+        prior = [{'correction_id': 'C1'}, {'correction_id': 'C2'}]
+        assessment = {'correction_id': 'C1', 'status': 'resolved', 'reason': 'Present.'}
+        for fields in ({}, {'correction_reviews': []}, {'correction_reviews': [assessment]}):
+            with self.subTest(fields=fields), self.assertRaisesRegex(ValueError, 'every prior correction'):
+                ZeroSugarAgent.validate_corrections({'issues': [], **fields}, 'Question', [], prior)
+
+    def test_legacy_review_without_prior_corrections_still_validates(self):
+        self.assertEqual(ZeroSugarAgent.validate_corrections({'issues': []}, 'Question', [], []), ([], []))
+
+    def test_omitted_prior_assessment_repairs_instead_of_accepting(self):
+        def missing_assessments(context):
+            turn = support_turn(context)
+            report = json.loads(turn.calls[0].arguments)
+            del report['correction_reviews']
+            return tool_turn('submit_review', report)
+
+        model = PhaseModel(support=missing_assessments)
+        agent = ZeroSugarAgent(SCOPE, model, 'live', document_lookup={SOURCE['citation_id']: SOURCE})
+        with self.assertRaisesRegex(RuntimeError, 'Verifier did not return'):
+            agent.review('Explain recognition.', 'Recognition is favorable [survey:CMT1].', [SOURCE],
+                         previous_corrections=[{'correction_id': 'C1'}])
+        self.assertEqual(len(model.calls), 4)
+        self.assertTrue(all(e['validation_code'] == 'correction_review_coverage'
+                            for e in agent.diagnostics['rejected_attempts']))
+
     def test_phase_trace_contains_metadata_not_request_or_evidence_text(self):
         model = PhaseModel()
         agent = ZeroSugarAgent(SCOPE, model, 'live', document_lookup={SOURCE['citation_id']: SOURCE})

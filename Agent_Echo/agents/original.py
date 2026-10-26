@@ -93,7 +93,7 @@ class OriginalAgent(Specialist):
         reconsidered_clarification = False
         for attempt in range(1, 3):
             self.budget.consume("model")
-            turn = self.model.respond(with_policies("Plan Echo's scoped analysis. Return submit_plan only. Structured SQL counts need Cherry; "
+            turn = self.budget.respond(self.model, with_policies("Plan Echo's scoped analysis. Return submit_plan only. Structured SQL counts need Cherry; "
                 "full comment sentiment classification and its counts/percentages need Vanilla ONLY: set needs_sentiment=true, "
                 "needs_text=true, needs_numbers=false and metrics=[] unless the user separately requests SQL/rating metrics. "
                 "For Recognition comment percentages with literal examples, do not add Manager support, survey scores or Cherry. "

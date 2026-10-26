@@ -1,6 +1,21 @@
 # Echo: current project context
 
-Reviewed: 2026-10-23 (America/New_York). This is a short entry point for future chats. It describes the local files inspected on this date; verify relevant sources before changing behavior. It is not a benchmark report or a transcript of every project conversation.
+Reviewed: 2026-10-26 (America/New_York). This is a short entry point for future chats. It describes the local files inspected on this date; verify relevant sources before changing behavior. It is not a benchmark report or a transcript of every project conversation.
+
+## Audit follow-up, 2026-10-26
+
+The user authorized the three core-only updates, quick offline tests and GitHub publication.
+ZeroSugar now requires assessments of every prior correction even if the response omits
+`correction_reviews`; legacy reviews without pending corrections remain readable.
+Responses requests and usage logs honor the profile's `max_output_tokens`, retaining the
+3500 fallback. Budgeted generation calls share their existing deadline with Chat's
+explicit attempts, which recheck it after pacing and before sending. Waiting/in-flight
+requests are not cancelled; SDK-internal retries retain their existing settings.
+The five roles, source-facts-v3/v1/v2 contracts, provider configuration and Echo_UI are
+unchanged. See the [workflow follow-up](WORKFLOW_RELIABILITY.md#audit-follow-up-review-coverage-output-limits-and-request-deadlines-2026-10-26)
+and [focused validation](TESTING_AND_RAG.md). The 121 focused offline checks passed on
+Windows Python 3.12.14, including eight new regressions. Two older revision fixtures were
+updated to assess their pending corrections. No full-suite or live-provider run was made.
 
 ## Purpose and architecture
 

@@ -1,6 +1,6 @@
 # Workflow reliability: current execution and repair contracts
 
-Reviewed 2026-10-23 against the current runtime and the selected autonomy/review update. Earlier dated
+Reviewed 2026-10-26 against the current runtime and the audit follow-up. Earlier dated
 sections retain their original change context; the current contracts below and the
 [documentation map](DOCUMENTATION_MAP.md) identify the relevant implementation sources.
 
@@ -8,6 +8,27 @@ The five roles and final GW Azure default are retained. All manager-facing outpu
 English. This change does not add a UI, authentication system, bilingual testing or a
 comparative provider benchmark. Later dated changes below supersede historical contract
 details where explicitly stated.
+
+## Audit follow-up: review coverage, output limits and request deadlines (2026-10-26)
+
+ZeroSugar must assess every prior correction, even when its response omits the entire
+`correction_reviews` field. Missing, empty or partial assessments fail validation when
+corrections are pending. Legacy reviews without prior corrections remain readable.
+Python checks coverage; ZeroSugar still judges whether Original resolved each issue.
+
+Responses profiles now pass `max_output_tokens` from `connections.json` through
+`ModelRegistry` to the request and usage diagnostics. The fallback remains 3500;
+existing configured limits and the Chat adapter's token handling are unchanged.
+
+All six budgeted generation call paths use `RunBudget.respond` to scope the existing
+deadline to one model call, including its retries. The shared client retains no workflow
+deadline. Chat checks this deadline before each adapter-controlled attempt and after
+pacing waits, before incrementing actual request counters or sending HTTP. Expiry uses
+the existing time-limit failure path. Waiting and in-flight requests are not cancelled;
+SDK-internal retries keep their existing settings. Unbudgeted connection probes retain
+their existing behavior. No role, UI, source contract or provider setting changes.
+
+Focused offline validation and its limits are recorded in [TESTING_AND_RAG.md](TESTING_AND_RAG.md).
 
 ## Autonomous synthesis and two-stage review (2026-10-23)
 

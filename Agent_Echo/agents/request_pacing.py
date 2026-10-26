@@ -1,5 +1,6 @@
 """Process-wide request spacing for profiles sharing an endpoint and credential."""
 
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import hashlib
@@ -8,6 +9,15 @@ import threading
 import time
 
 from .execution_log import record
+
+
+request_deadline = ContextVar("echo_request_deadline", default=None)
+
+
+def check_request_deadline():
+    deadline = request_deadline.get()
+    if deadline is not None and time.monotonic() >= deadline:
+        raise RuntimeError("Workflow elapsed-time budget exceeded.")
 
 
 class RequestPacer:

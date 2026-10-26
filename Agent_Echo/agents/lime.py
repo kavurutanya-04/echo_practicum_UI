@@ -154,7 +154,7 @@ class LimeAgent:
         history, trace = [{"role": "user", "content": payload}], []
         for attempt in range(3):
             self.budget.consume("model")
-            turn = self.model.respond(with_policies(INSTRUCTIONS), history, self.tools, True)
+            turn = self.budget.respond(self.model, with_policies(INSTRUCTIONS), history, self.tools, True)
             history.extend(turn.output_items)
             if len(turn.calls) == 1 and turn.calls[0].name == "decline_task":
                 self.budget.consume("tool")

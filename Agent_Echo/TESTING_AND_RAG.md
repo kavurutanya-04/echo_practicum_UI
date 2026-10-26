@@ -1,8 +1,25 @@
 # What can be tested without an API, and how to verify RAG
 
-Updated 2026-10-23. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
+Updated 2026-10-26. Run commands inside `Final_Project/Agent_Echo` with the project's Python environment. `.env.example` is a reference; live clients load only keys from the private, Git-ignored `.env` or process environment. Models, endpoints, API versions, limits and role selection are in `connections.json`; `--profile` is an explicit per-run selection. Never put real keys in files committed to Git. GW Azure is the primary/final provider; all other profiles are optional tests.
 
-Latest update, 2026-10-23: the selected autonomy/two-stage review changes passed the full
+Latest focused update, 2026-10-26: the audit follow-up covers mandatory assessment of
+pending corrections, configured Responses output limits and Chat deadline checks before
+explicit HTTP attempts, including after pacing/retry waits. Eight new regressions use
+scripted responses, fake clients and a fake clock; old revision/demo fixtures now explicitly
+assess their pending corrections. No provider request or full-suite run is part of this
+follow-up. All 121 focused checks passed on Windows Python 3.12.14 and cover these six modules:
+
+```powershell
+$checks = 'test_review_stages.py', 'test_provider_connections.py', 'test_request_pacing.py', 'test_workflow.py', 'test_sentiment_workflow_repairs.py', 'test_visuals_rag.py'
+foreach ($check in $checks) {
+    ..\Echo_UI\.venv-windows\Scripts\python.exe -B -m unittest discover -s tests -p $check
+    if ($LASTEXITCODE -ne 0) { throw "Focused check failed: $check" }
+}
+```
+
+See the [workflow follow-up](WORKFLOW_RELIABILITY.md#audit-follow-up-review-coverage-output-limits-and-request-deadlines-2026-10-26).
+
+Historical full-suite update, 2026-10-23: the selected autonomy/two-stage review changes passed the full
 242-test offline agent suite, including 19 new tests in `tests/test_review_stages.py`.
 The initial baseline had 15 failures and 4 errors in 223 tests; historical v2 checks and
 older normalization/provider-log expectations were aligned with their actual contracts,
@@ -235,7 +252,7 @@ python .\run_agent.py --check-connection --profile apinex_test
 
 The setup page supplied on 2026-10-20 states 5 requests/minute for free access and 30 with a subscription. The user selected one model, Luna, for all five roles and a conservative target of 3 requests/minute. `apinex_test` sets `request_interval_seconds=20` and `rate_limit_retries=2`. One process-wide pacer is shared by roles and registries using the same endpoint and credential, including HTTP 429 retries. It spaces actual request starts, honors a valid `Retry-After` (seconds or HTTP date) when longer than its fallback, and otherwise backs off 20 then 40 seconds before its two retries. Exhaustion still reports the existing safe HTTP error; the cooldown remains shared. SDK `max_retries=0` prevents hidden retries from bypassing pacing. Execution API-call counters include these actual retry attempts. Wait/retry events record timing only, without keys or response payloads. Separate terminal processes or other applications using the key are not coordinated by this in-process pacer.
 
-The existing workflow defaults remain 32 model turns, 48 local tool calls and 300 seconds elapsed time; specialist loops also have their own turn bounds. These prevent runaway loops and are distinct from requests/minute. HTTP retries count in execution API-call totals, not as new logical workflow turns. Deliberate pacing waits consume elapsed time. For a longer Original/Vanilla run, explicitly add `--run-seconds 900` (15 minutes); this does not increase the model-turn limit. Time limits are checked at budget checkpoints, not by forcibly cancelling an in-flight request or wait.
+The existing workflow defaults remain 32 model turns, 48 local tool calls and 300 seconds elapsed time; specialist loops also have their own turn bounds. These prevent runaway loops and are distinct from requests/minute. HTTP retries count in execution API-call totals, not as new logical workflow turns. Deliberate pacing waits consume elapsed time. For a longer Original/Vanilla run, explicitly add `--run-seconds 900` (15 minutes); this does not increase the model-turn limit. Since 2026-10-26, budgeted Chat calls also check the deadline before each adapter-controlled HTTP attempt and after pacing waits, refusing to send once it expires. In-flight requests and waits are not forcibly cancelled; SDK-internal retries retain their existing settings.
 
 The minimal probe confirmed one real Luna tool call on 2026-10-20, not analytical quality
 or sustained throughput. The first medium run failed after 17 calls. After subsequent

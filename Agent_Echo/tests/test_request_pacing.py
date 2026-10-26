@@ -9,7 +9,8 @@ from unittest.mock import patch
 
 from agents.connections import ModelRegistry
 from agents.model import ChatModel, ConfigurationError
-from agents.request_pacing import RequestPacer, retry_after_seconds, shared_pacer
+from agents.request_pacing import RequestPacer, request_deadline, retry_after_seconds, shared_pacer
+from agents.runtime import RunBudget
 
 
 class RateError(Exception):
@@ -112,6 +113,65 @@ class RequestPacingTests(unittest.TestCase):
         self.assertEqual(model.successful_requests, 0)
         pacer.acquire()
         self.assertEqual(self.clock.now, 240)
+
+    def test_expired_workflow_does_not_start_a_request(self):
+        starts = []
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+            create=lambda **kwargs: starts.append(self.clock.now) or response())))
+        model = ChatModel(client, 'fixture')
+        with self.assertRaisesRegex(RuntimeError, 'elapsed-time budget'):
+            RunBudget(seconds=0).respond(model, 'Instructions', [], [])
+        self.assertEqual(starts, [])
+        self.assertEqual(model.request_count, 0)
+        self.assertIsNone(request_deadline.get())
+
+    def test_pacing_wait_rechecks_deadline_before_sending(self):
+        for seconds in (10, 20):
+            with self.subTest(seconds=seconds):
+                self.clock.now = 100
+                starts = []
+                pacer = RequestPacer(20)
+                pacer.acquire()
+                client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+                    create=lambda **kwargs: starts.append(self.clock.now) or response())))
+                model = ChatModel(client, 'fixture', request_pacer=pacer)
+                with self.assertRaisesRegex(RuntimeError, 'elapsed-time budget'):
+                    RunBudget(seconds=seconds).respond(model, 'Instructions', [], [])
+                self.assertEqual(self.clock.now, 120)
+                self.assertEqual(starts, [])
+                self.assertEqual(model.request_count, 0)
+
+    def test_retry_after_wait_cannot_send_after_workflow_deadline(self):
+        starts = []
+        def create(**kwargs):
+            starts.append(self.clock.now)
+            raise RateError()
+        model = ChatModel(SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))),
+                          'fixture', request_pacer=RequestPacer(20), rate_limit_retries=2)
+        budget = RunBudget(seconds=30)
+        budget.consume('model')
+        with self.assertRaisesRegex(RuntimeError, 'elapsed-time budget'):
+            budget.respond(model, 'Instructions', [], [])
+        self.assertEqual(starts, [100, 120])
+        self.assertEqual(model.request_count, 2)
+        self.assertEqual(model.successful_requests, 0)
+        self.assertEqual(budget.models, 1)
+        self.assertIsNone(request_deadline.get())
+
+    def test_inflight_request_can_finish_and_deadline_does_not_leak(self):
+        starts = []
+        def create(**kwargs):
+            starts.append(self.clock.now)
+            self.clock.now += 40
+            return response()
+        model = ChatModel(SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))), 'fixture')
+        budget = RunBudget(seconds=30)
+        self.assertEqual(budget.respond(model, 'Instructions', [], []).text, 'ok')
+        self.assertIsNone(request_deadline.get())
+        with self.assertRaisesRegex(RuntimeError, 'elapsed-time budget'):
+            budget.consume('tool')
+        self.assertEqual(model.respond('Independent call', [], []).text, 'ok')
+        self.assertEqual(starts, [100, 140])
 
     def test_other_http_errors_are_not_retried(self):
         for status in (400, 401, 403, 500):

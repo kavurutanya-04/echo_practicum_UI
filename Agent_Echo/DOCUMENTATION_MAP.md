@@ -1,6 +1,6 @@
 # Echo documentation map
 
-Reviewed: 2026-10-23 (America/New_York), against the current local implementation
+Reviewed: 2026-10-26 (America/New_York), against the current local implementation
 and the saved live artifacts through run eleven. Current answers use source-facts-v3;
 historical test/replay counts below predate it. This is an index and maintenance guide, not an
 additional runtime policy or a benchmark. No new provider request was made for this review.
@@ -47,6 +47,11 @@ them or approve their proposals.
 | [alternativas_employee_engagement.md](../alternativas_employee_engagement.md) | September project/market comparison, not a refreshed market assessment or final selection. |
 
 ## Maintenance rules
+
+The 2026-10-26 core audit follow-up is recorded in PROJECT_CONTEXT.md, README.md,
+AGENT_ROLES.md, WORKFLOW_RELIABILITY.md and TESTING_AND_RAG.md. It changes pending-review
+coverage, Responses output-limit propagation and budgeted Chat request checkpoints;
+source rendering, provider configuration and Echo_UI remain unchanged.
 
 1. Verify changed behavior in code/configuration and the relevant result/log before updating claims.
 2. Update the context entry and affected operating guides together. Update this map when a

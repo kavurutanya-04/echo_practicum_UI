@@ -11,6 +11,7 @@ from .grounding import FactCatalog, answer_schema, render_answer, GROUNDING_VERS
 from .validation import (ValidationError, repair_feedback, rejection_diagnostic, minimal_value,
                          answer_context, diagnostic_feedback, planning_value)
 from .policies import with_policies
+from .request_pacing import check_request_deadline, request_deadline
 
 
 def function_tool(name, description, properties):
@@ -115,6 +116,15 @@ class RunBudget:
         return {"model_calls": max(0, self.model_limit-self.models),
                 "tool_calls": max(0, self.tool_limit-self.tools),
                 "seconds": round(max(0, self.deadline-time.monotonic()), 2)}
+
+    def respond(self, model, *args, **kwargs):
+        # Scope the deadline to this call, including provider retries, not the shared client.
+        token = request_deadline.set(self.deadline)
+        try:
+            check_request_deadline()
+            return model.respond(*args, **kwargs)
+        finally:
+            request_deadline.reset(token)
 
 
 class Specialist:
@@ -230,7 +240,7 @@ class Specialist:
                     "only existing evidence IDs, or explain exactly which requested results could not be established. "
                     "Do not invent numbers or treat incomplete evidence as a complete answer.")
             self.last_result.diagnostics["stage"] = "closing" if closing else "generation"
-            turn = self.model.respond(turn_instructions, history, final_tools if closing else self.definitions + final_tools,
+            turn = budget.respond(self.model, turn_instructions, history, final_tools if closing else self.definitions + final_tools,
                                       require_tool=grounded or bool(not closing and self.definitions and step == 0 and not initial_evidence))
             history.extend(turn.output_items)
             declines = [call for call in turn.calls if call.name == "decline_task"]

@@ -390,7 +390,7 @@ class ZeroSugarAgent:
             if not isinstance(status, str) or status not in {"resolved", "unresolved"} or not isinstance(reason, str) or not 1 <= len(reason) <= 600 or not reason.strip():
                 raise ValidationError("correction_review_value", "correction_reviews", "Give resolved/unresolved status and a bounded nonempty reason.", item_index=index)
             seen.add(key)
-        if "correction_reviews" in report and seen != expected:
+        if seen != expected:
             raise ValidationError("correction_review_coverage", "correction_reviews", "Assess every prior correction against the current candidate.", expected_count=len(expected), actual_count=len(seen))
         return corrections, assessments
 
@@ -420,7 +420,7 @@ class ZeroSugarAgent:
             for attempt in range(3):
                 budget.consume("model")
                 phase["model_attempts"] = attempt + 1
-                turn = self.model.respond(with_policies(COMPLETENESS_INSTRUCTIONS), history, [tool], True)
+                turn = budget.respond(self.model, with_policies(COMPLETENESS_INSTRUCTIONS), history, [tool], True)
                 history.extend(turn.output_items)
                 if len(turn.calls) != 1 or turn.calls[0].name != "submit_completeness_review":
                     record("structured_response_repair", agent=self.name, phase="completeness", reason="expected_one_completeness_review_call")
@@ -508,7 +508,7 @@ class ZeroSugarAgent:
                 raise
             phase["model_attempts"] = attempt + 1
             try:
-                turn = self.model.respond(with_policies(INSTRUCTIONS) + "\nAuthorized scope: " + json.dumps(self.scope.__dict__), history, self.tools, True)
+                turn = budget.respond(self.model, with_policies(INSTRUCTIONS) + "\nAuthorized scope: " + json.dumps(self.scope.__dict__), history, self.tools, True)
             except (RuntimeError, ValueError):
                 phase["status"] = "failed"
                 record("review_phase_finished", agent=self.name, **phase)

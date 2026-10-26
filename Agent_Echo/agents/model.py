@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 import json
 from .execution_log import record
-from .request_pacing import retry_after_seconds
+from .request_pacing import check_request_deadline, retry_after_seconds
 
 
 class ConfigurationError(RuntimeError):
@@ -70,8 +70,9 @@ class ModelTurn:
 class ResponsesModel:
     """Supports the GW Azure pattern and OpenAI through the same agent interface."""
 
-    def __init__(self, client, model):
+    def __init__(self, client, model, max_output_tokens=3500):
         self.client, self.model = client, model
+        self.max_output_tokens = max_output_tokens
         self.request_count, self.successful_requests = 0, 0
 
     @classmethod
@@ -87,12 +88,12 @@ class ResponsesModel:
             response = self.client.responses.create(
                 model=self.model, instructions=instructions, input=history, tools=tools,
                 tool_choice=("required" if require_tool else "auto") if tools else "none",
-                parallel_tool_calls=False, max_output_tokens=3500, store=False,
+                parallel_tool_calls=False, max_output_tokens=self.max_output_tokens, store=False,
             )
         except Exception as error:
             # Provider errors can contain request data. Do not print their raw payload.
             raise request_failure(error) from None
-        record_response_usage(response, "responses", 3500)
+        record_response_usage(response, "responses", self.max_output_tokens)
         if response.status != "completed":
             reason = getattr(getattr(response, "incomplete_details", None), "reason", None)
             record("model_response_rejected", adapter="responses",
@@ -147,8 +148,10 @@ class ChatModel:
         else:
             options["tool_choice"] = "none"
         for attempt in range(self.rate_limit_retries + 1):
+            check_request_deadline()
             if self.request_pacer:
                 self.request_pacer.acquire()
+            check_request_deadline()
             self.request_count += 1
             try:
                 response = self.client.chat.completions.create(**options)
@@ -227,7 +230,10 @@ class ScriptedDemoModel:
                 "issues": [], "uncertainty": "Offline fixture: answer quality has not been assessed by a model."}
             report.update(finding_reviews=[{"finding_id": b["finding_id"], "decision": "supported",
                 "reason": "Scripted fixture, not semantic validation."}
-                for b in payload.get("findings", [])], repair_targets=[], clarification_question=None)
+                for b in payload.get("findings", [])], repair_targets=[], clarification_question=None,
+                correction_reviews=[{"correction_id": item["correction_id"], "status": "resolved",
+                    "reason": "Scripted fixture, not semantic validation."}
+                    for item in payload.get("previous_corrections", [])])
             call = ToolCall("demo-review", "submit_review", json.dumps(report))
             return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id, "name": call.name, "arguments": call.arguments}])
         if self.agent_name == "Original":

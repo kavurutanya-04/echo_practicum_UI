@@ -236,7 +236,10 @@ class WorkflowTests(unittest.TestCase):
         coordinator = SequenceModel([tool_turn("submit_plan", {"needs_numbers": True, "needs_text": False,
             "include_chart": False, "clarification_question": None}), tool_turn("ask_cherry", {"question": "Show recognition metrics."}),
             ModelTurn(text="Unsupported claim [SQL1]."), ModelTurn(text="Corrected description of the evidence [SQL1].")])
-        verdicts = iter([report("revise", ["Correct the unsupported claim."]), report("accept" if accept_second else "revise", [] if accept_second else ["Still unsupported."])])
+        second = report("accept" if accept_second else "revise", [] if accept_second else ["Still unsupported."])
+        second["correction_reviews"] = [{"correction_id": "C1",
+            "status": "resolved" if accept_second else "unresolved", "reason": "Controlled revision fixture."}]
+        verdicts = iter([report("revise", ["Correct the unsupported claim."]), second])
         def factory(name):
             if name == "Original":
                 return coordinator

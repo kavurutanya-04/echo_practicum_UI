@@ -276,7 +276,7 @@ class VanillaAgent(Specialist):
                     {"comments": pending, "validation_errors": feedback}, ensure_ascii=False)}]
                 self.budget.consume("model")
                 state["attempts"][offset] = state["attempts"].get(offset, 0) + 1
-                turn = self.model.respond(with_policies(SENTIMENT_INSTRUCTIONS), history, tools, True)
+                turn = self.budget.respond(self.model, with_policies(SENTIMENT_INSTRUCTIONS), history, tools, True)
                 if len(turn.calls) != 1 or turn.calls[0].name != "submit_sentiment_batch":
                     error = ValidationError("sentiment_call_count", "submit_sentiment_batch", "Return exactly one submit_sentiment_batch call.")
                     self.record_sentiment_rejection(error, offset, state["attempts"][offset], key)

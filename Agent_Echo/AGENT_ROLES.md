@@ -98,6 +98,11 @@ Lime still accepts only Cherry's SQL evidence. It therefore does not chart these
 
 ## ZeroSugar — independent answer and chart-plan review
 
+Since 2026-10-26, pending-correction coverage is enforced even if the model omits the
+entire `correction_reviews` field. Each previous correction needs one resolved/unresolved
+assessment; code validates this coverage, while ZeroSugar judges semantic completion.
+Legacy reviews without prior corrections remain readable.
+
 **First input:** original question, visible candidate answer and presentation labels for
 accompanying charts, with no source data. **First tool:**
 `submit_completeness_review`, with completeness score, decision, rationale, mandatory issues

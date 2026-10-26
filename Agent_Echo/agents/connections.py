@@ -138,7 +138,8 @@ class ModelRegistry:
                         profile["request_interval_seconds"]) if profile.get("request_interval_seconds") else None,
                     rate_limit_retries=profile.get("rate_limit_retries", 0))
             else:
-                self.models[name] = ResponsesModel(client, model_name)
+                self.models[name] = ResponsesModel(client, model_name,
+                    max_output_tokens=profile.get("max_output_tokens", 3500))
         # A shared adapter is stateless: conversation history is held by each agent run.
         return logged_model(self.models[name], agent, name)
 

@@ -15,6 +15,26 @@ from agents.runtime import function_tool
 
 
 class TrialProviderTests(unittest.TestCase):
+    def test_responses_profiles_apply_configured_output_limit_and_usage(self):
+        for profile in ('gw_azure', 'personal_openai'):
+            for limit in (None, 3500, 6000):
+                with self.subTest(profile=profile, limit=limit):
+                    requests = []
+                    response = SimpleNamespace(status='completed', output=[], output_text='Fixture.', usage=None)
+                    client = SimpleNamespace(responses=SimpleNamespace(
+                        create=lambda **kwargs: requests.append(kwargs) or response))
+                    registry = ModelRegistry(force_profile=profile, env_file=None)
+                    if limit is None:
+                        registry.config['profiles'][profile].pop('max_output_tokens', None)
+                    else:
+                        registry.config['profiles'][profile]['max_output_tokens'] = limit
+                    expected = 3500 if limit is None else limit
+                    with patch.object(registry, '_client', return_value=client), patch('agents.model.record') as log:
+                        registry.get('Original').respond('Instructions', [], [])
+                    self.assertEqual(requests[0]['max_output_tokens'], expected)
+                    self.assertFalse(requests[0]['store'])
+                    log.assert_any_call('model_response_usage', adapter='responses', output_limit=expected)
+
     def test_final_default_uses_json_azure_settings_and_private_key(self):
         clients = []
 

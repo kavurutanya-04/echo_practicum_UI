@@ -17,6 +17,13 @@ does not need another import to configure a provider. Reviewed: 2026-10-23. See
 
 Original, Cherry, Vanilla and ZeroSugar retain their existing names; Lime is the fifth role. Engagement, recognition and priority conflicts are analysis topics across these roles. Detailed responsibilities, outputs, tools and worked examples are in [AGENT_ROLES.md](AGENT_ROLES.md).
 
+The 2026-10-26 audit follow-up requires an assessment of every pending correction even
+if ZeroSugar omits the assessment field. Responses requests/logs honor the configured
+output limit, and budgeted Chat attempts recheck the existing deadline after waiting
+and before sending. Provider settings and Echo_UI are unchanged. See the
+[follow-up contract](WORKFLOW_RELIABILITY.md#audit-follow-up-review-coverage-output-limits-and-request-deadlines-2026-10-26)
+and [focused offline checks](TESTING_AND_RAG.md).
+
 The 2026-10-23 update simplifies Original's synthesis instructions and retires the mandatory
 deliverable checklist. ZeroSugar first reviews visible-answer completeness without sources,
 then separately reviews support with the evidence. Both stages participate in acceptance;
