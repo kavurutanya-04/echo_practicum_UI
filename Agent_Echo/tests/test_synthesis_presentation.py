@@ -11,7 +11,7 @@ from agents.original import OriginalAgent, INSTRUCTIONS as ORIGINAL_INSTRUCTIONS
 from agents.runtime import AgentResult
 from agents.validation import ValidationError
 from agents.zero_sugar import ZeroSugarAgent, DIMENSIONS
-from test_agents import tool_turn
+from test_agents import tool_turn, assertion_reviews
 from test_sentiment_workflow_repairs import ActionModel
 
 SCOPE = AccessScope("M14", "2026-07-01", "2026-09-30")
@@ -30,7 +30,7 @@ def review_turn(instructions, history, decision="accept", issues=(), suggestions
         "ratings": {d: {"score": 3, "rationale": "Controlled fixture."} for d in DIMENSIONS},
         "issues": list(issues), "suggestions": list(suggestions), "uncertainty": "Scripted review, not measured semantic quality.",
         "finding_reviews": [{"finding_id": c["finding_id"], "decision": finding_decision,
-            "citation_ids": c["citation_ids"], "reason": "Controlled fixture."} for c in context["findings"]],
+            "citation_ids": c["citation_ids"], "reason": "Controlled fixture.", "assertions": assertion_reviews(c)} for c in context["findings"]],
         "repair_targets": ["Original"] if issues or decision == "revise" else [], "clarification_question": None})
 
 

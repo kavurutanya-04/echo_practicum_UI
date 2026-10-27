@@ -1,6 +1,20 @@
 # Echo Console
 
-Current update, 2026-10-26: [review/data contracts](../Agent_Echo/WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26) retain the five roles, add review-v2 and new v4 answers with historical replay, remove automatic data-origin claims, and distinguish completed reviews from attempted drafts. Original retains manager action proposals. The UI preserves status/version metadata without exposing retained drafts. No new live-provider validation is claimed.
+Current runtime, 2026-10-27: review-v5 uses concise assertion descriptions instead of
+literal answer reconstruction. Technical Evidence checks can include assigned assertion
+IDs; legacy fields remain readable. New artifacts link private full captures/checkpoints;
+the manager projection excludes these details. Phase-only retry is currently a CLI
+operation, documented in [capture/resumption](../Agent_Echo/RESUME_AND_CAPTURE.md), not a
+new manager workflow. No build, browser test or provider call validated this update.
+
+Current support review, 2026-10-27: review-v4 findings include individual assertion
+assessments; this field is optional when reading historical artifacts. The technical
+Answer view exposes Evidence checks with claim, sources, judgment and reason. The
+manager projection is unchanged. The production build passed; browser interaction and
+a new live workflow remain unverified. See the
+[runtime contract](../Agent_Echo/WORKFLOW_RELIABILITY.md#assertion-level-support-review-review-v4-2026-10-27).
+
+Current review contract, 2026-10-27: [review-v3 correction judgments](../Agent_Echo/WORKFLOW_RELIABILITY.md#explicit-correction-judgments-after-run-twenty-one-2026-10-27) retain canonical correction states, ratings and reviewed-source identities while code derives states from explicit model judgments. Historical review-v2 and answer replay remain supported; five roles and the manager UI flow are unchanged. Runtime checks and their limits are recorded in the linked testing guide; no UI build or complete workflow validation is claimed here.
 
 A local web interface for the Echo multi-agent prototype. Echo's agents are not modified: every
 analysis runs `Agent_Echo/run_agent.py` as a subprocess, so the console gets exactly the same scope

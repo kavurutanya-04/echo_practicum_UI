@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import time
 import uuid
+from .capture import FullCapture, trace, exception_context
 from .validation import ValidationError, safe_validation_details
 
 _active = ContextVar("echo_execution_log", default=None)
@@ -75,6 +76,8 @@ def record(event, **fields):
         if event == "response_finished" and fields.get("status") in {"complete", "partial", "needs_clarification", "failed", "declined", "incomplete"}:
             log.response_status = fields["status"]
         log.write(event, **fields)
+    else:
+        trace(event, **fields)
 
 
 class RunLog:
@@ -86,6 +89,11 @@ class RunLog:
     def __enter__(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.stream = self.path.open("x", encoding="utf-8")
+        try:
+            self.capture = FullCapture(self.path.parent, self.run_id, self.metadata)
+        except BaseException:
+            self.stream.close()
+            raise
         self.started = time.monotonic()
         self.token = _active.set(self)
         try:
@@ -93,6 +101,7 @@ class RunLog:
         except BaseException:
             _active.reset(self.token)
             self.stream.close()
+            self.capture.close()
             raise
         return self
 
@@ -101,6 +110,7 @@ class RunLog:
                  "elapsed_seconds": round(time.monotonic() - self.started, 3), "event": event, **fields}
         self.stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
         self.stream.flush()
+        self.capture.write(event, **{key: value for key, value in entry.items() if key != 'event'})
 
     def finish(self, exit_code):
         self.exit_code = exit_code
@@ -117,6 +127,7 @@ class RunLog:
         finally:
             _active.reset(self.token)
             self.stream.close()
+            self.capture.close()
 
 
 class LoggedModel:
@@ -130,12 +141,16 @@ class LoggedModel:
         call_id = uuid.uuid4().hex[:12]
         details = {"agent": self.agent, "profile": self.profile, "call_id": call_id}
         record("model_started", **details, history_items=len(history), require_tool=require_tool)
+        trace('model_input', **details, instructions=instructions, history=history,
+              tools=tools, require_tool=require_tool)
         try:
             turn = self.wrapped.respond(instructions, history, tools, require_tool)
         except BaseException as error:
+            trace('model_exception', **details, **exception_context(error))
             record("model_failed", **details, **error_summary(error))
             raise
         allowed = {tool["name"] for tool in tools}
+        trace('model_output', **details, turn=turn)
         record("model_finished", **details, answer_characters=len(turn.text),
                tools=[call.name if call.name in allowed else "unavailable_tool" for call in turn.calls])
         return turn

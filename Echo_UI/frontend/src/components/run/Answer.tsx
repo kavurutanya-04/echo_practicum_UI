@@ -93,6 +93,21 @@ export default function Answer({ artifact }: { artifact: Artifact }) {
                   <CitedText text={finding.text} onCite={cite} known={known} />
                 </p>
                 {finding.reason && <p className="mt-1.5 text-xs text-slate-500">{finding.reason}</p>}
+                {!!finding.assertions?.length && (
+                  <details className="mt-2 text-xs">
+                    <summary className="cursor-pointer text-slate-500">Evidence checks ({finding.assertions.length})</summary>
+                    <ul className="mt-2 space-y-2">
+                      {finding.assertions.map((assertion, index) => (
+                        <li key={assertion.assertion_id ?? index} className="border-l-2 border-slate-200 pl-2 dark:border-slate-700">
+                          <span className="font-medium">{assertion.assessment.replaceAll('_', ' ')}: </span>
+                          <CitedText text={assertion.claim} onCite={cite} known={known} />
+                          <p className="mt-1 text-slate-500">{assertion.reason}</p>
+                          <p className="text-slate-500">Sources: {assertion.citation_ids.join(', ') || 'None cited'}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
               </div>
             ))}
           </div>

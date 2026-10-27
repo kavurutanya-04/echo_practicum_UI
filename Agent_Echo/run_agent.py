@@ -14,6 +14,8 @@ from agents.connections import DEFAULT_CONFIG, ModelRegistry
 from agents.model import ConfigurationError, ScriptedDemoModel
 from agents.runtime import RunBudget, AgentResult
 from agents.execution_log import RunLog, record, error_summary, logged_model
+from agents.capture import load_checkpoint, capture_summary, trace
+from agents.resume import resume_phase
 
 HERE = Path(__file__).resolve().parent
 LOG_DIRECTORY = HERE / "reports" / "logs"
@@ -31,6 +33,7 @@ def main(argv=None):
     parser.add_argument("--end")
     parser.add_argument("--question", help="Required in live mode; ignored by the scripted offline demo.")
     parser.add_argument("--input", type=Path, help="Existing JSON evidence artifact to review with ZeroSugar.")
+    parser.add_argument("--resume", type=Path, help="Failed artifact or phase checkpoint; retry that phase only with live models.")
     parser.add_argument("--demo", action="store_true", help="Scripted offline integration; no credentials or API calls.")
     parser.add_argument("--connections", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--profile", help="Force one named model profile for every role in this run.")
@@ -45,8 +48,13 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if not 8 <= args.model_call_limit <= 256 or not 30 <= args.run_seconds <= 3600:
         parser.error("Model-call limit must be 8-256 and run seconds 30-3600.")
-    if (args.model_call_limit != 32 or args.run_seconds != 300) and args.agent not in {"original", "vanilla"}:
-        parser.error("Budget overrides are supported for Original and Vanilla.")
+    if (args.model_call_limit != 32 or args.run_seconds != 300) and args.agent not in {"original", "vanilla"} and not args.resume:
+        parser.error("Budget overrides are supported for Original, Vanilla and phase resumption.")
+    if args.resume and (args.demo or args.input or args.question or args.check_connection or args.show_connections):
+        parser.error("--resume uses retained live inputs; do not combine it with --demo, --input, --question or connection checks.")
+    if args.output and args.output.exists():
+        print("Output already exists. Choose a fresh filename to preserve the previous execution.", file=sys.stderr)
+        return 1
     if args.agent == "visualizer":
         args.agent = "lime"
     if args.show_connections and args.check_connection:
@@ -57,6 +65,7 @@ def main(argv=None):
         with RunLog(LOG_DIRECTORY, agent=args.agent, mode="offline_scripted_demo" if args.demo else "live",
                     connection_check=args.check_connection) as log:
             print("Execution log: " + str(log.path), flush=True)
+            print("Full local capture: " + str(log.capture.directory), flush=True)
             code = execute(args, parser)
             log.finish(code)
             return code
@@ -73,6 +82,17 @@ def execute(args, parser):
     declined_visual = None
     try:
         registry = ModelRegistry(args.connections, args.profile)
+        saved = load_checkpoint(args.resume) if args.resume else None
+        if saved:
+            if args.agent and NAMES[args.agent] != saved['role']:
+                raise ValueError('The requested role differs from the failed phase.')
+            for field, value in (('manager', saved['scope']['manager_id']), ('start', saved['scope']['start_date']), ('end', saved['scope']['end_date'])):
+                if getattr(args, field) and getattr(args, field) != value:
+                    raise ValueError('Resume scope must exactly match the retained phase.')
+                setattr(args, field, value)
+            args.agent = saved['role'].lower()
+            if args.profile is None and saved['payload'].get('profile'):
+                registry.force_profile = saved['payload']['profile']
         if args.show_connections:
             print(json.dumps(registry.describe(), indent=2))
             return 0
@@ -85,17 +105,17 @@ def execute(args, parser):
             return 0
         if not args.agent or not args.manager:
             parser.error("An agent and --manager are required.")
-        if args.agent in {"zerosugar", "lime"} and not args.input:
+        if args.agent in {"zerosugar", "lime"} and not args.input and not saved:
             parser.error("ZeroSugar/Lime require --input with a saved evidence artifact.")
-        if args.agent not in {"zerosugar", "lime"} and not args.demo and not args.question:
+        if args.agent not in {"zerosugar", "lime"} and not args.demo and not args.question and not saved:
             parser.error("--question is required in live mode.")
-        artifact = json.loads(args.input.read_text(encoding="utf-8-sig")) if args.agent in {"zerosugar", "lime"} else None
+        artifact = json.loads(args.input.read_text(encoding="utf-8-sig")) if args.agent in {"zerosugar", "lime"} and not saved else None
         if artifact is not None and (not isinstance(artifact, dict) or
             not {"scope", "question", "answer", "evidence"}.issubset(artifact) or
             not isinstance(artifact["scope"], dict) or not isinstance(artifact["question"], str) or
             not isinstance(artifact["answer"], str) or not isinstance(artifact["evidence"], list)):
             raise ValueError("Input must be an Echo JSON artifact with scope, question, answer and evidence.")
-        previous_scope = artifact.get("scope", {}) if artifact else {}
+        previous_scope = saved['scope'] if saved else artifact.get("scope", {}) if artifact else {}
         scope = AccessScope(args.manager, args.start or previous_scope.get("start_date", "2024-10-01"),
                             args.end or previous_scope.get("end_date", "2026-09-30"))
         record("scope_ready", **scope.__dict__)
@@ -106,10 +126,14 @@ def execute(args, parser):
         retrieval = args.retrieval or ("lexical" if args.demo else registry.config["retrieval"]["mode"])
         if args.demo and retrieval != "lexical":
             parser.error("Offline demos use lexical retrieval. Semantic/hybrid retrieval requires configured embeddings.")
-        embedding_model = registry.embeddings(args.embedding_profile) if retrieval != "lexical" and args.agent in {"vanilla", "original"} else None
+        embedding_model = registry.embeddings(args.embedding_profile) if not saved and retrieval != "lexical" and args.agent in {"vanilla", "original"} else None
         options = {"retrieval": retrieval, "embedding_model": embedding_model, "cache_root": HERE / "data" / "rag_cache"}
         connections = {} if args.demo else registry.describe()
-        if args.agent == "original":
+        trace('execution_configuration', connections=connections, arguments=vars(args),
+              parent_run_id=saved['run_id'] if saved else None)
+        if saved:
+            result = resume_phase(saved, registry, HERE / 'data' / 'echo.db', args.model_call_limit, args.run_seconds)
+        elif args.agent == "original":
             agent = OriginalAgent(HERE / "data" / "echo.db", scope, factory, mode, connections=connections,
                 model_call_limit=args.model_call_limit, run_seconds=args.run_seconds, **options)
         elif args.agent == "cherry":
@@ -138,7 +162,9 @@ def execute(args, parser):
                 declined_visual = plan
             if not declined_visual:
                 agent = ZeroSugarAgent(scope, factory("ZeroSugar"), mode, database=HERE / "data" / "echo.db")
-        if declined_visual:
+        if saved:
+            pass  # The isolated phase already ran; never enter Original's workflow.
+        elif declined_visual:
             result = AgentResult("Lime", artifact["question"], declined_visual.reason, scope.__dict__,
                 evidence=artifact["evidence"], mode=mode, status="declined", visualization=asdict(declined_visual),
                 task_outcome=declined_visual.task_outcome)
@@ -158,12 +184,16 @@ def execute(args, parser):
         result.connections = connections
         result.execution = {"generation_api_calls": 0, "successful_generation_api_calls": 0,
                             "note": "Scripted fixtures, not provider responses."} if args.demo else registry.execution_summary()
+        result.capture = {**capture_summary(), **({'parent_run_id': saved['run_id'],
+            'source_checkpoint': saved['source_path'], 'phase_only': True} if saved else {})}
         if result.visualization and result.verification.get("decision") == "accept" and result.status in {"complete", "unverified"}:
             directory = args.charts_dir or HERE / "reports" / "visuals" / uuid.uuid4().hex[:12]
             result.visualization["files"] = LimeAgent.export(result.visualization, result.evidence, scope, directory)
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(asdict(result), indent=2, ensure_ascii=False), encoding="utf-8")
+        if result.capture.get('resume_checkpoint'):
+            print('Resume checkpoint: ' + result.capture['resume_checkpoint'])
         record("response_finished", status=result.status, supported_findings=sum(f["status"] == "supported" for f in result.findings),
                withheld_findings=sum(f["status"] != "supported" for f in result.findings))
         print("Result status: " + result.status)
@@ -199,6 +229,8 @@ def execute(args, parser):
             failure.status = "failed"
             failure.answer = "The analysis could not finish. Review the execution log for the failed step; no unverified findings are released."
             failure.execution = registry.execution_summary() if registry else {}
+            failure.capture = {**capture_summary(), **({'source_artifact': str(args.resume), 'phase_only': True}
+                if args.resume else {})}
             try:
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 args.output.write_text(json.dumps(asdict(failure), indent=2, ensure_ascii=False), encoding="utf-8")

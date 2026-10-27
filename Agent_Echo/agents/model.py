@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 import json
 from .execution_log import record
+from .capture import trace, exception_context
 from .request_pacing import check_request_deadline, retry_after_seconds
 
 
@@ -84,15 +85,18 @@ class ResponsesModel:
 
     def respond(self, instructions, history, tools, require_tool=False):
         self.request_count += 1
+        options = dict(model=self.model, instructions=instructions, input=history, tools=tools,
+            tool_choice=("required" if require_tool else "auto") if tools else "none",
+            parallel_tool_calls=False, max_output_tokens=self.max_output_tokens, store=False)
+        trace('provider_request', adapter='responses', body=options)
         try:
-            response = self.client.responses.create(
-                model=self.model, instructions=instructions, input=history, tools=tools,
-                tool_choice=("required" if require_tool else "auto") if tools else "none",
-                parallel_tool_calls=False, max_output_tokens=self.max_output_tokens, store=False,
-            )
+            response = self.client.responses.create(**options)
         except Exception as error:
+            trace('provider_error', adapter='responses', **exception_context(error),
+                  body=getattr(error, 'body', None), http_status=getattr(error, 'status_code', None))
             # Provider errors can contain request data. Do not print their raw payload.
             raise request_failure(error) from None
+        trace('provider_response', adapter='responses', body=response, request_id=getattr(response, '_request_id', None))
         record_response_usage(response, "responses", self.max_output_tokens)
         if response.status != "completed":
             reason = getattr(getattr(response, "incomplete_details", None), "reason", None)
@@ -139,12 +143,15 @@ class ChatModel:
                 messages.append(item)
             else:
                 raise RuntimeError("Conversation items do not match the selected provider adapter.")
-        definitions = [{"type": "function", "function": {key: tool[key]
-            for key in ("name", "description", "parameters")}} for tool in tools]
+        definitions = [{"type": "function", "function": {
+            **{key: tool[key] for key in ("name", "description", "parameters")},
+            **({"strict": tool["strict"]} if "strict" in tool else {})}} for tool in tools]
         options = {"model": self.model, "messages": messages, "max_tokens": self.max_output_tokens}
         options.update(self.request_options)
         if definitions:
             options.update(tools=definitions, tool_choice="required" if require_tool else "auto")
+            if require_tool and len(definitions) == 1:
+                options["parallel_tool_calls"] = False
         else:
             options["tool_choice"] = "none"
         for attempt in range(self.rate_limit_retries + 1):
@@ -153,10 +160,13 @@ class ChatModel:
                 self.request_pacer.acquire()
             check_request_deadline()
             self.request_count += 1
+            trace('provider_request', adapter='chat', attempt=attempt + 1, body=options)
             try:
                 response = self.client.chat.completions.create(**options)
                 break
             except Exception as error:
+                trace('provider_error', adapter='chat', attempt=attempt + 1, **exception_context(error),
+                      body=getattr(error, 'body', None), http_status=getattr(error, 'status_code', None))
                 if getattr(error, "status_code", None) != 429 or not self.request_pacer:
                     raise request_failure(error) from None
                 delay = retry_after_seconds(error, max(20, self.request_pacer.interval) * 2 ** attempt)
@@ -165,6 +175,7 @@ class ChatModel:
                 if attempt == self.rate_limit_retries:
                     raise request_failure(error) from None
                 record("request_rate_limit_retry", retry=attempt + 1, seconds=round(delay, 3), http_status=429)
+        trace('provider_response', adapter='chat', body=response, request_id=getattr(response, '_request_id', None))
         record_response_usage(response, "chat", self.max_output_tokens)
         finish_reason = response.choices[0].finish_reason if response.choices else "no_choices"
         if finish_reason not in {"stop", "tool_calls"}:
@@ -231,12 +242,18 @@ class ScriptedDemoModel:
                 "numeric_reviews": [{"request_id": item["request_id"], "decision": "required", "reason": "Scripted requested metric."}
                                     for item in payload.get("pending_numeric_requests", [])],
                 "uncertainty": "Offline fixture: answer quality has not been assessed by a model."}
+            known = {item.get("citation_id") for item in payload.get("evidence", [])}
             report.update(finding_reviews=[{"finding_id": b["finding_id"], "decision": "supported",
-                "reason": "Scripted fixture, not semantic validation."}
-                for b in payload.get("findings", [])], clarification_question=None,
-                correction_reviews=[{"correction_id": item["correction_id"], "status": "resolved",
-                    "reason": "Scripted fixture, not semantic validation.", "replacement_id": None}
-                    for item in payload.get("review_obligations", [])])
+                "reason": "Scripted fixture, not semantic validation.",
+                "assertions": [{"claim": "Scripted assessment of " + b["finding_id"], "kind": "proposal" if b.get("kind") == "proposal" else "factual",
+                    "citation_ids": [key for key in b["citation_ids"] if key in known],
+                    "assessment": "insufficient_evidence" if known and not set(b["citation_ids"]).intersection(known) and b.get("kind") != "proposal" else "supported",
+                    "reason": "Scripted fixture, not semantic validation."}]}
+                for b in payload.get("findings", [])], clarification_question=None)
+            if "correction_judgments" in tools[0]["parameters"]["properties"]:
+                report["correction_judgments"] = {item["correction_id"]: {
+                    "mandatory": True, "addressed": True, "reason": "Scripted fixture, not semantic validation."}
+                    for item in payload.get("review_obligations", [])}
             call = ToolCall("demo-review", "submit_review", json.dumps(report))
             return ModelTurn(calls=[call], output_items=[{"type": "function_call", "call_id": call.call_id, "name": call.name, "arguments": call.arguments}])
         if self.agent_name == "Original":

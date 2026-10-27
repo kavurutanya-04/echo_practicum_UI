@@ -7,24 +7,35 @@ import hashlib
 
 from .cherry import CherryAgent
 from .vanilla import VanillaAgent
-from .zero_sugar import ZeroSugarAgent, candidate_id
+from .zero_sugar import ZeroSugarAgent, ReviewRepairNeeded, candidate_id
 from .lime import LimeAgent
 from .runtime import RunBudget, Specialist, function_tool, AgentResult, AgentRunError, reject_calls
 from .execution_log import record, error_summary, explain_failure
 from .findings import safe_follow_up, clarification_question, unresolved_follow_up
 from .policies import with_policies
 from .validation import ValidationError, repair_feedback, planning_value
+from .capture import checkpoint, checkpoint_progress, database_identity
+
+MAX_DRAFTS = 4
 
 INSTRUCTIONS = """You are Original, Echo's coordinator and owner of the final manager-facing
 answer. Answer the user's complete request in clear English, using the authorized scope.
 Choose the presentation and level of detail that make the answer useful; distinguish
 observations, provisional interpretation, uncertainty and proposed human action.
-Your internal analysis plan chooses queries and specialists; it is not the manager's
-action plan. When useful or requested, integrate proposed actions tied to findings and
-explain how they might help. Choose the depth and presentation; do not require targets,
-dates, owners or resources without adequate context. Proposed effects are not measured
-results. You may explain why a review correction is unnecessary or contradictory;
-ZeroSugar must reassess it. Never silently drop a pending correction or approve yourself.
+Echo requires a complete analytical answer to fulfill the user's request and include at
+least one concrete proposed action for manager consideration. Derive the action through
+reasoning about the analysis: it may introduce an idea not requested in the question or
+stated in the sources. Cite its factual basis and explain how it might address a problem,
+sustain a strength or resolve uncertainty. When evidence is insufficient for an improvement
+proposal, a justified validation or information-gathering step can be actionable. Make
+assumptions and expected benefits explicit; do not present them as observed facts or
+demonstrated effects. Your internal query/specialist plan is not this manager-facing action.
+Preserve all requested content and item counts. Team questions invite the team's response;
+they and action recommendations serve different purposes and do not replace each other.
+Choose the presentation freely without inventing mandatory dates, owners or resources.
+Assess review corrections against the complete question, visible answer and evidence.
+Explain unjustified or contradictory repairs for ZeroSugar to reassess; never silently
+drop a pending correction or approve yourself.
 
 Delegate structured calculations to Cherry and text retrieval/interpretation to Vanilla.
 Full comment sentiment classification and its counts/percentages belong to Vanilla's
@@ -46,11 +57,22 @@ interpret cited text or rows through interpretations, and place proposed follow-
 proposals. Literal examples use the quote field; other interpretations use quote=null.
 Keep citations, numerical units and denominators tied to supplied evidence. A source table
 already displays its cells; interpretation should explain meaning rather than repeat them.
+Each interpretation item should express one independently reviewable assertion with its
+own supporting source subset. Separate materially different attributions or qualifications
+instead of combining them into an apparently supported paragraph. Keep factual premises
+separate from proposed ideas. The application assigns finding IDs; do not copy sources or
+tables to create a second report for the reviewer. ZeroSugar may flag a compound or
+omitted assertion; it does not reconstruct your answer or repeat the specialist analysis.
 Sentiment percentages describe comments, not employees; labels remain provisional.
+Use the supplied classifications and aggregates consistently. Preserve their stated
+uncertainty without inventing explanations for category counts.
+Selected examples are not the complete category population. Keep narrative group counts
+consistent with the aggregate, and show requested literal examples through quote fields.
 
 When review identifies pending corrections, resolve them with retained evidence or request
-missing/disputed specialist analysis. Preserve requested content and supported meaning
-while allowing rephrasing and removing redundancy. The whole revised answer is reviewed
+missing/disputed specialist analysis. Preserve valid requested content, the proposed action
+and supported meaning while allowing rephrasing and removing redundancy. Correct their
+substance when evidence requires it. The whole revised answer is reviewed
 again. Optional style suggestions do not require correction or another specialist call.
 Explain unresolved work honestly when evidence or execution limits prevent completion.
 """
@@ -77,6 +99,18 @@ class OriginalAgent(Specialist):
         self.declined_requests = {}
 
     def plan(self, question):
+        point = checkpoint('planning', self.name, self.scope.__dict__, {
+            'question': question, 'mode': self.mode, 'profile': getattr(self.model, 'profile', None),
+            'database_hash': database_identity(self.database)})
+        try:
+            result = self._plan(question)
+            checkpoint_progress(point, status='completed', result=result)
+            return result
+        except BaseException as error:
+            checkpoint_progress(point, status='failed', failure=error_summary(error))
+            raise
+
+    def _plan(self, question):
         self.planning_diagnostics = []
         tools = [function_tool("submit_plan", "Choose only the specialists needed by this question.", {
             "needs_numbers": {"type": "boolean"}, "needs_text": {"type": "boolean"},
@@ -419,7 +453,7 @@ class OriginalAgent(Specialist):
         candidates, reviews, coordinator_trace = [], [], []
         prior_visuals, prior_fingerprint, targets = None, None, set()
         pending_corrections = []
-        for attempt in range(2):
+        for attempt in range(MAX_DRAFTS):
             self.repair_round = attempt
             if attempt and targets == {"Lime"}:
                 record("repair_reuse", agent="Original", reason="chart_only_repair")
@@ -444,7 +478,8 @@ class OriginalAgent(Specialist):
             verifier = ZeroSugarAgent(self.scope, self.model_factory("ZeroSugar"), self.mode,
                 budget=self.budget, sql_reader=cherry.reader if cherry else None, document_lookup=lookup,
                 sentiment_reports=candidate.sentiment,
-                sentiment_documents=vanilla.sentiment_documents if vanilla else None)
+                sentiment_documents=vanilla.sentiment_documents if vanilla else None,
+                authorized_teams=getattr(vanilla or cherry, "authorized_teams", None))
             numeric_evidence = [item for item in candidate.evidence if item.get("producer") == "Cherry" and "sql" in item]
             fingerprint = hashlib.sha256(json.dumps(numeric_evidence, sort_keys=True).encode()).hexdigest()
             chart_failure = None
@@ -480,12 +515,33 @@ class OriginalAgent(Specialist):
             self.verification_diagnostics = verifier.diagnostics
             self.review_history.append(verifier.diagnostics)
             candidate.diagnostics["review_history"] = self.review_history
-            verdict = verifier.review(question, candidate.answer, candidate.evidence, candidate.visualization,
-                                      numeric_coverage=coverage, claims=candidate.claims or None,
-                                      grounding=candidate.grounding or None,
-                                      task_outcomes=[{"agent": c["agent"], "status": c["status"], "task_outcome": c.get("task_outcome", {})}
-                                                     for c in self.child_results], require_sentiment=plan["needs_sentiment"],
-                                      previous_corrections=pending_corrections)
+            try:
+                verdict = verifier.review(question, candidate.answer, candidate.evidence, candidate.visualization,
+                                          numeric_coverage=coverage, claims=candidate.claims or None,
+                                          grounding=candidate.grounding or None,
+                                          task_outcomes=[{"agent": c["agent"], "status": c["status"], "task_outcome": c.get("task_outcome", {})}
+                                                         for c in self.child_results], require_sentiment=plan["needs_sentiment"],
+                                          previous_corrections=pending_corrections, require_actionable=True)
+            except ReviewRepairNeeded as error:
+                if attempt + 1 >= MAX_DRAFTS or error.candidate_id != candidate_id(candidate.answer, candidate.evidence, candidate.visualization):
+                    raise
+                pending_corrections = deepcopy(error.corrections)
+                candidate.diagnostics["pending_corrections"] = pending_corrections
+                candidate.diagnostics["verification"] = verifier.diagnostics
+                evidence = candidate.evidence
+                targets = {item["owner"] for item in pending_corrections}
+                self.set_delegations({"Cherry", "Vanilla"} if "Original" in targets else targets & {"Cherry", "Vanilla"})
+                record("review_repair_requested", agent="Original", candidate_id=error.candidate_id,
+                       correction_ids=[item["correction_id"] for item in pending_corrections],
+                       support_review_completed=False, released_findings=0,
+                       draft_number=attempt + 1, draft_limit=MAX_DRAFTS)
+                context = [{"role": "assistant", "content": candidate.answer}, {"role": "user", "content":
+                    "The support review did not complete. These are visible-answer repair instructions, not an approval. "
+                    "Address the pending corrections or explain an unjustified observation against the visible draft. "
+                    "Reuse retained evidence and show requested content to the reader. The complete revised answer "
+                    "must pass both independent reviews before publication. " + json.dumps({
+                        "pending_corrections": pending_corrections, "evidence": evidence}, ensure_ascii=False)}]
+                continue
             pending_numeric = [item for item in coverage if item["status"] in {"pending", "error"}]
             retired = [pending_numeric[int(item["request_id"][1:]) - 1] for item in verdict.numeric_reviews
                        if item["decision"] == "not_required"]
@@ -548,7 +604,10 @@ class OriginalAgent(Specialist):
                 break
             self.set_delegations({"Cherry", "Vanilla"} if "Original" in targets else targets & {"Cherry", "Vanilla"})
             context = [{"role": "assistant", "content": candidate.answer},
-                {"role": "user", "content": "Repair the specified mandatory issues. Preserve supported facts, meaning and sources, "
+                {"role": "user", "content": "Assess each correction against the question, visible draft and evidence. "
+                 "Repair justified mandatory issues; explain any unjustified requirement or contradictory repair "
+                 "so ZeroSugar can independently withdraw or reassess it. Never change supported meaning merely to comply. "
+                 "Preserve supported facts, meaning and sources, "
                  "while allowing rephrasing, reordering, qualitative synthesis and removal of redundant presentation. "
                  "Reuse existing evidence; the revised candidate will be reviewed again. Answer in English. " +
                  json.dumps({"review": asdict(verdict), "pending_corrections": pending_corrections,

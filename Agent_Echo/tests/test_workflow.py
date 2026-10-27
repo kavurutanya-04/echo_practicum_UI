@@ -233,13 +233,15 @@ class WorkflowTests(unittest.TestCase):
             agent.close()
 
     def build_revision_workflow(self, accept_second):
+        drafts = 2 if accept_second else 4
         coordinator = SequenceModel([tool_turn("submit_plan", {"needs_numbers": True, "needs_text": False,
             "include_chart": False, "clarification_question": None}), tool_turn("ask_cherry", {"question": "Show recognition metrics."}),
-            ModelTurn(text="Unsupported claim [SQL1]."), ModelTurn(text="Corrected description of the evidence [SQL1].")])
+            ModelTurn(text="Unsupported claim [SQL1].")]
+            + [ModelTurn(text="Corrected description of the evidence [SQL1].") for _ in range(drafts - 1)])
         second = report("accept" if accept_second else "revise", [] if accept_second else ["Still unsupported."])
         second["correction_reviews"] = [{"correction_id": "C1",
             "status": "resolved" if accept_second else "unresolved", "reason": "Controlled revision fixture."}]
-        verdicts = iter([report("revise", ["Correct the unsupported claim."]), second])
+        verdicts = iter([report("revise", ["Correct the unsupported claim."])] + [second] * (drafts - 1))
         def factory(name):
             if name == "Original":
                 return coordinator
@@ -258,14 +260,15 @@ class WorkflowTests(unittest.TestCase):
         finally:
             agent.close()
 
-    def test_twice_rejected_answer_is_withheld(self):
+    def test_four_rejected_drafts_are_withheld_without_a_fifth_attempt(self):
         agent = self.build_revision_workflow(False)
         try:
             result = agent.run("Review recognition.")
             self.assertEqual(result.verification["decision"], "revise")
             self.assertIn("No verified answer", result.answer)
             self.assertNotIn("Unsupported claim", result.answer)
-            self.assertEqual(len(result.verification["rejected_drafts"]), 2)
+            self.assertEqual(len(result.verification["rejected_drafts"]), 4)
+            self.assertEqual(result.verification["completed_reviews"], 4)
         finally:
             agent.close()
 

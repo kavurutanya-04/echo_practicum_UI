@@ -43,6 +43,19 @@ def completeness_turn(decision="accept", issues=(), suggestions=(), score=3):
         "rationale": "Controlled visible-answer review fixture.", "issues": list(issues), "suggestions": list(suggestions)})
 
 
+def assertion_reviews(block, assessment="supported", evidence=None):
+    """Scripted whole-block judgment; semantic decomposition is exercised separately."""
+    refs = block["citation_ids"]
+    if evidence:
+        known = {item.get("citation_id") for item in evidence}
+        refs = [key for key in refs if key in known]
+        if not refs and assessment == "supported" and block.get("kind") != "proposal":
+            assessment = "insufficient_evidence"
+    return [{"claim": "Controlled assessment of " + block["finding_id"], "kind": "proposal" if block.get("kind") == "proposal" else "factual",
+             "citation_ids": refs, "assessment": assessment,
+             "reason": "Controlled assertion judgment; not measured analytical accuracy."}]
+
+
 class StructuredAgentTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

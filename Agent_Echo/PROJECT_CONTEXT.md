@@ -1,5 +1,311 @@
 # Echo: current project context
 
+## Publication follow-up, 2026-10-27
+
+The user subsequently authorized committing and publishing the current local code,
+tests and documentation to GitHub. Earlier no-publication statements describe their
+implementation stage. This follow-up changes no runtime behavior and runs no tests,
+builds or model calls; review-v5 and capture/resumption remain unvalidated by execution.
+Private credentials, reports, logs, checkpoints and local databases remain excluded.
+
+## Corrected B, full capture and phase-only resumption after runs 27-29, 2026-10-27
+
+Runs 27/28/29 all failed without completed support review: Luna 11 calls/226.735 s,
+DeepSeek 25/558.000 s and Gemini 11/240.875 s. All classified 13 comments; hashes and
+aggregation matched retained labels. Ten of twelve support submissions failed v4's
+literal reconstruction requirement; two omitted findings. DeepSeek also failed exact
+question-excerpt checks. Gemini completeness accepted actions in place of requested
+questions; its candidate still overgeneralized mixed comments and proposed contacting
+anonymous respondents. DeepSeek's last prose listed nine positive IDs while reporting
+eight. These are format/semantic failures, not connection failures or validated accuracy.
+
+User-approved correction now uses review-v5. Claim descriptions are concise assessments,
+not literal reconstruction. Original is instructed to separate reviewable factual
+assertions/premises; existing code assigns finding IDs, then IDs such as F2:A1 to review
+assessments. Source subsets, explicit judgments, whole-finding withholding/repair, v3
+correction judgments, both reviews, five roles and source-facts-v4 replay remain.
+
+Full private exchanges and phase checkpoints are captured under reports/logs/details/,
+with credentials omitted. Result artifacts link capture files. `--resume` accepts a new
+failed artifact/checkpoint and runs that phase only; review retries never call Original
+or Vanilla. Matching completed completeness can be reused; scope/source/profile/transport
+changes are rejected or invalidate the affected subphase. New outputs preserve lineage
+and bounded per-attempt budgets. Phase retries do not claim a complete Original answer.
+Older files without checkpoints cannot automatically resume or recover missing arguments.
+
+The user explicitly requested no local tests, builds or model calls during implementation.
+Only static parsing/diff/reference review was performed; fixtures/new regressions are
+unrun. Review-v4's earlier 322 checks do not validate this update. Next full runs are
+30 Luna, 31 DeepSeek and 32 Gemini, to be executed by the user. See
+[capture/resumption](RESUME_AND_CAPTURE.md), [commands](TESTING_AND_RAG.md#next-three-model-runs-30-32-2026-10-27)
+and [history](LIVE_TEST_HISTORY.md). No GitHub publication.
+
+## Assertion-level support review after runs twenty-five/twenty-six, 2026-10-27
+
+Implemented user-selected option B: review-v4 assesses individual assertions inside
+each finding, retaining a literal visible-text excerpt, factual/proposal kind, source
+subset, explicit support judgment and reason. Ordered textual coverage and references
+are checked in code; a failed assertion withholds its whole finding and creates an
+Original repair despite any accepting verdict. Semantic decomposition and support remain
+model judgments. V3 correction judgments, both phases, five roles, historical artifacts,
+source-facts replay, provider settings and budgets remain. The technical UI shows these
+assessments; manager projections are unchanged.
+
+All 322 offline checks (including nine new regressions) and the frontend build passed.
+No new provider call or GitHub publication. Live semantic improvement and suitability
+for APInex's unchanged 6000-token output limit remain unverified. See the
+[contract](WORKFLOW_RELIABILITY.md#assertion-level-support-review-review-v4-2026-10-27),
+[validation](TESTING_AND_RAG.md#assertion-level-support-review-2026-10-27) and
+[run 15-26 history](LIVE_TEST_HISTORY.md). All those saved runs predate review-v4.
+
+Read-only inspection found run 24 partial (22 successful Luna calls, 499.937 seconds,
+three drafts), run 25 failed (21 successful DeepSeek calls / 22 attempts, 460.954 seconds,
+12/13 classification validated, no complete review), and run 26 complete (14 Gemini
+calls, 306.156 seconds, two drafts, both final phases complete). Run 26's hashes, label
+coverage, literal visible excerpts and aggregation match the database; accepted prose
+nevertheless attributes inconsistent access/workload to both mixed comments when only
+CMT27508 describes it. CMT27511 states frustration despite useful support. Run 24 also
+calls CMT27512 positive in prose despite its stored mixed label. Acceptance is not
+semantic validation. See the history for post-run changes and comparison limits.
+
+## Additional APInex model options, 2026-10-27
+
+Added user-requested `apinex_deepseek_test` / `free/deepseek-v4.1-flash` and
+`apinex_gemini_test` / `free/gemini-3.8-flash` in connections.json. Both reuse the
+APInex endpoint, APINEX_API_KEY and Luna's limits/pacing/retries. The existing Luna
+profile, default and role assignments are preserved. Only configuration/offline
+verification was performed; no new API call or live tool/quality validation.
+
+## Reasoned actions and review simplification after run twenty-three, 2026-10-27
+
+Run twenty-three was partial after four drafts, 26 successful calls and 562.578 seconds.
+All drafts included the requested two questions; actions appeared in draft two but were
+lost in subsequent revisions. Source/hash/coverage checks and aggregation reproduced:
+13 comments, nine positive, two negative and two mixed; CMT27512 changed from mixed in
+run twenty-two to positive on unchanged text. Reviews mixed false omissions/duplicate
+repairs with a real unsupported attribution to CMT27511. Provider-reported usage was
+323,368 tokens (294,516 input; 28,852 output), not a billing reconciliation.
+
+The user approved at least one reasoned manager action in a complete Original analysis.
+The proposal may introduce an idea outside the question and sources; its factual basis
+and rationale must follow the analysis, while assumptions/possible benefits remain
+proposals. Original preserves requested work and the action through repairs. Simplified
+review instructions distinguish factual support, synthesis and action reasoning.
+Completeness still checks the user's visible request only. Original activates a trusted
+require_actionable flag for support; a missing action can be returned as policy_requirement
+with Original ownership and request_excerpt=null. This avoids fabricating a user request.
+The contextual kind is absent for other callers by default. Semantic presence/quality
+remains model judgment; code does not infer it from punctuation or proposal-list length.
+Both reviews, review-v3 lifecycle, objective gates, rubric and budgets remain. See the
+[workflow](WORKFLOW_RELIABILITY.md#reasoned-actions-and-review-simplification-after-run-twenty-three-2026-10-27)
+and [validation](TESTING_AND_RAG.md#reasoned-actions-and-review-simplification-after-run-twenty-three-2026-10-27).
+
+## Requested content and additional actions after run twenty-two, 2026-10-27
+
+Run twenty-two completed in 201.672 seconds with ten successful calls and one draft.
+Read-only checks confirmed all 13 eligible source texts/hashes and label coverage,
+recomputed aggregates and verified visible literal excerpts. Completeness raised three
+unjustified objections; review-v3 support withdrew them without schema retries.
+However, support treated the requested two team
+questions as optional wording while accepting two action recommendations instead.
+Classification remains provisional; CMT27512 changed from positive in runs seventeen
+through nineteen to mixed in runs twenty through twenty-two on unchanged source text.
+
+The user approved preserving useful actions as additions to the requested answer.
+Original and both ZeroSugar instruction sets now distinguish requested content/item
+counts from supplementary actions, using semantic judgment rather than punctuation or
+fixed layouts. Actions should explain how cited findings motivate addressing a problem
+or sustaining a strength; expected benefits remain proposals. No review stage, schema,
+rubric, provider setting, budget or release gate changed. Run twenty-two is preserved
+as pre-change evidence. See the [workflow](WORKFLOW_RELIABILITY.md#requested-content-and-additional-actions-after-run-twenty-two-2026-10-27)
+and [validation record](TESTING_AND_RAG.md#requested-content-and-additional-actions-after-run-twenty-two-2026-10-27).
+
+## Explicit correction judgments after run twenty-one, 2026-10-27
+
+Run twenty-one was partial after 26 successful calls and four drafts. No duplicate review
+calls occurred; all completeness phases completed on their first attempt. Two support
+phases failed on correction coverage/replacement references; two completed. Obligations
+grew 3/6/9/12, and the final review kept optional or contradicted objections pending.
+The source table remained 13 comments: 8 positive, 2 negative and 3 mixed. This established
+the need for the user-approved correction-contract update, not a new agent.
+
+Implemented review-v3: code supplies every correction_judgments key; the model returns
+mandatory/addressed booleans plus a reason. Code derives canonical states and routing;
+models no longer manage replacement IDs or consolidation graphs on this path. Real
+required/unaddressed omissions remain pending, while explicit not-required judgments
+withdraw unjustified objections. Current objections judged already visibly addressed
+are withdrawn; inherited ones are resolved. No prose/keyword rule infers these judgments.
+Full repair text is sent once in review_obligations; previous_corrections contains IDs
+only, and the completeness summary omits its repeated correction/issue lists. All
+obligations and source evidence remain present. Legacy v2 submissions retain their
+validators and conservative guard and are labeled v2; saved artifacts are not rewritten.
+
+147 focused checks across review contracts, recovery, diagnostics, workflow and adapters
+passed. After retained failed prototype checks, a support-only recheck reused run
+twenty-one's completed completeness review for the identical candidate/source identity.
+It assessed all 16 obligations using mandatory/addressed in one live call without
+rejections: six withdrawals, ten retained inherited obligations and one new correction
+(eleven active repairs), no deterministic issues, and a revise verdict. Output was 3515
+tokens within the unchanged 6000 limit. The model still invented a denominator-sentence
+requirement and retained redundant work; this confirms contract execution, not semantic
+quality or full workflow improvement. Evidence:
+reports/review_v3_check_21_20261027_support_only.json and
+20261027_144043_c31c613c57d1.jsonl. Live checks and their limits are recorded in
+[the testing guide](TESTING_AND_RAG.md#explicit-correction-judgments-after-run-twenty-one-2026-10-27).
+Both reviews, all five roles, source-facts replay, source/privacy/arithmetic gates,
+sentiment guidance/context, provider configuration and budgets remain. The UI still
+consumes canonical review fields and exposes no new manager workflow. No full Original
+rerun, broad suite, UI build, commit or GitHub push.
+
+## Run twenty and single-call transport, 2026-10-27
+
+Run twenty failed after 11 successful calls: completeness rejected its first rationale
+and then received two submit_completeness_review calls on each of two retries. No
+support review completed. The original diagnostic did not retain rationale type/length,
+so its exact failed condition cannot be recovered. Runs seventeen through nineteen
+had no duplicate completeness calls. The missing single-call transport setting already
+existed; these observations do not establish that forwarding strict caused duplication.
+
+ChatModel now sends parallel_tool_calls=false when exactly one tool is offered and
+required. Other tool modes retain their previous behavior; multiple-call responses are
+still rejected by the review gates. Invalid completeness rationales now report type,
+character count (strings only) and the 1200-character bound without retaining content.
+Thirty-six focused provider/field-diagnostic checks passed. A live recheck of only the
+saved run-twenty completeness phase completed on the first call, with both strict=true
+and parallel_tool_calls=false captured at the SDK boundary and one returned tool call.
+Its valid verdict was revise, score 2; this is phase/transport evidence, not approval of
+the complete answer or validation of the semantic objections. Local metadata:
+reports/completeness_transport_check_20_20261027.json; log
+20261027_063645_1ecd888e5f0a.jsonl. The original run remains unchanged.
+
+No full workflow rerun, broader suite, commit or GitHub push. Correction-protocol
+alternative B remains deferred; both reviews, source/privacy gates and budgets remain.
+
+## Strict Chat transport follow-up, 2026-10-27
+
+Run nineteen remained partial after four drafts; contextual numeric fields were omitted
+correctly, but support submissions still failed and correction obligations grew from
+five to eleven. Two independent review phases already existed. Do not describe missing
+phase separation as the cause or treat schema conformity as semantic correctness.
+
+Implemented alternative A: ChatModel now preserves an explicitly supplied strict value
+when converting tools to Chat Completions, including false, without adding an absent
+flag or mutating the original tools. Thirteen object-schema declarations were checked
+for closed properties and complete required fields; no schema changes were needed.
+Three focused adapter checks passed. APInex free/gpt-6-luna accepted two live strict
+requests without employee data: the existing connection probe and a synthetic packet
+using ZeroSugar's nested support schema. The latter matched its fixture and schema.
+Local evidence: reports/strict_transport_probe_20261027.json and logs
+20261027_061516_7cc233292e46.jsonl / 20261027_061641_f1a8f52f745b.jsonl.
+An initial sandbox connection attempt failed before the successful network-enabled probe.
+
+This verifies transport and observed schema conformity, not constrained-decoding
+enforcement, semantic quality or improvement on the complete Recognition workflow.
+Other Chat providers were not called. Alternative B (simplifying correction judgments
+and state administration) remains deferred; both review phases, current correction
+retention/withdrawal rules, source/privacy gates, prompts and budgets are unchanged.
+No full-suite run, complete analytic rerun, commit or GitHub push. See
+[strict transport checks](TESTING_AND_RAG.md#strict-chat-transport-follow-up-2026-10-27).
+
+## Run eighteen and contextual review fields, 2026-10-26
+
+Observed `apinex_prueba_vanilla_18.json` / `20261027_004732_89cb24d6210d.jsonl`
+(UTC log name; local date October 26): complete, 27 successful calls, 530.453 seconds,
+four drafts. ZeroSugar used 15 calls; nine support submissions failed across the first
+three candidates. Final acceptance required both phases on draft four. V3 rubric/full
+13-comment context were active; read-only source/label/aggregate checks matched run
+seventeen. Final prose gave limited pattern synthesis. This is recovery evidence, not
+a demonstrated quality improvement.
+
+Implemented the user-approved follow-up locally: per-candidate support schema omits
+numeric_reviews and correction_reviews when their trusted task lists are empty. Echo
+fills only these inactive lists with []; any supplied inactive entries are ignored with
+metadata-only diagnostics. Active obligations/numeric requests still require complete
+valid assessments. Feedback uses the actual contextual schema, rebuilt per candidate;
+all semantic judgments, gates, roles, v3 rubric, full source context and budgets remain.
+Existing diagnostic fixtures and focused contextual-field checks were aligned without
+execution. No tests, API calls, commit or GitHub push. See the
+[contract](WORKFLOW_RELIABILITY.md#contextual-support-review-fields-after-run-eighteen-2026-10-26).
+
+## General semantic guidance after run seventeen, 2026-10-26
+
+Run seventeen (`apinex_prueba_vanilla_17.json`, log `20261026_231553_53fb1a92e8d9.jsonl`)
+completed with nine successful calls, 171.109 seconds, one candidate and both reviews
+accepted. Support received all 13 full response/label pairs using rubric v2. Read-only
+source checks confirmed coverage, hashes, literal structured excerpts and arithmetic.
+The user considers CMT27512's positive interpretation defensible and rejected further
+case-specific label rules. Citation attribution and three questions instead of two remain
+observed output limitations; this run is not a classifier-quality benchmark.
+
+Implemented the approved simplification locally: new shared rubric v3 gives general
+category definitions and leaves contextual interpretation to the model. Removed
+case-specific live classification/review instructions. Stored v1/v2 definitions remain
+for historical review; no artifacts were rewritten. Full comment context, correction
+request grounding, both reviews, four drafts, diagnostics and all data/privacy/budget
+controls remain. Existing review fixtures and sentiment-version/source assertions were
+aligned without execution. No tests, model calls, commit or GitHub push. Current live
+quality remains unverified. See the [current guidance](WORKFLOW_RELIABILITY.md#general-semantic-guidance-after-run-seventeen-2026-10-26).
+
+## Run sixteen and local semantic-review update, 2026-10-26
+
+Observed `apinex_prueba_vanilla_16.json` / `20261026_205443_d0fc0454b26f.jsonl`:
+complete after 15 successful calls (Original/Vanilla/ZeroSugar: five each), 291.531 seconds
+and two candidates, with both final review phases accepted. Read-only replay confirmed
+all 13 authorized anonymous Recognition comments for M14's Data Platforms team, unchanged
+hashes, literal excerpts and 9 positive / 2 negative / 2 mixed counts. No neutral or
+indeterminate labels. CMT27512 changed mixed to positive versus run fifteen on unchanged
+text. Review demanded unrequested neutral examples and formatting, then introduced and
+accepted incorrect coverage-to-indeterminate reasoning and mixed/neutral boundary wording.
+This is operational recovery evidence, not validated classification or review quality.
+
+Implemented locally at the user's request, without tests, API calls, commit or GitHub push:
+shared `survey-sentiment-v2` definitions for Vanilla and ZeroSugar, stored rubric identity
+and v1 replay for older reports; request-grounded omission corrections with retained
+literal question excerpts; stronger reassessment/challenge instructions using the existing
+obligation lifecycle. All canonical comments from privacy-released groups now accompany
+the summary; support receives full response/label/reason pairs and their versioned rubric.
+Suppressed texts remain excluded; coverage diagnostics contain counts/versions only.
+Oversize complete review input fails at the existing bound rather than substituting a
+sample. Five roles, provider settings, budgets, source gates and source-facts-v4/v1-v3
+remain. No automatic semantic relabeling or wording-pattern rejection was added.
+Tests and live behavior for this update remain unverified; preserve run sixteen and use
+a fresh artifact for any later authorized evaluation. See the
+[workflow](WORKFLOW_RELIABILITY.md#sentiment-and-correction-grounding-after-run-sixteen-2026-10-26)
+and [validation status](TESTING_AND_RAG.md#semantic-review-update-after-run-sixteen-2026-10-26).
+
+## Run fifteen and local review recovery, 2026-10-26
+
+The first run fifteen failed with HTTP 504 during planning (one attempted call, no
+successful calls), log `20261026_185354_9256ff04815d.jsonl`. Its JSON was overwritten
+by the user's repeat under the same filename; the original log remains. The repeat,
+`20261026_185739_726c29abd0f2.jsonl`, failed after 13 successful calls / 248.766 seconds,
+with 19 calls and about 754 seconds left. New diagnostics worked: completeness repaired
+object-valued suggestions on turn three; support then omitted clarification_question,
+omitted suggestions, and attempted resolved on a current completeness correction.
+The last old rejection did not identify which correction. No complete support review
+or Original revision occurred. Source replay confirmed 13 eligible anonymous comments
+in M14's only authorized team, Data Platforms, unchanged source hashes, literal stored
+excerpts and aggregate counts: 8 positive, 2 negative, 3 mixed, zero neutral/indeterminate.
+CMT27512 changed positive to mixed versus run fourteen on unchanged text; semantic label
+accuracy remains unvalidated. The draft omitted requested visible literal excerpts and
+said 'Both mixed comments' despite three mixed labels. Completeness falsely claimed
+three categories were absent even though all five appeared in the table.
+
+Implemented locally at the user's request, without GitHub publication: optional review
+annotations normalize neutrally with diagnostics; invalid closure of a current correction
+keeps it pending without discarding the support review. False omissions may be withdrawn
+against visible content. Exhausted invalid support can return validated repair instructions
+to Original within the four-draft bound, without a completed review or any release;
+both phases must succeed on the revised answer. Completeness now sees trusted scope/team
+context, without source evidence. Original/Vanilla instructions distinguish examples from
+category totals and requested visible quotes. The user subsequently approved four total
+drafts (initial plus three revisions) and recovery after any of the first three drafts.
+ZeroSugar retains three attempts per phase; success stops early and shared budgets still
+take precedence. No provider/model/shared-budget/rubric changes.
+See [workflow](WORKFLOW_RELIABILITY.md#review-recovery-after-run-fifteen-2026-10-26) and
+[offline validation](TESTING_AND_RAG.md#review-recovery-checks-2026-10-26). Live behavior
+after this update, classifier accuracy and provider strict support remain unverified.
+
 ## Run fourteen and field diagnostics, 2026-10-26
 
 Observed `apinex_prueba_vanilla_14.json` / `20261026_101230_bbbaadd0c825.jsonl`:

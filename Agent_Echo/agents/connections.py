@@ -114,6 +114,8 @@ class ModelRegistry:
             from openai import AzureOpenAI, OpenAI
         except ImportError:
             raise ConfigurationError("Install requirements.txt in the project environment.") from None
+        from .capture import register_secret
+        register_secret(key)
         options = {"api_key": key, "timeout": timeout, "max_retries": retries}
         if profile["provider"] == "azure" and profile.get("azure_api", "legacy") == "legacy":
             client = AzureOpenAI(azure_endpoint=endpoint,
@@ -165,10 +167,15 @@ class EmbeddingModel:
         self.client, self.model, self.identity = client, model, identity
 
     def embed(self, texts):
+        from .capture import trace
+        trace('provider_request', adapter='embeddings', body={'model': self.model, 'input': texts})
         try:
             response = self.client.embeddings.create(model=self.model, input=texts)
+            trace('provider_response', adapter='embeddings', body=response)
             vectors = [item.embedding for item in sorted(response.data, key=lambda item: item.index)]
-        except Exception:
+        except Exception as error:
+            trace('provider_error', adapter='embeddings', error_type=type(error).__name__,
+                  message=str(error), body=getattr(error, 'body', None))
             raise RuntimeError("Embedding request failed; no semantic results were accepted.") from None
         if len(vectors) != len(texts):
             raise RuntimeError("Embedding response count does not match the input batch.")

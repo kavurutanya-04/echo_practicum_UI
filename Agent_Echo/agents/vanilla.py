@@ -10,8 +10,10 @@ from .runtime import RunBudget, Specialist, function_tool, AgentRunError
 from .tools import TextSearch
 from .semantic_search import SemanticTextSearch
 from .execution_log import record, error_summary
+from .capture import checkpoint, checkpoint_progress, database_identity
 from .validation import ValidationError, repair_feedback, rejection_diagnostic, minimal_value
 from .policies import with_policies
+from .sentiment_rubric import SENTIMENT_LABELS, SENTIMENT_RUBRIC_VERSION, SENTIMENT_RUBRICS
 
 
 INSTRUCTIONS = """You are Vanilla, Echo's textual-information specialist.
@@ -74,31 +76,32 @@ Describe only supported patterns and disagreements among those sources, without 
 population prevalence from examples.
 Each interpretation remains provisional, not validated semantic accuracy. Cite counterevidence
 when available; separate observations, interpretations and proposed manager actions.
-The sentiment tool supplies individual canonical comment passages alongside its summary.
+The sentiment tool supplies all canonical comment passages from privacy-released groups
+alongside its summary. Its examples remain selected illustrations.
 Use their citation IDs for literal excerpts. The SENTIMENT table ID supports aggregate
 interpretation; the individual response IDs support what particular comments express.
+Its examples are selected illustrations, not all records in a category. Use the complete
+aggregate for category counts; do not describe the example list as the whole group or
+infer a most-common theme without sufficient text coverage. Show requested literal
+examples in quote fields rather than replacing them with paraphrases.
 """
 
-SENTIMENT_LABELS = ("positive", "negative", "neutral", "mixed", "indeterminate")
 SENTIMENT_BATCH_SIZE = 20
 SENTIMENT_ATTEMPTS = 3
 SENTIMENT_QUOTE_MAX_CHARS = 400
 SENTIMENT_INSTRUCTIONS = f"""You are Vanilla classifying anonymous survey response text.
 Return exactly one submit_sentiment_batch call, with one label per supplied citation ID.
-positive: clearly favorable; negative: clearly critical; neutral: descriptive without
-expressed favorable/critical evaluation; mixed: both favorable and critical evaluations;
-indeterminate: empty, unclear, irrelevant or insufficient text. Do not guess.
+Rubric version: {SENTIMENT_RUBRIC_VERSION}.
+{SENTIMENT_RUBRICS[SENTIMENT_RUBRIC_VERSION]}
 Classify the response, not the question. Do not infer sentiment from numeric survey ratings,
 which are deliberately omitted.
 For every non-indeterminate label quote an exact contiguous excerpt from the response
 (1-{SENTIMENT_QUOTE_MAX_CHARS} characters, prefer the shortest sufficient excerpt) and explain the label in at most 160 characters. Indeterminate may
 use a null quote. Never infer respondent identity or a personnel decision.
 Copy the quote verbatim, including punctuation and relevant negation. Never summarize,
-paraphrase, translate or combine noncontiguous phrases in quote. Put the explanation
-of how that exact excerpt supports the label in reason. Correct only pending IDs.
-Examples: 'My effort is appreciated.' -> positive; 'My effort is overlooked.' -> negative;
-'We meet on Mondays.' -> neutral; 'Helpful feedback, but little recognition.' -> mixed;
-'N/A' -> indeterminate. Labels are provisional until human validation.
+paraphrase, translate or combine noncontiguous phrases in quote. Use reason to justify
+the label from the full response; the excerpt illustrates that judgment. Correct only
+pending IDs. Labels are provisional until human validation.
 """
 
 
@@ -191,7 +194,7 @@ def sentiment_summary(report, documents):
         "scope": report["scope"], "dimension": dimension, "eligible_comments": len(eligible),
         "classified_comments": len(report["labels"]), "complete": True, "rows": rows,
         "suppressed_groups": suppressed, "examples": examples, "mode": report["mode"],
-        "human_validated": False, "rubric_version": "survey-sentiment-v1",
+        "human_validated": False, "rubric_version": report.get("rubric_version", "survey-sentiment-v1"),
         "note": "Percentages describe eligible comments, not employees. Denominator includes all five labels. "
                 "Groups below five comments are suppressed. Labels have not been validated against human annotations."}
 
@@ -199,9 +202,11 @@ def sentiment_summary(report, documents):
 class VanillaAgent(Specialist):
     source_grounding = True
     def __init__(self, database, scope, model, mode="live", retrieval="lexical", embedding_model=None, cache_root=None, budget=None):
+        self.database = database
         budget = budget or RunBudget()
         backend = ScopedData(database, scope)
         try:
+            self.authorized_teams = list(backend.teams)
             documents = backend.text_documents()
             self.sentiment_documents = backend.sentiment_documents()
             self.sentiment_reports = {}
@@ -240,8 +245,26 @@ class VanillaAgent(Specialist):
         key = hashlib.sha256(json.dumps({"scope": self.scope.__dict__, "documents": documents,
             "model_instance": id(self.model), "model": str(getattr(self.model, "model", "")),
             "mode": self.mode, "dimension": dimension.casefold() if dimension else None,
-            "rubric": "survey-sentiment-v1"}, sort_keys=True).encode()).hexdigest()
+            "rubric": SENTIMENT_RUBRIC_VERSION}, sort_keys=True).encode()).hexdigest()
         self.active_progress.add(key)
+        if key not in self.sentiment_progress:
+            retained = next((s for s in getattr(self, 'retained_sentiment_progress', [])
+                if s['dimension'] == dimension and s['ids'] == [d['citation_id'] for d in documents]), None)
+            if retained:
+                self.sentiment_progress[key] = {**retained,
+                    'attempts': {int(k): v for k, v in retained['attempts'].items()},
+                    'feedback': {int(k): v for k, v in retained['feedback'].items()}}
+        resumed = getattr(self, 'resume_sentiment', None)
+        if resumed is not None:
+            if resumed['dimension'] != dimension or resumed['ids'] != [d['citation_id'] for d in documents]:
+                raise ValueError('Retained sentiment scope/dimension/coverage differs from this task.')
+            valid, errors = partition_sentiment_labels(list(resumed['accepted'].values()),
+                [doc for doc in documents if doc['citation_id'] in resumed['accepted']])
+            if errors or set(valid) != set(resumed['accepted']):
+                raise ValueError('Retained sentiment labels fail source validation.')
+            self.sentiment_progress[key] = {**resumed, 'accepted': valid, 'attempts': {},
+                'feedback': {int(k): v for k, v in resumed.get('feedback', {}).items()}}
+            self.resume_sentiment = None
         state = self.sentiment_progress.setdefault(key, {"accepted": {}, "attempts": {}, "feedback": {},
             "report_id": None, "dimension": dimension, "ids": [d["citation_id"] for d in documents]})
         if state["report_id"]:
@@ -274,6 +297,10 @@ class VanillaAgent(Specialist):
                 # A fresh request includes only unresolved records, not the full failed batch/history.
                 history = [{"role": "user", "content": json.dumps(
                     {"comments": pending, "validation_errors": feedback}, ensure_ascii=False)}]
+                point = checkpoint('sentiment', self.name, self.scope.__dict__, {
+                    'mode': self.mode, 'profile': getattr(self.model, 'profile', None), 'dimension': dimension,
+                    'rubric_version': SENTIMENT_RUBRIC_VERSION, 'state': state,
+                    'sentiment_reports': self.sentiment_reports, 'database_hash': database_identity(self.database)})
                 self.budget.consume("model")
                 state["attempts"][offset] = state["attempts"].get(offset, 0) + 1
                 turn = self.budget.respond(self.model, with_policies(SENTIMENT_INSTRUCTIONS), history, tools, True)
@@ -300,8 +327,11 @@ class VanillaAgent(Specialist):
                     self.record_sentiment_rejection(error, offset, state["attempts"][offset], key)
                     feedback = [repair_feedback(error)]
                 state["feedback"][offset] = feedback
+                checkpoint_progress(point, status='failed', sentiment_state=state)
             if any(doc["citation_id"] not in state["accepted"] for doc in batch):
+                checkpoint_progress(point, status='failed', sentiment_state=state)
                 return self.progress_outcome(state)
+            checkpoint_progress(point, status='completed', sentiment_state=state)
             for entry in self.sentiment_diagnostics:
                 if entry.get("classification_ref") == key and entry.get("batch_offset") == offset and entry.get("resolution") == "unresolved" \
                         and (entry.get("source_id") in state["accepted"] or not entry.get("source_id")):
@@ -311,7 +341,7 @@ class VanillaAgent(Specialist):
         labels = [state["accepted"][doc["citation_id"]] for doc in documents]
         identity = f"SENTIMENT{self.sentiment_counter}"
         report = {"citation_id": identity, "scope": self.scope.__dict__, "dimension": dimension,
-            "mode": self.mode, "labels": labels,
+            "mode": self.mode, "rubric_version": SENTIMENT_RUBRIC_VERSION, "labels": labels,
             "source_hashes": {doc["citation_id"]: hashlib.sha256(doc["response_text"].encode("utf-8")).hexdigest()
                               for doc in documents}}
         summary = sentiment_summary(report, self.sentiment_documents)
@@ -339,10 +369,15 @@ class VanillaAgent(Specialist):
         if result.get("kind") != "survey_sentiment":
             return []
         lookup = {doc["citation_id"]: doc for doc in self.sentiment_documents}
+        groups = {(row["Team"], row["Survey_Date"], row["Dimension"]) for row in result["rows"]}
+        report = self.sentiment_reports.get(result["citation_id"])
+        labels = report["labels"] if report else result["examples"]
         return [{**{key: lookup[item["citation_id"]][key] for key in
                     ("citation_id", "source", "record_id", "team", "date", "dimension", "anonymous")},
                  "kind": "survey_response", "text": lookup[item["citation_id"]]["response_text"],
-                 "scope": self.scope.__dict__} for item in result["examples"]]
+                 "scope": self.scope.__dict__} for item in labels
+                if (lookup[item["citation_id"]]["team"], lookup[item["citation_id"]]["date"],
+                    lookup[item["citation_id"]]["dimension"]) in groups]
 
     def close(self):
         self.searcher.close()

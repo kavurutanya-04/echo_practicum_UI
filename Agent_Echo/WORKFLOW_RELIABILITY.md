@@ -1,5 +1,74 @@
 # Workflow reliability: current execution and repair contracts
 
+## Corrected assertion review and phase-only retry: review-v5 (2026-10-27)
+
+This supersedes v4's literal ordered reconstruction after all three live models failed
+support review in runs 27-29. Original separates independently reviewable assertions and
+their source subsets using the existing answer schema. ZeroSugar identifies each
+substantive assertion in a short description (up to 600 characters), with kind, sources,
+judgment and reason; it does not copy the answer/table/markup. Code assigns assessment
+IDs within that review. Coverage of finding IDs and explicit assessments/references is
+checked; semantic coverage, atomicity and entailment remain model judgments. Any failed
+assertion still withholds its whole finding and creates a repair. Both review phases,
+v3 correction judgments, source-facts replay and existing execution limits remain.
+
+The CLI now captures complete private exchanges and per-phase checkpoints, excluding
+credentials, with fresh-output/lineage checks. `--resume` performs only the failed phase;
+review resumption cannot trigger Original/Vanilla or an automatic correction loop. A
+completed completeness review is reused only with matching content and phase contract.
+Other phase retries remain diagnostic, not a complete coordinator-process restoration.
+See [the exact contract and limits](RESUME_AND_CAPTURE.md). No local tests/builds/live
+calls were run by user instruction; earlier check totals predate this implementation.
+
+## Assertion-level support review: review-v4 (2026-10-27)
+
+User-selected option B supersedes whole-finding-only support submissions. Each finding
+review now requires assertions with these fields:
+
+| Field | Meaning |
+| --- | --- |
+| claim | Exact contiguous visible-finding excerpt, at most 12000 characters |
+| kind | factual (including interpretations/premises) or proposal |
+| citation_ids | Up to 16 unique known supporting references from that finding |
+| assessment | supported, contradicted or insufficient_evidence |
+| reason | Explicit explanation of support/limits, at most 300 characters |
+
+Assertions follow visible-text order and cover the entire finding, with only whitespace
+between excerpts. Keep headings/citations/punctuation with adjacent claims; a controlled
+table can be assessed together. The model separates independently assessable statements,
+including attributions, quantities, qualifiers and factual premises inside proposals.
+Different assertions in a synthesis can use different source subsets. An assertion
+attributed to every member of a group needs evidence for that full attribution. Novel
+ideas and possible benefits are assessed as proposals, with their assumptions and
+reasoning; their factual premises are assessed separately as factual assertions.
+
+Code checks fields, literal ordered coverage, references, explicit assessments and the
+1-64 assertion bound per finding. Supported factual assertions need citations when
+evidence exists. No judgment is inferred, defaulted or silently sampled. Any contradicted
+or insufficient_evidence assessment withholds its entire finding and forces revision,
+even if the finding/global decisions say accept. Code creates one Original repair per
+affected finding and retains all assessments for repair. Reviewers use corrections for
+other problems, avoiding duplicate assertion repairs; Original may seek specialist help.
+
+Literal coverage does not prove semantic atomicity or entailment. The model can still
+combine claims incorrectly, misattribute support or misjudge a proposed action. The trace
+makes those decisions inspectable, not guaranteed correct. No keyword, sentence-pattern
+or case-specific classification rule is introduced.
+
+New live reviews require assertions even with legacy administrative response fields.
+Stored v2/v3 artifacts remain unchanged/readable without synthesized assessments. Legacy
+correction-retention guards still apply on that input path, while new live results are
+labeled review-v4. V3 keyed correction judgments continue inside review-v4. Five roles,
+both phases, four drafts, source-facts replay, full sentiment input and all existing
+provider/input/output/retry/shared-budget settings remain. Longer responses can exhaust
+the unchanged output allowance; no mandatory model call was added.
+
+Validated assessments are exported with findings and shown under Evidence checks in the
+technical UI. Manager projections retain their existing fields. JSONL finding events
+add counts only, not assertion text or evidence; minimized field diagnostics remain.
+See [validation](TESTING_AND_RAG.md#assertion-level-support-review-2026-10-27) and the
+[run 15-26 history](LIVE_TEST_HISTORY.md). No new live workflow has validated this update.
+
 Reviewed 2026-10-26 against the current runtime and the audit follow-up. Earlier dated
 sections retain their original change context; the current contracts below and the
 [documentation map](DOCUMENTATION_MAP.md) identify the relevant implementation sources.
@@ -8,6 +77,249 @@ The five roles and final GW Azure default are retained. All manager-facing outpu
 English. This change does not add a UI, authentication system, bilingual testing or a
 comparative provider benchmark. Later dated changes below supersede historical contract
 details where explicitly stated.
+
+## Reasoned actions and review simplification after run twenty-three (2026-10-27)
+
+Original now requires all requested content plus at least one concrete manager action
+reasoned from the analysis. The action may be a new idea absent from the prompt or source
+text. Its factual premises are cited; its rationale, assumptions and possible benefits
+are assessed as a proposal, not as observed outcomes. A justified validation step can
+address insufficient evidence. Requested questions and actions serve different purposes.
+Revisions preserve valid content and actions while allowing substantive corrections.
+
+Completeness instructions are consolidated around visible user-request fulfillment.
+Support distinguishes facts/interpretations from proposed action reasoning and evaluates
+full sources rather than only illustrative excerpts. It retains explicit reassessment
+of false/redundant objections without inferring semantic equivalence in code.
+
+Original passes require_actionable=true to support review, recorded in support_contract.
+The contextual corrections enum then permits policy_requirement; its validator requires
+owner=Original and request_excerpt=null. User-requested omissions retain their exact
+question-excerpt contract. Other review callers default to false and cannot introduce
+this new correction kind. Existing routing/lifecycle handles a policy repair normally.
+There is no new review phase or automatic prose/list-length test of action quality.
+All source/privacy/arithmetic gates, four drafts, provider settings and budgets remain.
+Saved runs are preserved; live semantic improvement is pending. See the
+[validation record](TESTING_AND_RAG.md#reasoned-actions-and-review-simplification-after-run-twenty-three-2026-10-27).
+
+## Requested content and additional actions after run twenty-two (2026-10-27)
+
+Original's instructions prioritize all requested content and item counts while allowing
+useful additional actions. Each action explains how it might address an identified
+problem or sustain an observed strength from cited findings; proposed benefits are not
+measured outcomes. Both completeness and support judge the function of visible content:
+action recommendations alone do not satisfy requested team questions. An actual omission
+requires correction even if supplementary content is useful. No punctuation, keyword or
+fixed-layout gate infers that judgment. Support checks the action-to-finding connection
+and proposed effects against evidence, without demanding extra actions for every task.
+
+This instruction-only update preserves review-v3 reassessment and withdrawal of false
+objections, both review phases, four drafts, existing source/privacy/arithmetic gates,
+schemas, rubric, provider settings and budgets. Run twenty-two remains pre-change
+evidence: the successful contract execution did not prevent accepting actions in place
+of questions. Offline checks cannot establish improved live semantic judgment; see the
+[validation record](TESTING_AND_RAG.md#requested-content-and-additional-actions-after-run-twenty-two-2026-10-27).
+
+## Explicit correction judgments after run twenty-one (2026-10-27)
+
+New live support tools use review-v3. Code preassigns every obligation as a required key
+in correction_judgments. Each value contains mandatory (boolean), addressed (boolean)
+and a reason of at most 300 characters. The model judges whether an independent repair is mandatory and
+whether the current visible answer satisfies it. Optional/unjustified/redundant objections
+may be judged not required; similarity of wording is never inferred by code. Evidence
+off-screen cannot satisfy a requested visible deliverable.
+
+The model does not submit lifecycle states or replacement IDs in this contract. Code
+derives the existing exported correction_reviews shape:
+
+| Explicit model judgment | Derived state |
+| --- | --- |
+| Not required | withdrawn |
+| Required and not addressed | unresolved; preserve the original ID and repair |
+| Required and addressed, inherited correction | resolved |
+| Required and addressed, current completeness objection | withdrawn; the model judges its omission premise false in this same draft |
+
+Full repair text is supplied once in review_obligations; the inherited list contains ID
+references only and the completeness summary retains score/verdict/rationale/suggestions.
+No obligation or source is dropped by this input compaction.
+
+All keys, both boolean judgments and reasons are mandatory; missing/extra keys, non-boolean
+values and invalid reasons are rejected without semantic defaults. Current omissions
+remain blocking when judged required and not addressed, even if all findings are supported.
+Judgments are preserved in the review artifact, and routing still derives from active
+corrections. This simplifies administration, not semantic truth: model judgments remain
+fallible and cannot override objective source/scope/privacy/arithmetic checks.
+
+Legacy v2 state-list submissions remain readable through their existing coverage,
+consolidation and current-omission retention checks, and are labeled review-v2. Stored
+artifacts are not rewritten. The five roles, both reviews, source-facts versions, strict
+transport, parallel-call restriction, full sentiment context and budgets are retained.
+See [checks and live limits](TESTING_AND_RAG.md#explicit-correction-judgments-after-run-twenty-one-2026-10-27).
+
+## Single-call review follow-up after run twenty (2026-10-27)
+
+With one required tool, ChatModel requests parallel_tool_calls=false; other tool modes
+are unchanged. Reviewers still reject multiple calls rather than silently choosing one.
+Completeness rationale failures now expose types and bounded character counts, never
+the rejected text. The saved run-twenty completeness phase completed in one live call
+with a revise verdict; this is not full workflow or semantic-quality validation. See
+[checks and evidence](TESTING_AND_RAG.md#single-call-review-follow-up-after-run-twenty-2026-10-27).
+
+## Strict Chat transport follow-up (2026-10-27)
+
+ChatModel preserves explicit strict tool flags at the Chat Completions boundary. The
+APInex checks establish request acceptance and observed synthetic schema conformity;
+they do not establish semantic correctness or constrained-decoding enforcement. Both
+review phases and the existing correction retention/withdrawal protocol remain required.
+Alternative B remains deferred. See [checks and limits](TESTING_AND_RAG.md#strict-chat-transport-follow-up-2026-10-27).
+
+## Contextual support-review fields after run eighteen (2026-10-26)
+
+Run eighteen completed after 27 successful calls, 530.453 seconds and four drafts.
+The first three support phases exhausted their three attempts on invalid submissions;
+the fourth candidate passed both phases. Source coverage, hashes, labels and aggregates
+matched run seventeen. This demonstrates bounded recovery, not improved semantic quality.
+
+The approved local follow-up builds the support tool schema per candidate. It includes
+`numeric_reviews` only when trusted pending/error numeric requests exist, and
+`correction_reviews` only when prior or current completeness obligations exist. Fields
+that do not apply are omitted from both properties and required, then supplied as empty
+lists in internal/exported results. A model-supplied inactive field is discarded; a
+nonempty/invalid value produces metadata-only `unused_review_field_ignored` diagnostics.
+This never supplies a verdict, closes an obligation or changes an active assessment.
+
+Active fields retain exact ID/coverage/status/replacement validation. Required findings,
+ratings, corrections, scope/source checks, both phases and shared budgets are unchanged.
+Each call gets a copy of the baseline schema; reviewer reuse cannot retain an earlier
+candidate's field exclusions. Repair feedback and schema identity use the actual tool
+sent to the model. `support_contract` stores task counts only. Legacy review reading is
+retained. No semantic rules, new agents or model changes were added. Tests were updated
+and added but not run; no API calls, commit or GitHub push. Live effect remains unverified.
+
+## General semantic guidance after run seventeen (2026-10-26)
+
+The user approved simplifying instructions without reverting the earlier context and
+traceability improvements. New reports use shared `survey-sentiment-v3`: general category
+definitions and full-response contextual judgment with a brief justification. No rule
+forces a label from the presence of praise, criticism or a particular closing phrase.
+Case-specific guidance was removed from the active classifier, Original and ZeroSugar.
+Historical v1/v2 definitions remain available under their original version identities.
+
+This retains full released-group response/label input, privacy suppression, exact excerpt
+checks, source replay, complete coverage, computed aggregates, request-grounded corrections,
+independent reassessment, both review phases and the four-draft/shared-budget bounds.
+No semantic keyword conditions, new roles, provider changes or new review stages were added.
+Existing correction fixtures now supply literal request excerpts and expect their
+retention; existing sentiment checks cover version identity and full canonical sources.
+They were edited, not executed. No tests, model calls, commit or GitHub publication.
+Run seventeen demonstrates the preceding version's operation, not this simplification's
+quality. A later authorized run must preserve earlier artifacts and use a fresh filename.
+
+## Sentiment and correction grounding after run sixteen (2026-10-26)
+
+Implemented locally at the user's request, without tests, model calls, commit or GitHub
+push. Run sixteen (`apinex_prueba_vanilla_16.json`, log
+`20261026_205443_d0fc0454b26f.jsonl`) completed in 291.531 seconds with 15 successful
+calls and two candidates. The final candidate passed both review phases. Read-only
+source replay found 13 eligible comments, unchanged hashes, literal excerpts and matching
+9 positive / 2 negative / 2 mixed counts. This is evidence for the preceding version.
+The review introduced an invalid inference from full coverage to zero indeterminate
+comments, described mixed as close to neutral, and demanded unrequested examples and
+formatting. CMT27512 changed mixed to positive versus run fifteen on unchanged text.
+Acceptance did not establish classifier accuracy or sound review judgment.
+
+**Shared, versioned rubric.** `agents/sentiment_rubric.py` defines new
+`survey-sentiment-v2` and retains v1 definitions. An explicit current criticism plus a
+favorable evaluation is mixed even with a favorable overall verdict. Suggestions for
+future improvement, continuation requests, initial doubt and resolved past issues alone
+do not make a response mixed. Neutral and indeterminate remain distinct. Coverage does
+not determine category counts. Vanilla stores the rubric version and includes it in
+the progress-reuse key. Reports without the field replay as v1; historical artifacts and
+source-facts-v4/v1-v3 are unchanged.
+
+**Grounded corrections.** New completeness corrections include issue, requested_change
+and an exact nonempty request_excerpt of at most 400 characters. New support corrections
+also declare request_excerpt (nullable for factual or usability problems); new
+missing_deliverable entries require a non-null excerpt. Code checks literalness and
+retains the supplied fragment instead of discarding it. Model judgment must still explain
+why that question fragment requires the repair. A factual correction names the claim
+and conflicting evidence. Original challenges unjustified or contradictory repairs;
+ZeroSugar independently withdraws or reassesses them through the existing obligation
+lifecycle. Valid citation IDs and explicit denominators do not mandate clickable links,
+fractions, examples for every category, or repeated numbers. Legacy review submissions
+remain readable; the original question remains authoritative without a deliverable checklist.
+
+**Full semantic-review input.** The sentiment tool attaches canonical response passages
+for every classified comment in a released team/date/dimension group. Summary examples
+remain selected illustrations. Support receives `sentiment_classifications`: trusted full
+response text, label, literal excerpt, reason and the report's versioned rubric for all
+released groups. Source hashes, scope, aggregation and the existing five-comment privacy
+threshold are checked first. Suppressed groups' texts are excluded. Coverage diagnostics
+contain rubric versions and eligible/included/suppressed counts only, not response text
+or question excerpts. The existing 150,000-character review-input bound is unchanged;
+oversize input fails review rather than silently sampling. Both phases and all shared
+budgets remain required. Model review is not human validation; labels remain provisional.
+
+No new role, provider change, budget increase, wording-pattern rejection or automatic
+sentiment relabeling is introduced. A disputed label still requires Vanilla's analysis
+and a new accepted review; unresolved disagreement cannot certify the classification.
+Tests and a fresh live evaluation of this update remain unrun. Preserve run sixteen.
+
+## Review recovery after run fifteen (2026-10-26)
+
+This local update supersedes the earlier diagnostic-only behavior below. No GitHub
+publication or new live call is part of it. The repeated run fifteen reached both
+review phases: completeness repaired object-valued suggestions, then support omitted
+clarification_question, omitted suggestions, and finally attempted to resolve a current
+completeness correction without changing the draft. The new diagnostics exposed these
+conditions; additional retry budget was not the missing resource.
+
+**Transport versus judgment.** The canonical review-v2 tool shape is retained. At the
+input boundary only optional annotations receive neutral normalization: omitted
+suggestions become [], malformed optional suggestions are omitted as a whole, and an
+omitted support clarification_question becomes null. Normalization is explicitly traced,
+without rejected values. A clarify-owned correction still requires a real question.
+No verdict, rating, finding review, correction, obligation assessment, numeric decision,
+source check or evidence is synthesized, repaired by coercion, or silently dropped.
+Missing essential fields and unknown fields retain bounded structural retries.
+
+**Obligation lifecycle.** An attempted resolved status on a current completeness
+correction is retained as unresolved, rather than invalidating the entire support
+submission. Diagnostics identify the candidate, correction ID, index, model attempt,
+submitted/effective statuses and the application reason. The original model reason
+remains in the assessment, separately from the application adjustment metadata.
+This can only preserve mandatory repair; it cannot grant approval. False omissions
+may be withdrawn with a reason identifying content already visible in the draft,
+as may unjustified requirements/policy conflicts. Source material attached outside
+the answer still cannot satisfy a requested visible example. Prior corrections,
+complete assessment coverage and consolidation safeguards remain in force.
+
+**Progress without premature release.** If all three support submissions are invalid
+but completeness produced validated corrections, ZeroSugar raises ReviewRepairNeeded
+with pending obligations and candidate identity, not a VerificationResult. Within
+Original's four-draft limit (initial answer plus at most three revisions), the coordinator
+may reuse evidence and prepare another draft while a round remains. Both reviews must
+then finish normally before acceptance. Failed
+support is not counted as a completed review, no candidate becomes reviewed through
+this path, and no findings/charts are released from it. Recovery is available after the
+first, second and third drafts, with no fifth draft. Missing usable corrections, provider
+failure or an exhausted shared budget does not manufacture approval or extra rounds.
+Metadata records review_repair_requested with draft number and draft limit. ZeroSugar
+still has three structured-submission attempts per phase per draft. Shared model-call,
+tool, time and output-token budgets are unchanged; success stops the loop immediately.
+
+**Context and consistency.** Completeness now receives trusted manager/date scope
+and, when available, the authorized team names retained from ScopedData by Cherry or
+Vanilla (or obtained by standalone ZeroSugar). It still receives no source evidence,
+SQL, specialist answer or checklist. Instructions require reading all visible tables
+and distinguishing contradictions from omissions. Original/Vanilla distinguish selected
+examples from category totals and show requested examples through literal quote fields.
+Semantic review remains fallible; these instructions are not keyword-based validators.
+
+Five roles, source-facts-v4/v1-v3 replay, provider settings, classifier rubric, shared
+budgets, scope/quote/coverage/arithmetic/privacy gates and reviewed-version release remain.
+The Chat adapter's strict-flag handling and provider support have not been changed or
+probed. See [validation](TESTING_AND_RAG.md#review-recovery-checks-2026-10-26).
 
 ## Field-error diagnostics follow-up (2026-10-26)
 
@@ -59,7 +371,7 @@ per-question templates, invented targets, schedules or resources. No action is e
 **Single-list review.** New `review-v2` support submissions contain `corrections`, not
 parallel `issues` or `repair_targets`. Each new correction has issue, kind, owner,
 requested_change and citation_ids; code assigns IDs and derives compatibility fields.
-New completeness submissions contain only issue/requested_change corrections plus their
+At that update, new completeness submissions contained issue/requested_change corrections plus their
 verdict/rationale/suggestions. They see the exact visible answer and safe chart labels,
 never attached sources. Original owns visible-answer repairs with available evidence.
 Legacy review submissions remain readable through conservative normalization.
@@ -158,8 +470,9 @@ in attached evidence or the support reviewer accepts. The combined Completeness 
 cannot exceed either stage's score. Optional suggestions do not force revision. Supported
 blocks may still be released as partial output under the existing scope/safety gates.
 Each phase has up to three structured-response attempts within the same shared model,
-tool and elapsed-time budget; failures never constitute approval. The two-candidate
-Original revision limit is retained. A normally valid review adds one model call per
+tool and elapsed-time budget; failures never constitute approval. This historical update
+retained two candidates; the current run-fifteen recovery contract above allows four.
+A normally valid review adds one model call per
 candidate compared with the former single-stage path. Latency, cost and live analytical
 improvement remain unmeasured for this update.
 

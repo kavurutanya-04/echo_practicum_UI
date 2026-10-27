@@ -19,6 +19,7 @@ from agents.model import ConfigurationError, ModelTurn, ScriptedDemoModel
 from agents.preflight import check_connections
 from agents.lime import validate_visuals
 from agents.vanilla import sentiment_summary, validate_sentiment_labels, SENTIMENT_LABELS
+from agents.sentiment_rubric import SENTIMENT_RUBRIC_VERSION
 from agents.data_access import ScopedData
 from agents.runtime import RunBudget
 from test_agents import SequenceModel, tool_turn
@@ -206,6 +207,13 @@ class SentimentTests(unittest.TestCase):
         self.assertEqual(row["indeterminate_percent"], 16.67)
         self.assertEqual(sum(row[label + "_count"] for label in SENTIMENT_LABELS), 6)
         self.assertFalse(summary["human_validated"])
+        self.assertEqual(summary["rubric_version"], SENTIMENT_RUBRIC_VERSION)
+        for version in ("survey-sentiment-v1", "survey-sentiment-v2"):
+            historical = {**agent.sentiment_reports["SENTIMENT1"], "rubric_version": version}
+            self.assertEqual(sentiment_summary(historical, agent.sentiment_documents)["rubric_version"], version)
+        unversioned = dict(agent.sentiment_reports["SENTIMENT1"])
+        unversioned.pop("rubric_version")
+        self.assertEqual(sentiment_summary(unversioned, agent.sentiment_documents)["rubric_version"], "survey-sentiment-v1")
         self.assertEqual(len(agent.sentiment_reports["SENTIMENT1"]["source_hashes"]), 6)
         context = json.loads(agent.model.histories[0][0]["content"])
         self.assertEqual(len(context["comments"]), 6)

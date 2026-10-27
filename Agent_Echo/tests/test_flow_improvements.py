@@ -14,7 +14,7 @@ from agents.runtime import Specialist, function_tool, RunBudget, AgentRunError, 
 from agents.tools import SQLReader
 from agents.zero_sugar import DIMENSIONS
 from agents.cherry import CherryAgent
-from test_agents import SequenceModel, tool_turn, completeness_turn
+from test_agents import SequenceModel, tool_turn, completeness_turn, assertion_reviews
 
 
 SCOPE = AccessScope("M14", "2026-07-01", "2026-09-30")
@@ -73,7 +73,7 @@ class ReviewModel:
             "issues": [] if outcome == "accept" else ["Correct the specified issue."], "uncertainty": "Test fixture.",
             "finding_reviews": [{"finding_id": b["finding_id"],
                 "decision": "revise" if "fabricated" in b["text"] else "supported",
-                "reason": "Controlled test decision."} for b in payload["findings"]],
+                "reason": "Controlled test decision.", "assertions": assertion_reviews(b, evidence=payload.get("evidence"))} for b in payload["findings"]],
             "repair_targets": [] if outcome == "accept" else ["Lime" if outcome == "chart" else "Original"],
             "clarification_question": None,
             "correction_reviews": [{"correction_id": item["correction_id"], "status": "resolved",
@@ -287,7 +287,7 @@ class OutcomeTests(unittest.TestCase):
     def test_uncited_factual_block_cannot_escape_finding_review(self):
         text = "Two contributions [SQL1].\n\nThere are nine fabricated contributions."
         with patch("agents.original.CherryAgent", FixtureCherry):
-            agent, _, _ = self.workflow(["partial", "partial"], [text, text])
+            agent, _, _ = self.workflow(["partial"] * 4, [text] * 4)
             try:
                 result = agent.run("Count.")
                 self.assertEqual(len(result.findings), 2)
@@ -318,7 +318,7 @@ class OutcomeTests(unittest.TestCase):
     def test_partial_release_contains_only_independently_supported_blocks(self):
         text = "There are two distinct contributions [SQL1].\n\nThere are nine fabricated contributions [SQL1]."
         with patch("agents.original.CherryAgent", FixtureCherry), TemporaryDirectory() as directory:
-            agent, reviewer, requested = self.workflow(["partial", "partial"], [text, text])
+            agent, reviewer, requested = self.workflow(["partial"] * 4, [text] * 4)
             try:
                 with RunLog(directory) as log:
                     result = agent.run("Count contributions.")
@@ -335,7 +335,7 @@ class OutcomeTests(unittest.TestCase):
 
     def test_unsafe_package_cannot_release_partial_findings(self):
         with patch("agents.original.CherryAgent", FixtureCherry):
-            agent, reviewer, requested = self.workflow(["unsafe", "unsafe"], ["Two contributions [SQL1]."]*2)
+            agent, reviewer, requested = self.workflow(["unsafe"] * 4, ["Two contributions [SQL1]."] * 4)
             try:
                 result = agent.run("Count.")
                 self.assertEqual(result.status, "failed")
@@ -356,7 +356,7 @@ class OutcomeTests(unittest.TestCase):
     def test_chart_failure_still_releases_independently_reviewed_numeric_finding(self):
         with patch("agents.original.CherryAgent", FixtureCherry), \
              patch("agents.original.LimeAgent.plan", side_effect=RuntimeError("Model request failed (HTTP 503).")):
-            agent, _, _ = self.workflow(["accept", "accept"], ["Two contributions [SQL1]."], chart=True)
+            agent, _, _ = self.workflow(["accept"] * 4, ["Two contributions [SQL1]."], chart=True)
             try:
                 result = agent.run("Count and chart.")
                 self.assertEqual(result.status, "partial")

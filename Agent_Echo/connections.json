@@ -80,6 +80,32 @@
       "request_interval_seconds": 20,
       "rate_limit_retries": 2
     },
+    "apinex_deepseek_test": {
+      "description": "Optional APInex DeepSeek profile using the model ID supplied by the user. Live tool compatibility and analytical quality remain unverified.",
+      "provider": "openai_compatible",
+      "api": "chat",
+      "endpoint": "https://api.apinex.bond/v1",
+      "model": "free/deepseek-v4.1-flash",
+      "key_env": "APINEX_API_KEY",
+      "max_output_tokens": 6000,
+      "timeout_seconds": 120,
+      "max_retries": 0,
+      "request_interval_seconds": 20,
+      "rate_limit_retries": 2
+    },
+    "apinex_gemini_test": {
+      "description": "Optional APInex Gemini profile using the model ID supplied by the user. Live tool compatibility and analytical quality remain unverified.",
+      "provider": "openai_compatible",
+      "api": "chat",
+      "endpoint": "https://api.apinex.bond/v1",
+      "model": "free/gemini-3.8-flash",
+      "key_env": "APINEX_API_KEY",
+      "max_output_tokens": 6000,
+      "timeout_seconds": 120,
+      "max_retries": 0,
+      "request_interval_seconds": 20,
+      "rate_limit_retries": 2
+    },
     "opencode_test": {
       "description": "Connection reference only: the free tier rejected external Python calls with HTTP 403 FreeTierError on 2026-10-16. Not a confirmed free option for Echo.",
       "provider": "openai_compatible",

@@ -12,6 +12,7 @@ from .validation import (ValidationError, repair_feedback, rejection_diagnostic,
                          answer_context, diagnostic_feedback, planning_value)
 from .policies import with_policies
 from .request_pacing import check_request_deadline, request_deadline
+from .capture import checkpoint, checkpoint_progress, trace as full_trace, database_identity
 
 
 def function_tool(name, description, properties):
@@ -28,6 +29,7 @@ def reject_calls(history, turn, message):
         payload = None
     if not isinstance(payload, dict) or "error" not in payload:
         payload = {"error": message}
+    full_trace('tool_repair_feedback', turn=turn, feedback=payload)
     if turn.calls:
         for call in turn.calls:
             history.append({"type": "function_call_output", "call_id": call.call_id,
@@ -66,6 +68,7 @@ class AgentResult:
     visualization: dict = field(default_factory=dict)
     rag: dict = field(default_factory=dict)
     execution: dict = field(default_factory=dict)
+    capture: dict = field(default_factory=dict)
     sentiment: dict = field(default_factory=dict)
     status: str = "unverified"
     findings: list = field(default_factory=list)
@@ -137,8 +140,14 @@ class Specialist:
         self.last_result = AgentResult(self.name, question, "", self.scope.__dict__, mode=self.mode, status="failed",
                                       diagnostics=diagnostics if diagnostics is not None else {})
         try:
-            return self._run(question, initial_evidence, context)
+            result = self._run(question, initial_evidence, context)
+            checkpoint_progress(getattr(self, 'generation_checkpoint', None), status='completed')
+            return result
+        except (ValueError, TypeError, OSError) as error:
+            checkpoint_progress(getattr(self, 'generation_checkpoint', None), status='failed', failure=error_summary(error))
+            raise
         except RuntimeError as error:
+            checkpoint_progress(getattr(self, 'generation_checkpoint', None), status='failed', failure=error_summary(error))
             self.last_result.failure = error_summary(error)
             self.last_result.failure["stage"] = self.last_result.diagnostics.get("stage", "generation")
             self.last_result.task_outcome = {"status": "incomplete", "reason_code": "execution_interrupted",
@@ -200,6 +209,14 @@ class Specialist:
                 "do not infer missing database population or a backend error.")
         last_action = "no completed turn"
         cache, close_next = {}, False
+        retained = getattr(self, 'resume_state', None)
+        if retained:
+            history = retained['history']
+            evidence[:] = retained['evidence']
+            trace[:] = retained['tool_trace']
+            known = {item['citation_id'] for item in evidence}
+            cache, close_next = retained['tool_cache'], retained['close_next']
+            self.resume_state = None
         rejections = self.last_result.diagnostics.setdefault("rejected_attempts", [])
         rejection_start = len(rejections)
 
@@ -222,7 +239,6 @@ class Specialist:
             pending_work = getattr(self, "has_pending_work", lambda evidence: False)(evidence)
             closing = step == 6 or (close_next and not pending_work) or len(trace) >= 10 or budget.remaining()["model_calls"] <= (2 if self.name == "Original" else 3)
             record("agent_turn", agent=self.name, turn=step + 1, closing=closing, remaining=budget.remaining())
-            budget.consume("model")
             turn_instructions = instructions + f"\nYou have {7-step} turns remaining, including your final answer."
             final_tools = []
             catalog = None
@@ -240,9 +256,21 @@ class Specialist:
                     "only existing evidence IDs, or explain exactly which requested results could not be established. "
                     "Do not invent numbers or treat incomplete evidence as a complete answer.")
             self.last_result.diagnostics["stage"] = "closing" if closing else "generation"
+            state = {'question': question, 'mode': self.mode, 'profile': getattr(self.model, 'profile', None), 'history': history, 'evidence': evidence,
+                'tool_trace': trace, 'tool_cache': cache, 'close_next': close_next,
+                'diagnostics': self.last_result.diagnostics, 'database_hash': database_identity(getattr(self, 'database', None)),
+                'sentiment_progress': getattr(self, 'sentiment_progress', {}),
+                'active_progress': list(getattr(self, 'active_progress', set())),
+                'sentiment_reports': getattr(self, 'sentiment_reports', {}),
+                'required_metrics': getattr(self, 'required_metrics', []),
+                'metric_cache': [{'key': list(key), 'result': result} for key, result in getattr(self, 'metric_cache', {}).items()],
+                'metric_errors': [list(key) for key in getattr(self, 'metric_errors', set())]}
+            self.generation_checkpoint = checkpoint('specialist', self.name, self.scope.__dict__, state)
+            budget.consume("model")
             turn = budget.respond(self.model, turn_instructions, history, final_tools if closing else self.definitions + final_tools,
                                       require_tool=grounded or bool(not closing and self.definitions and step == 0 and not initial_evidence))
             history.extend(turn.output_items)
+            checkpoint_progress(self.generation_checkpoint, last_model_output=turn)
             declines = [call for call in turn.calls if call.name == "decline_task"]
             if declines and grounded and self.name in {"Cherry", "Vanilla"}:
                 try:
@@ -392,11 +420,15 @@ class Specialist:
                     if len(json.dumps(result)) > 80_000:
                         raise ValueError("Result is too large. Select fewer columns or aggregate the query.")
                 except (ValueError, TypeError) as error:
+                    full_trace('tool_exception', agent=self.name, tool=call.name, arguments=call.arguments,
+                               error_type=type(error).__name__, message=str(error))
                     record("tool_validation_failed", agent=self.name, tool=tool_name, **error_summary(error))
                     result = {"error": str(error)}
                     if fingerprint is not None:
                         cache[fingerprint] = result
                 except BaseException as error:
+                    full_trace('tool_exception', agent=self.name, tool=call.name, arguments=call.arguments,
+                               error_type=type(error).__name__, message=str(error))
                     record("tool_failed", agent=self.name, tool=tool_name, **error_summary(error))
                     raise
                 if "error" in result:
@@ -415,6 +447,7 @@ class Specialist:
                 for passage in passages:
                     remember(passage)
                 model_result = {**result, "passages": passages} if passages else result
+                full_trace('tool_exchange', agent=self.name, tool=call.name, arguments=call.arguments, result=model_result)
                 if len(json.dumps(model_result)) > 80_000:
                     raise RuntimeError("Tool result with cited passages exceeds the output context limit.")
                 if passages:

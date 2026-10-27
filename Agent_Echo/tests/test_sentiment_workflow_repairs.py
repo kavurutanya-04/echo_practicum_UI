@@ -302,6 +302,7 @@ class RoutingAndSources(unittest.TestCase):
             tool_turn("submit_sentiment_batch", {"labels": labels_for(docs)})]), "live")
         self.addCleanup(agent.close)
         summary = agent.analyze_sentiment("Recognition"); sources = agent.evidence_for_result(summary)
+        self.assertEqual({source["citation_id"] for source in sources}, {doc["citation_id"] for doc in docs})
         verifier = ZeroSugarAgent(SCOPE, None, "live", sentiment_reports=agent.sentiment_reports, sentiment_documents=docs)
         self.assertEqual(verifier.audit("An excerpt [" + sources[0]["citation_id"] + "].", [summary] + sources), [])
         changed = deepcopy(sources); changed[0]["text"] = "Fabricated source."

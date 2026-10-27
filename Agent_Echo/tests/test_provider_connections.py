@@ -15,6 +15,50 @@ from agents.runtime import function_tool
 
 
 class TrialProviderTests(unittest.TestCase):
+    def test_chat_disables_parallel_calls_for_one_required_tool_only(self):
+        for required, count in ((True, 1), (True, 2), (False, 1), (False, 0)):
+            with self.subTest(required=required, count=count):
+                requests = []
+                message = SimpleNamespace(content="Fixture.", tool_calls=[],
+                    model_dump=lambda **kw: {"role": "assistant", "content": "Fixture."})
+                def create(**kwargs):
+                    requests.append(kwargs)
+                    return SimpleNamespace(choices=[SimpleNamespace(finish_reason="stop", message=message)])
+                adapter = ChatModel(SimpleNamespace(chat=SimpleNamespace(
+                    completions=SimpleNamespace(create=create))), "offline-model")
+                tools = [function_tool(f"tool_{i}", "Fixture.", {}) for i in range(count)]
+                adapter.respond("Instructions", [], tools, required)
+                if required and count == 1:
+                    self.assertIs(requests[0]["parallel_tool_calls"], False)
+                    self.assertIs(requests[0]["tools"][0]["function"]["strict"], True)
+                else:
+                    self.assertNotIn("parallel_tool_calls", requests[0])
+                self.assertEqual(requests[0]["tool_choice"], "none" if not count else "required" if required else "auto")
+
+    def test_chat_preserves_explicit_strict_mode_without_mutating_tools(self):
+        for strict in (True, False, None):
+            with self.subTest(strict=strict):
+                tools = [function_tool("lookup", "Read evidence.", {})]
+                if strict is None:
+                    tools[0].pop("strict")
+                else:
+                    tools[0]["strict"] = strict
+                original = json.dumps(tools, sort_keys=True)
+                requests = []
+                message = SimpleNamespace(content="Done.", tool_calls=[],
+                    model_dump=lambda **kw: {"role": "assistant", "content": "Done."})
+
+                def create(**kwargs):
+                    requests.append(kwargs)
+                    return SimpleNamespace(choices=[SimpleNamespace(finish_reason="stop", message=message)])
+
+                adapter = ChatModel(SimpleNamespace(chat=SimpleNamespace(
+                    completions=SimpleNamespace(create=create))), "offline-model")
+                adapter.respond("Instructions", [], tools, True)
+                definition = requests[0]["tools"][0]["function"]
+                self.assertEqual(definition, {key: value for key, value in tools[0].items() if key != "type"})
+                self.assertEqual(json.dumps(tools, sort_keys=True), original)
+
     def test_responses_profiles_apply_configured_output_limit_and_usage(self):
         for profile in ('gw_azure', 'personal_openai'):
             for limit in (None, 3500, 6000):

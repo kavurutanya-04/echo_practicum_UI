@@ -11,7 +11,7 @@ from agents.grounding import FactCatalog, render_answer, audit_claims, GROUNDING
 from agents.model import ModelTurn
 from agents.runtime import RunBudget
 from agents.zero_sugar import ZeroSugarAgent, DIMENSIONS
-from test_agents import SequenceModel, completeness_turn, tool_turn
+from test_agents import SequenceModel, completeness_turn, tool_turn, assertion_reviews
 from test_flow_improvements import plan
 
 SCOPE = AccessScope('M14', '2026-07-01', '2026-09-30')
@@ -48,7 +48,7 @@ def support_turn(context, issues=(), finding_decision='supported', correction_re
         'ratings': {d: {'score': 3, 'rationale': 'Controlled source-review fixture.'} for d in DIMENSIONS},
         'issues': list(issues), 'suggestions': [], 'uncertainty': 'Not measured semantic quality.',
         'finding_reviews': [{'finding_id': b['finding_id'], 'decision': finding_decision,
-                             'reason': 'Controlled source judgment.'} for b in context['findings']],
+                             'reason': 'Controlled source judgment.', 'assertions': assertion_reviews(b, evidence=context.get('evidence'))} for b in context['findings']],
         'repair_targets': ['Original'] if issues else [], 'clarification_question': None,
         'correction_reviews': list(correction_reviews),
     })
@@ -65,7 +65,8 @@ class ReviewStageTests(unittest.TestCase):
         self.assertEqual(result.decision, 'accept')
         self.assertEqual([c[0] for c in model.calls], ['submit_completeness_review', 'submit_review'])
         first, second = model.calls[0][1], model.calls[1][1]
-        self.assertEqual(set(first), {'question', 'candidate_answer'})
+        self.assertEqual(set(first), {'question', 'candidate_answer', 'authorized_scope'})
+        self.assertEqual(first['authorized_scope'], SCOPE.__dict__)
         self.assertEqual(first['candidate_answer'], second['candidate_answer'])
         self.assertNotIn('evidence', first)
         self.assertEqual(second['evidence'], [SOURCE])
@@ -119,18 +120,19 @@ class ReviewStageTests(unittest.TestCase):
         self.assertEqual(result.findings[0]['citation_ids'], [SOURCE['citation_id']])
         schema = model.calls[1][2][0]['parameters']['properties']['finding_reviews']['items']
         self.assertNotIn('citation_ids', schema['properties'])
-        self.assertEqual(set(schema['required']), {'finding_id', 'decision', 'reason'})
+        self.assertEqual(set(schema['required']), {'finding_id', 'decision', 'reason', 'assertions'})
         corrections = model.calls[1][2][0]['parameters']['properties']['corrections']['items']
-        self.assertNotIn('request_excerpt', corrections['properties'])
+        self.assertIn('request_excerpt', corrections['properties'])
+        self.assertIn('request_excerpt', corrections['required'])
 
-    def test_current_corrections_need_no_copy_of_user_question_and_legacy_excerpt_is_not_retained(self):
+    def test_correction_retains_supplied_excerpt_and_reads_legacy_missing_excerpt(self):
         question = 'Include a literal example.'
         change = {'issue_index': 0, 'kind': 'missing_deliverable', 'owner': 'Original',
                   'requested_change': 'Show the available example.', 'citation_ids': [SOURCE['citation_id']]}
         for entry in (change, {**change, 'request_excerpt': question}):
             report = {'issues': ['The example is absent.'], 'corrections': [entry]}
             corrections, _ = ZeroSugarAgent.validate_corrections(report, question, [SOURCE], [])
-            self.assertIsNone(corrections[0]['request_excerpt'])
+            self.assertEqual(corrections[0]['request_excerpt'], entry.get('request_excerpt'))
 
     def test_completeness_retry_is_bounded_and_stage_specific(self):
         model = PhaseModel([tool_turn('submit_completeness_review', {})] * 3)

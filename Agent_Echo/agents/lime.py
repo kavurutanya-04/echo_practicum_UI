@@ -8,6 +8,7 @@ import re
 
 from .runtime import RunBudget, function_tool, reject_calls, decline_tool, parse_decline
 from .execution_log import record, error_summary
+from .capture import checkpoint, checkpoint_progress
 from .policies import with_policies
 from .validation import ValidationError, repair_feedback, rejection_diagnostic
 
@@ -144,6 +145,18 @@ class LimeAgent:
             "reason": {"type": "string"}}), decline_tool()]
 
     def plan(self, question, answer, evidence, feedback=None):
+        point = checkpoint('visual', self.name, self.scope.__dict__, {'question': question,
+            'answer': answer, 'evidence': evidence, 'feedback': feedback, 'mode': self.mode,
+            'profile': getattr(self.model, 'profile', None)})
+        try:
+            result = self._plan(question, answer, evidence, feedback)
+            checkpoint_progress(point, status='completed', result=result)
+            return result
+        except BaseException as error:
+            checkpoint_progress(point, status='failed', failure=error_summary(error))
+            raise
+
+    def _plan(self, question, answer, evidence, feedback=None):
         self.diagnostics["rejected_attempts"] = []
         # Do not supply raw passages, retrieval scores or other agents' data to Lime.
         evidence = [item for item in evidence if item.get("producer") == "Cherry" and "sql" in item]

@@ -1,5 +1,237 @@
 # What can be tested without an API, and how to verify RAG
 
+## Next three model runs: 30-32 (2026-10-27)
+
+Current code uses corrected review-v5 and full private capture/checkpoints. No local
+tests, build or provider call was run for this update, per user instruction. Static
+source parsing/diff/reference review is not runtime validation. New capture/resume
+regressions and aligned fixtures are unrun. The 322-test result below belongs to v4.
+See [RESUME_AND_CAPTURE.md](RESUME_AND_CAPTURE.md) for the exact scope and retry contract.
+
+Run the following full comparisons once, using new filenames. Do not paste PowerShell's
+`>>` continuation markers. This directly uses the existing project interpreter:
+
+```powershell
+Set-Location -LiteralPath "C:\Users\percy\Documents\GWU Fall 2026\Practicum\Final_Project\Agent_Echo"
+
+$preguntaPrueba = "I'm preparing for a team check-in. Using all eligible anonymous Recognition survey comments for the third quarter of 2026, classify each comment as positive, negative, neutral, mixed, or indeterminate. Show the count and percentage in each category, including the denominator. Include a short literal excerpt illustrating a positive and a critical view if available, with source citations. Explain the main patterns and interpretation limits, and suggest two follow-up questions for the team. Base this analysis on comment text rather than numerical survey ratings, and do not identify respondents."
+
+# Luna - run 30
+& ".\.venv\Scripts\python.exe" run_agent.py original --manager M14 --start 2026-07-01 --end 2026-09-30 --profile apinex_test --run-seconds 1000 --question $preguntaPrueba --output ".\reports\apinex_prueba_vanilla_30.json"
+
+# DeepSeek - run 31
+& ".\.venv\Scripts\python.exe" run_agent.py original --manager M14 --start 2026-07-01 --end 2026-09-30 --profile apinex_deepseek_test --run-seconds 1000 --question $preguntaPrueba --output ".\reports\apinex_prueba_deepseek_31.json"
+
+# Gemini - run 32
+& ".\.venv\Scripts\python.exe" run_agent.py original --manager M14 --start 2026-07-01 --end 2026-09-30 --profile apinex_gemini_test --run-seconds 1000 --question $preguntaPrueba --output ".\reports\apinex_prueba_gemini_32.json"
+```
+
+If a new run fails, retry only its retained phase with live models; do not repeat the
+question or full comparison. For example:
+
+```powershell
+& ".\.venv\Scripts\python.exe" run_agent.py --resume ".\reports\apinex_prueba_vanilla_30.json" --run-seconds 1000 --output ".\reports\apinex_prueba_vanilla_30_resume_1.json"
+```
+
+The failed artifact links its checkpoint. The saved role/profile/scope are used and
+must match; a review retry calls only ZeroSugar, then stops at its decision. Each retry
+is a new bounded attempt with parent lineage, not an automatic full release or an
+unlimited retry loop. Inputs/outputs/arguments, including rejected ones, are retained
+in the private capture; existing output files cannot be overwritten. Earlier artifacts
+without checkpoints are explicitly rejected rather than silently restarting analysis.
+
+## Assertion-level support review (2026-10-27)
+
+Review-v4 passed all **322 offline tests** with the existing project Python environment.
+Nine new tests in test_assertion_review.py cover failed assertions overriding accept,
+different source subsets in synthesis, novel proposal reasoning versus factual premises,
+live legacy-field bypass rejection, missing/invalid fields/references/textual coverage,
+borrowing unrelated sources, Original's repair and two-phase re-review before release,
+export versus count-only logging, and legacy reading without invented assessments.
+Both contradicted and insufficient_evidence judgments block release. Scripted judgments
+verify software behavior, not model accuracy, decomposition or entailment quality.
+
+Initial verification exposed two old fixtures approving unsupported/unknown citations;
+demo/test fixtures now supply explicit insufficient_evidence judgments in those cases.
+The final full suite passed. The frontend production build passed with its bundle-size
+advisory. No browser interaction, new API calls, installation, commit or GitHub push.
+The expanded schema has not been exercised against APInex's unchanged 6000-token limit.
+
+Commands run from Agent_Echo (build from Echo_UI/frontend):
+
+```powershell
+& '.\.venv\Scripts\python.exe' -B -m unittest discover -s tests
+npm run build
+```
+
+Read-only historical checks matched scope/question across runs 15-26, source hashes and
+complete label coverage for each stored complete sentiment report, and all structured
+visible excerpts against the current database. Counts describe saved labels, not measured
+classification accuracy. Run 25 has no complete sentiment report. See the
+[history](LIVE_TEST_HISTORY.md) for matching logs, post-run changes and qualitative
+comparisons. Preserve saved artifacts and use a fresh filename for any later authorized
+live evaluation of review-v4.
+
+## Reasoned actions and review simplification after run twenty-three (2026-10-27)
+
+The approved update makes a reasoned manager action a requirement of complete Original
+analysis, independent of whether the prompt requests one. Review instructions separate
+factual grounding from novel action reasoning. Support receives the trusted policy flag;
+its contextual policy_requirement kind routes repairs without a fabricated user excerpt.
+
+All 88 focused offline checks passed across test_review_contract_v3,
+test_review_contract_v2, test_review_stages, test_review_recovery,
+test_synthesis_presentation and test_review_field_diagnostics. Four added regressions
+cover policy repair routing, contextual-schema isolation, invalid policy origin/ownership
+and Original's two-draft repair/review path. Scripted judgments verify software behavior,
+not whether a live model identifies a missing action or proposes a useful one. No new
+API call, broad suite, UI build or GitHub publication; run twenty-three is pre-change evidence.
+
+## Requested content and additional actions after run twenty-two (2026-10-27)
+
+The approved instruction-only change covers Original and ZeroSugar completeness/support:
+requested content and item counts cannot be replaced by useful additional actions;
+proposed actions explain their connection to findings and possible benefit. No new
+semantic parser, schema or review stage was introduced. All 40 focused offline checks
+passed across test_review_stages.py, test_review_contract_v3.py and
+test_synthesis_presentation.py. They use scripted judgments and cannot validate live
+instruction following or action quality. Run twenty-two is
+preserved as pre-change evidence; no new API call or GitHub publication is part of this update.
+
+## Explicit correction judgments after run twenty-one (2026-10-27)
+
+Review-v3 replaces model-managed correction states/replacement graphs with code-keyed
+mandatory/addressed judgments and reasons. Canonical correction_reviews and routing remain
+compatible. Complete repair text is supplied once, without duplicate prior/completeness
+lists. No obligation, source text or semantic judgment is defaulted or sampled away.
+
+147 focused checks passed across test_review_contract_v3, test_review_contract_v2,
+test_review_field_diagnostics, test_review_stages, test_review_recovery, test_workflow,
+test_flow_improvements and test_provider_connections. New cases cover complete keyed
+coverage, strict boolean types, no semantic defaults, optional/false omission withdrawal,
+current/inherited state mapping, genuine omissions remaining blocking, explicit duplicate
+judgments without replacement graphs, reuse, full repair retention without duplicate
+input text, canonical exports and legacy v2 checks. These are software checks, not
+measurements of model judgment quality. No complete Original rerun, broad suite or UI build.
+
+Live diagnostics are retained locally. The first manual recheck did not load trusted
+source documents and is invalid for analytical evaluation; its artifact/log are retained
+as reports/review_v3_check_21_20261027.json and 20261027_135536_e0e4fa77d3e7.jsonl.
+It made four successful calls but failed on an omitted required judgment field. The
+corrected-source recheck made two calls (one successful adapter response); completeness
+completed, but support reached 6000 output tokens, finish_reason=length, and was withheld.
+Evidence: reports/review_v3_check_21_20261027_verified_sources.json and
+20261027_142055_e77b6010b76f.jsonl. Neither result establishes a semantic improvement.
+The compact-input prototype completed a support response but again omitted required;
+its two-call cap stopped further repair. Evidence: reports/review_v3_check_21_20261027_compact_input.json
+and 20261027_143156_4cc85f95fd1a.jsonl. The field was renamed mandatory to distinguish
+the semantic judgment from JSON Schema's required metadata; this does not establish that
+APInex strips keyword-named properties. Per-judgment reasons are now bounded to 300
+characters and validated against that same schema limit. A two-call recheck then spent
+both calls on completeness (an exact-excerpt repair) and never exercised support:
+reports/review_v3_check_21_20261027_mandatory_field.json / 20261027_143645_0e172863a009.jsonl.
+
+The final support-only check reused the completed completeness review from run twenty-one
+after verifying identical answer/evidence/chart identity. It loaded all trusted scoped
+sources and assessed all 16 obligations in one live call. It completed review-v3 with no
+rejections or deterministic issues: six withdrawn obligations, ten retained and one new
+correction (eleven pending), decision revise. It used 16541 input / 3515 output tokens
+(2528 reported reasoning tokens) under the same 6000 output limit. Evidence:
+reports/review_v3_check_21_20261027_support_only.json and
+20261027_144043_c31c613c57d1.jsonl. This proves the observed support-contract execution,
+not that both phases were newly run or that its semantic judgments were correct. The
+model still incorrectly demanded another denominator sentence and retained redundant
+work. No full Original workflow was rerun. Across all retained attempts in this update,
+11 provider requests were made; 10 passed adapter completion checks. Failed attempts
+are not analytical success. No budgets or provider settings were raised.
+
+## Contextual-field update after run eighteen (2026-10-26)
+
+Implemented without executing tests, model calls, builds, commit or push. Focused checks
+were added for omitted inactive fields with empty exported assessments, ignored invented
+inactive entries with metadata-only diagnostics, mandatory active assessments and schema
+rebuilding when reusing a reviewer. Existing retry/field-diagnostic fixtures now omit an
+essential finding_reviews field rather than an inactive numeric_reviews field.
+
+These checks are unrun; historical test counts do not validate this update. Run eighteen
+exercised the preceding version. Preserve its artifact/log; use a fresh filename such as
+`reports/apinex_prueba_vanilla_19.json` for a future authorized live run. See the
+[current contract](WORKFLOW_RELIABILITY.md#contextual-support-review-fields-after-run-eighteen-2026-10-26).
+
+## General-guidance update after run seventeen (2026-10-26)
+
+Implemented shared rubric v3 and removed case-specific live guidance. Existing correction
+fixtures were aligned with required literal request excerpts and retention, including
+nested-field diagnostics. Existing sentiment assertions now cover the current version,
+historical v1/v2 identity, unversioned v1 fallback and full canonical source coverage.
+None were executed. No provider calls, UI build, commit or push were performed.
+
+Earlier test counts do not validate this update. Run seventeen completed under v2 with
+13 included comments and both reviews; its successful operation does not establish
+semantic accuracy or validate v3. Preserve it and use a fresh artifact such as
+`reports/apinex_prueba_vanilla_18.json` for a later authorized live evaluation. See the
+[current contract](WORKFLOW_RELIABILITY.md#general-semantic-guidance-after-run-seventeen-2026-10-26).
+
+## Semantic-review update after run sixteen (2026-10-26)
+
+The user authorized implementation without tests or GitHub publication. No tests, provider
+calls, UI build, commit or push were run for this update. Earlier test counts below do
+not validate the shared v2 sentiment rubric, retained correction request excerpts or the
+full classification review input. Existing review fixtures that omit request_excerpt in
+new-style corrections or expected its removal were still unaligned at that point; the
+subsequent run-seventeen follow-up above aligns them without executing tests.
+
+The preceding run sixteen completed with two candidates and both final review phases,
+but accepted incorrect sentiment reasoning and unnecessary requirements. Its sources,
+coverage, literal quotes and aggregates were checked read-only; semantic label quality
+remains unvalidated. Preserve its artifact and log. A future authorized live evaluation
+must use a fresh filename such as `reports/apinex_prueba_vanilla_17.json`.
+
+Pending validation: new versus legacy correction schemas and literal excerpt retention;
+v1 replay versus stored v2 rubric identity; complete released-group source/label input
+without suppressed texts, scores or identity fields; metadata-only coverage diagnostics;
+input-size failure without sampling; unchanged two-phase acceptance and shared budgets.
+Human-referenced semantic cases must distinguish full coverage with indeterminate labels,
+mixed evaluations with a favorable overall verdict, positive continuation requests,
+explicit denominators, valid source IDs and unrequested category examples. Scripted
+fixtures cannot demonstrate model judgment. See the
+[implementation contract](WORKFLOW_RELIABILITY.md#sentiment-and-correction-grounding-after-run-sixteen-2026-10-26).
+
+## Review recovery checks (2026-10-26)
+
+The approved four-draft follow-up passed **292 offline tests** on Windows with the
+existing Python 3.12.10 environment. Three additional regressions confirm acceptance
+on draft four after three rejected candidates, recovery after the second and third
+incomplete support reviews, and shared-call-budget termination before four drafts
+without approval. Repeated-failure fixtures now cover four drafts and no fifth attempt;
+early acceptance, unsafe-output withholding and chart-only reuse remain covered.
+ZeroSugar still has three submission attempts per phase. The 61 review-focused tests
+also passed. This update remains local, without provider calls, commit or GitHub push.
+
+Before that follow-up, the review-recovery update passed **289 offline tests** with the existing
+Python **3.12.10** environment. Ten new tests in `tests/test_review_recovery.py` exercise
+optional annotation normalization without fabricated judgments, malformed suggestion
+isolation, essential-field rejection, clarification requirements, withdrawal of a false
+omission while retaining a real one, current-correction identity/state diagnostics,
+trusted-scope isolation, repair instructions without a verdict, recovery into two new
+completed review phases, withholding after repeated failure, and provider-failure isolation.
+The 58 review-focused tests also passed separately. Existing tests were updated for
+trusted authorization input and conservative obligation retention; essential field-error
+capture remains covered. These use scripted judgments, not measured model accuracy.
+
+Commands run from `Agent_Echo`:
+
+```powershell
+& '.\.venv\Scripts\python.exe' -B -m unittest discover -s tests -p 'test_review*.py'
+& '.\.venv\Scripts\python.exe' -B -m unittest discover -s tests
+```
+
+No live calls, provider/strict-mode changes, budget increases, UI build or GitHub push
+are included. Use a fresh filename, such as `apinex_prueba_vanilla_16.json`, for the next
+authorized live test; preserve the repeat-run-fifteen artifact and its matching log.
+Acceptance still requires complete independent review and source checks. See the
+[recovery contract](WORKFLOW_RELIABILITY.md#review-recovery-after-run-fifteen-2026-10-26).
+
 ## Field-error diagnostic checks (2026-10-26)
 
 The diagnostic-only follow-up passed the full **279-test offline suite** on Windows,
@@ -288,7 +520,59 @@ The probe makes one actual minimal function call per distinct selected generatio
 
 ### APInex SDK trial
 
+Added 2026-10-27 from the user's examples: `apinex_deepseek_test` selects
+`free/deepseek-v4.1-flash`; `apinex_gemini_test` selects `free/gemini-3.8-flash`.
+Both reuse the APInex Chat endpoint/key variable and Luna's limits, pacing and retry
+settings. Existing profiles, default and role assignments remain unchanged. Inspect
+either with `python .\run_agent.py --show-connections --profile PROFILE_NAME`.
+Both CLI selections were checked for all five roles, with existing profiles/defaults
+preserved, and all 26 existing provider-connection tests passed offline. These checks
+do not establish live tool support or answer quality; no API call was made for these additions.
+
 The optional `apinex_test` profile uses the existing OpenAI-compatible Chat Completions adapter, base URL `https://api.apinex.bond/v1`, and model ID `free/gpt-6-luna` from the user's APInex setup page. The SDK appends `/chat/completions`; do not add that path to the base URL. APInex's [public API reference](https://apinex.bond/developers) documents this endpoint. This is an Echo Python integration; the site's Codex `/responses` instructions configure a different client.
+
+#### Strict Chat transport follow-up, 2026-10-27
+
+ChatModel previously dropped the strict flag declared by function_tool. It now forwards
+explicit true/false values within the Chat function definition, preserving absent values
+and the original tool objects. Three focused offline adapter checks passed (strict
+forwarding, tool-history round trip and configured trial routing). Thirteen object-schema
+declarations were checked for complete required fields and additionalProperties=false;
+this is a structural audit, not certification of every provider's schema subset.
+
+Two successful live requests used apinex_test/free/gpt-6-luna, with no employee data:
+the existing connection check and a synthetic fixture using ZeroSugar's actual nested
+support schema, including ratings, corrections, correction states and numeric reviews.
+The synthetic request captured strict=true at the SDK boundary; the response conformed
+to its schema and exactly matched the fixture. Local metadata evidence is
+reports/strict_transport_probe_20261027.json; logs are
+20261027_061516_7cc233292e46.jsonl and 20261027_061641_f1a8f52f745b.jsonl.
+An earlier restricted-network attempt failed; the network-enabled retry succeeded.
+
+APInex's [structured-output guide](https://apinex.bond/guides/structured-json-output-llm-production)
+declares strict tool support, but these observations do not prove server-side constrained
+decoding, semantic accuracy, other providers' compatibility or resolution of run nineteen.
+The correction protocol and two review phases remain unchanged. No full suite, complete
+analytic rerun or GitHub publication was performed. Historical trial results below retain
+their original dates and limits.
+
+#### Single-call review follow-up after run twenty, 2026-10-27
+
+Run twenty failed in completeness after a rejected rationale and two duplicate-call
+responses. ChatModel now requests parallel_tool_calls=false only for one required tool;
+other tool modes retain their existing behavior. Existing cardinality/release gates
+remain. Rationale failures include expected/actual types, max_characters and string
+actual_characters in artifacts, logs and repair feedback; rejected text is not retained.
+
+Focused offline results: 26 provider-connection tests and 10 review-field-diagnostic
+tests passed, including the new request-mode and private-content regressions. One live
+APInex call rechecked only the saved run-twenty completeness phase with its real visible
+answer and scope. SDK-boundary capture confirmed strict=true and parallel_tool_calls=false;
+the response contained one call and completed the phase with revise, score 2, a
+752-character rationale and two corrections. Semantic correctness of that verdict was
+not established; support review and complete release were not exercised. Evidence:
+reports/completeness_transport_check_20_20261027.json and
+reports/logs/20261027_063645_1ecd888e5f0a.jsonl. No full workflow rerun or publication.
 
 Put only a fresh key in the ignored local `.env` beside `connections.json`:
 

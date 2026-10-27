@@ -1,10 +1,68 @@
 # Source-bound facts and claim review
 
+Current review-v5, 2026-10-27, supersedes v4's literal ordered assertion reconstruction.
+The original source-facts-v4 claims/IDs and all historical answer replay remain; reviews
+retain short descriptions, source subsets, kinds, explicit judgments/reasons and assigned
+assessment IDs. Finding-ID coverage is mechanical; atomicity, semantic coverage and
+entailment remain model judgment. Literal source excerpts still require exact copying;
+review claim descriptions do not. Full private capture and input-bound phase checkpoints
+are documented in [RESUME_AND_CAPTURE.md](RESUME_AND_CAPTURE.md). New live validation is pending.
+
+Current support contract, 2026-10-27: review-v4 preserves source-facts-v4 and all historical
+answer replay while adding per-assertion evidence assessments. Literal visible-text
+excerpts cover each finding in order; each has a source subset, factual/proposal kind,
+judgment and reason. Code checks textual coverage and references, not semantic atomicity
+or entailment. A failed assertion withholds its whole finding and creates an Original
+repair despite an accepting model verdict. Novel proposals may go beyond source wording;
+their factual premises need separate review. Stored reviews are not rewritten or given
+invented assessments. See the [workflow](WORKFLOW_RELIABILITY.md#assertion-level-support-review-review-v4-2026-10-27).
+
+After run twenty-three, complete Original analyses require a concrete reasoned action.
+Its idea may go beyond the question and source wording: citations support factual
+premises, while ZeroSugar assesses the proposal's rationale, assumptions and possible
+benefit separately from observed facts. Existing proposal fields (quote=null), source
+checks and source-facts-v4/v1-v3 replay remain. The support-only policy_requirement kind
+uses request_excerpt=null for Echo's active action policy; it does not claim that the
+user requested an action. See the [current workflow](WORKFLOW_RELIABILITY.md#reasoned-actions-and-review-simplification-after-run-twenty-three-2026-10-27).
+
+After run eighteen, inactive numeric/correction assessment fields are omitted from the
+support tool and supplied as empty lists by code. Active coverage, all source-facts
+versions, semantic judgment and release gates are unchanged. See the
+[contextual contract](WORKFLOW_RELIABILITY.md#contextual-support-review-fields-after-run-eighteen-2026-10-26).
+
+Current guidance after run seventeen, 2026-10-26: active sentiment rubric v3 uses general
+semantic definitions; historical v1/v2 identities are retained. Case-specific label
+instructions were removed without changing source-facts-v4/v1-v3 replay, full released
+comment context, correction request excerpts, objective data checks or acceptance gates.
+Existing fixtures are aligned but unrun. See the
+[current contract](WORKFLOW_RELIABILITY.md#general-semantic-guidance-after-run-seventeen-2026-10-26).
+
+Local semantic-review update after run sixteen, 2026-10-26: source-facts-v4 and v1-v3
+replay remain unchanged. New sentiment reports store the shared v2 rubric; reports
+without a rubric version retain v1 replay. All canonical comments from privacy-released
+groups are available as source evidence, while summary examples remain selected.
+ZeroSugar receives full response/label/reason pairs and the report's rubric. Source
+checks and coverage remain distinct from semantic accuracy and human validation.
+New omission corrections retain exact question fragments; their relevance is model
+judgment, not a literal-match proof of necessity. New coverage diagnostics contain only
+counts and rubric versions. No tests, model calls or GitHub publication were performed.
+See the [current contract](WORKFLOW_RELIABILITY.md#sentiment-and-correction-grounding-after-run-sixteen-2026-10-26).
+
+Local recovery update, 2026-10-26: source-facts-v4/v1-v3 and all source gates are retained.
+Repair instructions after an incomplete review are not a reviewed candidate and cannot
+release findings. Original may use the remaining rounds within four total drafts, but the revised selection
+requires both independent review phases. Optional review annotations may be normalized;
+verdicts, finding coverage and source checks are never inferred. A current omission stays
+pending until revision or justified withdrawal against the request/visible answer.
+See the [recovery contract](WORKFLOW_RELIABILITY.md#review-recovery-after-run-fifteen-2026-10-26).
+
 Diagnostic follow-up, 2026-10-26: the source-facts-v4 and v1/v2/v3 replay contracts are
 unchanged. The shared validation metadata now preserves bounded/redacted structural
 field names for review errors as well as grounded answers. See the [diagnostic contract](WORKFLOW_RELIABILITY.md#field-error-diagnostics-follow-up-2026-10-26).
 
-## Current v4 and review-v2 addendum (2026-10-26)
+<a id="current-v4-and-review-v2-addendum-2026-10-26"></a>
+
+## Current v4 and review addendum (2026-10-26; correction transport updated 2026-10-27)
 
 `source-facts-v4` preserves v3 source-fact arithmetic, quote controls and narrative review
 signals, but removes the renderer's automatic data-origin claim. `source-facts-v1`, v2
@@ -13,7 +71,10 @@ rejection when the default advances to v4. No source facts or old artifacts are 
 New chart descriptions/metadata do not presume dataset origin. Unvalidated classifier
 labels and comment denominators remain substantive method limitations.
 
-Review-v2 uses canonical corrections and assessed obligations; earlier unconditional
+Review-v3 retains canonical corrections and assessed obligations, with explicit
+mandatory/addressed judgments mapped to existing lifecycle states. Legacy v2 assessments
+remain readable. See the [correction contract](WORKFLOW_RELIABILITY.md#explicit-correction-judgments-after-run-twenty-one-2026-10-27).
+Earlier unconditional
 issue-merging descriptions below are historical. A partial wrapper has no full selection
 contract: its `verification.released_candidate` holds the reviewed selection/contract,
 `released_finding_ids` identify publishable blocks, and a newer unreviewed draft is stored

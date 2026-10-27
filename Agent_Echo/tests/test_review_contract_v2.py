@@ -15,11 +15,12 @@ from test_flow_improvements import plan, FixtureCherry
 from test_review_stages import PhaseModel, SCOPE, SOURCE, support_turn
 
 
-def visible(issues=()):
+def visible(issues=(), request_excerpt='Explain.'):
     return tool_turn('submit_completeness_review', {
         'decision': 'revise' if issues else 'accept', 'score': 2 if issues else 3,
         'rationale': 'Controlled visible-answer assessment.',
-        'corrections': [{'issue': issue, 'requested_change': 'Address: ' + issue} for issue in issues],
+        'corrections': [{'issue': issue, 'requested_change': 'Address: ' + issue,
+                         'request_excerpt': request_excerpt} for issue in issues],
         'suggestions': [],
     })
 
@@ -28,7 +29,9 @@ def current_support(context, statuses=None, corrections=(), numeric='not_require
     report = json.loads(support_turn(context).calls[0].arguments)
     report.pop('issues')
     report.pop('repair_targets')
-    report['corrections'] = list(corrections)
+    report['corrections'] = [{'request_excerpt': context['question'][:400]
+                              if item['kind'] == 'missing_deliverable' else None, **item}
+                             for item in corrections]
     report['correction_reviews'] = [{
         'correction_id': item['correction_id'],
         'status': (statuses or {}).get(item['correction_id'], 'unresolved'),
@@ -46,6 +49,74 @@ def reviewer(model):
 
 
 class ReviewContractTests(unittest.TestCase):
+    def test_no_pending_tasks_omit_administrative_fields_and_export_empty_lists(self):
+        def support(context):
+            report = current_support(context)
+            report.pop('numeric_reviews')
+            report.pop('correction_reviews')
+            return tool_turn('submit_review', report)
+        model = PhaseModel([visible()], support)
+        agent = reviewer(model)
+        result = agent.review('Explain.', 'Summary [survey:CMT1].', [SOURCE])
+        self.assertEqual(result.decision, 'accept')
+        self.assertEqual(result.numeric_reviews, [])
+        self.assertEqual(result.correction_reviews, [])
+        schema = model.calls[1][2][0]['parameters']
+        for field in ('numeric_reviews', 'correction_reviews'):
+            self.assertNotIn(field, schema['properties'])
+            self.assertNotIn(field, schema['required'])
+            self.assertIn(field, agent.tools[0]['parameters']['properties'])
+
+    def test_invented_assessments_without_tasks_are_ignored_without_inventing_judgment(self):
+        def support(context):
+            report = current_support(context)
+            report['numeric_reviews'] = [{'request_id': 'N_unknown', 'decision': 'required',
+                                           'reason': 'not-a-real-task'}]
+            report['correction_reviews'] = [{'correction_id': 'C_unknown', 'status': 'resolved',
+                                              'reason': 'not-a-real-correction', 'replacement_id': None}]
+            return tool_turn('submit_review', report)
+        model = PhaseModel([visible()], support)
+        agent = reviewer(model)
+        result = agent.review('Explain.', 'Summary [survey:CMT1].', [SOURCE])
+        self.assertEqual(result.decision, 'accept')
+        self.assertEqual((result.numeric_reviews, result.correction_reviews), ([], []))
+        self.assertEqual(agent.diagnostics['rejected_attempts'], [])
+        entries = agent.diagnostics['metadata_normalizations']
+        self.assertEqual({entry['field'] for entry in entries}, {'numeric_reviews', 'correction_reviews'})
+        self.assertTrue(all(entry['action'] == 'unused_review_field_ignored' for entry in entries))
+        self.assertNotIn('not-a-real-task', json.dumps(agent.diagnostics))
+        self.assertNotIn('not-a-real-correction', json.dumps(agent.diagnostics))
+
+    def test_pending_assessments_remain_required(self):
+        for field in ('numeric_reviews', 'correction_reviews'):
+            with self.subTest(field=field):
+                def support(context):
+                    report = current_support(context)
+                    report.pop(field)
+                    return tool_turn('submit_review', report)
+                model = PhaseModel([visible()], support)
+                agent = reviewer(model)
+                pending = ({'numeric_coverage': [{'metric': 'survey_trend', 'dimension': 'Recognition', 'status': 'pending'}]}
+                           if field == 'numeric_reviews' else {'previous_corrections': [{'correction_id': 'C_prior'}]})
+                with self.assertRaises(RuntimeError):
+                    agent.review('Explain.', 'Summary [survey:CMT1].', [SOURCE], **pending)
+                schema = model.calls[1][2][0]['parameters']
+                wire_field = 'correction_judgments' if field == 'correction_reviews' else field
+                self.assertIn(wire_field, schema['required'])
+                self.assertEqual(len(agent.diagnostics['rejected_attempts']), 3)
+                self.assertTrue(all(entry['missing_fields'] == [wire_field]
+                                    for entry in agent.diagnostics['rejected_attempts']))
+
+    def test_contextual_schema_is_rebuilt_when_reviewer_is_reused(self):
+        model = PhaseModel([visible(), visible()], lambda c: tool_turn('submit_review', current_support(c)))
+        agent = reviewer(model)
+        agent.review('Explain.', 'Summary [survey:CMT1].', [SOURCE])
+        result = agent.review('Explain.', 'Summary [survey:CMT1].', [SOURCE],
+            numeric_coverage=[{'metric': 'survey_trend', 'dimension': 'Recognition', 'status': 'pending'}])
+        self.assertEqual(result.decision, 'accept')
+        self.assertNotIn('numeric_reviews', model.calls[1][2][0]['parameters']['properties'])
+        self.assertIn('numeric_reviews', model.calls[3][2][0]['parameters']['required'])
+
     def test_new_correction_list_derives_issues_and_targets(self):
         change = {'issue': 'Explain the limit.', 'kind': 'missing_deliverable', 'owner': 'Original',
                   'requested_change': 'State the actual coverage limit.', 'citation_ids': [SOURCE['citation_id']]}
@@ -59,7 +130,7 @@ class ReviewContractTests(unittest.TestCase):
         self.assertNotIn('repair_targets', properties)
 
     def test_real_visible_omission_survives_supported_findings(self):
-        model = PhaseModel([visible(['The requested example is absent.'])],
+        model = PhaseModel([visible(['The requested example is absent.'], 'Include an example.')],
                            lambda c: tool_turn('submit_review', current_support(c)))
         result = reviewer(model).review('Include an example.', 'Summary [survey:CMT1].', [SOURCE])
         self.assertEqual(result.decision, 'revise')
@@ -84,12 +155,14 @@ class ReviewContractTests(unittest.TestCase):
                 report['correction_reviews'][0]['status'] = 'resolved'
             calls.append(report)
             return tool_turn('submit_review', report)
-        model = PhaseModel([visible(['Show the example.'])], support)
+        model = PhaseModel([visible(['Show the example.'], 'Include an example.')], support)
         agent = reviewer(model)
         result = agent.review('Include an example.', 'Summary [survey:CMT1].', [SOURCE])
         self.assertEqual(result.decision, 'revise')
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(agent.diagnostics['rejected_attempts'][0]['validation_code'], 'visible_correction_resolution')
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(result.correction_reviews[0]['status'], 'unresolved')
+        self.assertEqual(agent.diagnostics['retained_corrections'][0]['correction_id'], result.corrections[0]['correction_id'])
+        self.assertEqual(agent.diagnostics['rejected_attempts'], [])
 
     def test_duplicate_observations_can_consolidate_without_losing_the_repair(self):
         def support(context):
@@ -97,7 +170,7 @@ class ReviewContractTests(unittest.TestCase):
             first, second = report['correction_reviews']
             second.update(status='consolidated', replacement_id=first['correction_id'])
             return tool_turn('submit_review', report)
-        model = PhaseModel([visible(['Show the positive example.', 'Positive quotation is absent.'])], support)
+        model = PhaseModel([visible(['Show the positive example.', 'Positive quotation is absent.'], 'Include an example.')], support)
         result = reviewer(model).review('Include an example.', 'Summary [survey:CMT1].', [SOURCE])
         self.assertEqual(len(result.corrections), 1)
         self.assertEqual(result.decision, 'revise')
@@ -123,7 +196,7 @@ class ReviewContractTests(unittest.TestCase):
             report = current_support(context)
             report['correction_reviews'] = []
             return tool_turn('submit_review', report)
-        agent = reviewer(PhaseModel([visible(['Show the example.'])], support))
+        agent = reviewer(PhaseModel([visible(['Show the example.'], 'Include an example.')], support))
         with self.assertRaises(RuntimeError):
             agent.review('Include an example.', 'Summary [survey:CMT1].', [SOURCE])
         self.assertEqual(len(agent.diagnostics['rejected_attempts']), 3)
@@ -180,7 +253,7 @@ class ReviewContractTests(unittest.TestCase):
                                   ModelTurn(text='New draft with the requested explanation.')])
         invalid = tool_turn('submit_completeness_review', {'decision': 'revise', 'score': 2, 'rationale': 'Fixture.',
                                                            'issues': [{}], 'suggestions': []})
-        model = PhaseModel([visible(['Explain the limit.']), invalid, invalid, invalid],
+        model = PhaseModel([visible(['Explain the limit.'], 'Explain the evidence and its limits.'), invalid, invalid, invalid],
                            lambda c: tool_turn('submit_review', current_support(c)))
         agent = OriginalAgent(None, SCOPE, lambda role: {'Original': original, 'ZeroSugar': model}[role], 'offline-unit-test')
         self.addCleanup(agent.close)

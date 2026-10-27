@@ -28,12 +28,40 @@ class TracedPhaseModel(PhaseModel):
 
 
 class ReviewFieldDiagnosticsTests(unittest.TestCase):
+    def test_completeness_rationale_logs_type_and_length_without_content(self):
+        private = 'private-person@example.invalid'
+        for value in ('', '   ', private + 'x' * 1200, {private: 'not a string'}):
+            with self.subTest(value_type=type(value).__name__):
+                bad = json.loads(visible().calls[0].arguments)
+                bad['rationale'] = value
+                model = TracedPhaseModel([tool_turn('submit_completeness_review', bad), visible()],
+                                         lambda c: tool_turn('submit_review', current_support(c)))
+                agent = reviewer(model)
+                with TemporaryDirectory() as directory, RunLog(directory, agent='ZeroSugar') as log:
+                    agent.review('Explain.', 'Summary [survey:CMT1].', [SOURCE])
+                    events = [json.loads(line) for line in log.path.read_text(encoding='utf-8').splitlines()]
+                entry = agent.diagnostics['rejected_attempts'][0]
+                event = next(e for e in events if e['event'] == 'structured_response_repair')
+                feedback = json.loads(next(item['output'] for item in model.histories[1]
+                                           if item.get('type') == 'function_call_output'))
+                for diagnostic in (entry, event, feedback):
+                    self.assertEqual(diagnostic['validation_code'], 'completeness_rationale')
+                    self.assertEqual(diagnostic['expected_type'], 'str')
+                    self.assertEqual(diagnostic['actual_type'], type(value).__name__)
+                    self.assertEqual(diagnostic['max_characters'], 1200)
+                    if isinstance(value, str):
+                        self.assertEqual(diagnostic['actual_characters'], len(value))
+                    else:
+                        self.assertNotIn('actual_characters', diagnostic)
+                self.assertNotIn(private, json.dumps(entry) + json.dumps(events) + json.dumps(feedback))
+                self.assertEqual(entry['resolution'], 'accepted_completeness_submission')
+
     def test_root_mismatch_reaches_artifact_log_and_specific_repair(self):
         submissions = []
         def support(context):
             report = current_support(context)
             if not submissions:
-                report.pop('numeric_reviews')
+                report.pop('finding_reviews')
                 report['debug_info'] = 'private-value-person@example.invalid'
             submissions.append(report)
             return tool_turn('submit_review', report)
@@ -52,12 +80,12 @@ class ReviewFieldDiagnosticsTests(unittest.TestCase):
         event = next(e for e in events if e['event'] == 'structured_response_repair')
         feedback = json.loads(next(item['output'] for item in model.histories[-1] if item.get('type') == 'function_call_output'))
         for diagnostic in (entry, event, feedback):
-            self.assertEqual(diagnostic['missing_fields'], ['numeric_reviews'])
+            self.assertEqual(diagnostic['missing_fields'], ['finding_reviews'])
             self.assertEqual(diagnostic['unexpected_fields'], ['debug_info'])
             self.assertEqual(diagnostic['expected_type'], 'dict')
             self.assertEqual(diagnostic['phase'], 'support')
             self.assertEqual(diagnostic['tool_schema_id'], schema_id(model.calls[1][2][0]['parameters']))
-        self.assertIn('Add required fields: ["numeric_reviews"]', feedback['correction'])
+        self.assertIn('Add required fields: ["finding_reviews"]', feedback['correction'])
         self.assertIn('Remove additional fields: ["debug_info"]', feedback['correction'])
         self.assertEqual(entry['resolution'], 'accepted_review_submission')
         repaired = next(e for e in events if e['event'] == 'structured_response_repaired')
@@ -75,12 +103,14 @@ class ReviewFieldDiagnosticsTests(unittest.TestCase):
                 entry = agent.diagnostics['rejected_attempts'][0]
                 self.assertEqual(entry['actual_type'], expected_type)
                 self.assertEqual(entry['received_fields'], [])
-                self.assertIn('numeric_reviews', entry['missing_fields'])
+                self.assertIn('finding_reviews', entry['missing_fields'])
+                self.assertNotIn('numeric_reviews', entry['missing_fields'])
 
     def test_nested_correction_uses_declared_item_schema_and_position(self):
         report = current_support({'findings': []})
         report['corrections'] = [{'issue': 'Missing context.', 'kind': 'missing_deliverable',
-                                  'requested_change': 'Explain context.', 'citation_ids': [], 'extra': 'private value'}]
+                                  'requested_change': 'Explain context.', 'request_excerpt': 'Explain.',
+                                  'citation_ids': [], 'extra': 'private value'}]
         agent = reviewer(PhaseModel())
         with self.assertRaises(ValidationError) as caught:
             agent.normalize_review(report)
@@ -104,18 +134,18 @@ class ReviewFieldDiagnosticsTests(unittest.TestCase):
 
     def test_completeness_root_fields_survive_persistence_and_repair(self):
         bad = json.loads(visible().calls[0].arguments)
-        bad.pop('suggestions')
+        bad.pop('rationale')
         bad['extra'] = 'Do not persist this value.'
         model = TracedPhaseModel([tool_turn('submit_completeness_review', bad), visible()],
                                  lambda c: tool_turn('submit_review', current_support(c)))
         agent = reviewer(model)
         agent.review('Explain.', 'Summary [survey:CMT1].', [SOURCE])
         entry = agent.diagnostics['rejected_attempts'][0]
-        self.assertEqual(entry['missing_fields'], ['suggestions'])
+        self.assertEqual(entry['missing_fields'], ['rationale'])
         self.assertEqual(entry['unexpected_fields'], ['extra'])
         self.assertEqual(entry['resolution'], 'accepted_completeness_submission')
         feedback = json.loads(next(item['output'] for item in model.histories[1] if item.get('type') == 'function_call_output'))
-        self.assertIn('suggestions', feedback['correction'])
+        self.assertIn('rationale', feedback['correction'])
         self.assertNotIn('Do not persist this value.', str(entry))
 
     def test_same_condition_is_counted_and_final_acceptance_marks_repairs(self):
@@ -123,7 +153,7 @@ class ReviewFieldDiagnosticsTests(unittest.TestCase):
         def support(context):
             report = current_support(context)
             if len(attempts) < 2:
-                report.pop('numeric_reviews')
+                report.pop('finding_reviews')
             attempts.append(report)
             return tool_turn('submit_review', report)
         agent = reviewer(PhaseModel([visible()], support))
@@ -140,7 +170,7 @@ class ReviewFieldDiagnosticsTests(unittest.TestCase):
         def support(context):
             report = current_support(context)
             if not attempts:
-                report.pop('numeric_reviews')
+                report.pop('finding_reviews')
             elif len(attempts) == 1:
                 report['corrections'] = [{'issue': 'Missing context.'}]
             attempts.append(report)
@@ -156,7 +186,7 @@ class ReviewFieldDiagnosticsTests(unittest.TestCase):
     def test_three_invalid_submissions_remain_blocked(self):
         def support(context):
             report = current_support(context)
-            report.pop('numeric_reviews')
+            report.pop('finding_reviews')
             return tool_turn('submit_review', report)
         model = PhaseModel([visible()], support)
         original = SequenceModel([plan(numbers=False), ModelTurn(text='A scoped answer.')])

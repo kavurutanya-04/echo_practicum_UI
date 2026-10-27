@@ -97,9 +97,19 @@ export type Finding = {
   status: string
   reason: string
   deterministic_issues: unknown[]
+  assertions?: {
+    assertion_id?: string
+    claim: string
+    kind: 'factual' | 'proposal'
+    citation_ids: string[]
+    assessment: 'supported' | 'contradicted' | 'insufficient_evidence'
+    reason: string
+  }[]
 }
 
 export type Review = {
+  version?: string
+  correction_judgments?: Record<string, { mandatory: boolean; addressed: boolean; reason: string }>
   decision: string
   ratings: Record<string, { score: number; rationale: string }>
   issues: unknown[]
@@ -137,6 +147,7 @@ export type Artifact = {
   visualization: { charts?: ChartSpec[]; reason?: string; files?: { source_id: string; svg: string; csv: string; metadata: string }[] }
   rag: Record<string, unknown>
   execution: { generation_api_calls?: number; successful_generation_api_calls?: number; profiles_used?: Record<string, { model: string; api_calls: number }> }
+  capture?: { run_id?: string; exchanges?: string; resume_checkpoint?: string | null; parent_run_id?: string; source_checkpoint?: string; phase_only?: boolean }
   sentiment: Record<string, unknown>
   findings: Finding[]
   limitations: string[]

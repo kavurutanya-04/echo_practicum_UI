@@ -1,22 +1,74 @@
 # Echo agent responsibilities and examples
 
+Current contract, 2026-10-27: review-v5 corrects B after runs 27-29. Original expresses
+reviewable assertions using existing source-linked items; ZeroSugar judges their meaning
+with concise claim descriptions, without reproducing tables/formatting. Code assigns
+assessment IDs and still withholds an entire finding on a failed assertion. No role was
+added. Phase-only retries preserve the producer's retained work; a review retry calls
+ZeroSugar alone and stops at its decision. See [the current contract](RESUME_AND_CAPTURE.md).
+Its capture/resume changes and aligned regressions are unrun, per user instruction.
+
+Current support contract, 2026-10-27: review-v4 adds explicit assessments for individual
+assertions inside each finding. ZeroSugar supplies literal claim excerpts, factual/proposal
+kind, source subsets, judgment and reasons. Code checks coverage/references and withholds
+any finding containing a contradicted or insufficient_evidence assertion. Original receives
+the repair and assessments. Novel action ideas remain proposals; their factual premises
+are reviewed separately. V3 correction judgments, five roles and both phases remain.
+See the [current contract](WORKFLOW_RELIABILITY.md#assertion-level-support-review-review-v4-2026-10-27).
+
+Current correction contract, 2026-10-27: review-v3 requests code-keyed mandatory/addressed
+judgments and reasons instead of lifecycle states or replacement IDs. ZeroSugar still
+owns the semantic judgment; code derives and preserves the existing state/routing/export
+shape. A current objection judged already addressed is withdrawn; a real visible omission
+judged required and unaddressed stays pending. Legacy v2 submissions retain the guards
+described below. See the [current contract](WORKFLOW_RELIABILITY.md#explicit-correction-judgments-after-run-twenty-one-2026-10-27).
+
+Local recovery update, 2026-10-26: ZeroSugar distinguishes annotation normalization,
+pending repair and completed review. A current correction submitted as resolved stays
+pending; false omissions can be withdrawn against visible content. Invalid support
+submissions may return validated repair instructions to Original without an approval,
+within a four-draft limit (initial plus three revisions), including recovery after the
+second or third draft. ZeroSugar retains three attempts per phase; both phases are
+required before acceptance. Shared model/time/tool budgets still take precedence.
+Completeness sees trusted manager/date/team context, not source evidence. Cherry and
+Vanilla retain team authorization context from their scoped backend; Original passes it
+through and distinguishes selected examples from totals. Roles and budgets are retained.
+See the [recovery contract](WORKFLOW_RELIABILITY.md#review-recovery-after-run-fifteen-2026-10-26).
+
 Diagnostic follow-up, 2026-10-26: ZeroSugar's structured field rejections now preserve
 missing/additional keys, types and positions through model feedback and bounded local
 records. Retry identity and valid-submission repair events distinguish transport repair
 from analytical acceptance. This does not change the roles or review judgments. See the
 [diagnostic contract](WORKFLOW_RELIABILITY.md#field-error-diagnostics-follow-up-2026-10-26).
 
-## Current coordination contract (2026-10-26)
+## Current coordination contract (updated 2026-10-27)
+
+After run twenty-three, Original's complete analytical answer includes all requested
+content plus at least one concrete manager action reasoned from the analysis. New ideas
+are allowed beyond the question/source wording; factual premises remain source-grounded
+and benefits/assumptions are proposals. Completeness checks user-requested visible work;
+support separately receives the active Echo action policy and judges its fulfillment.
+Its policy_requirement correction belongs to Original with request_excerpt=null, avoiding
+a fictitious user request. Specialist diagnostics do not inherit this policy by default.
+The simplified review instructions retain objective gates and correction reassessment.
 
 All five roles analyze supplied data independently of its origin. Original distinguishes
 its internal analysis plan from manager-facing proposed actions, choosing depth and
 presentation without mandatory targets/resources/checklists. Cherry retains numeric
 ownership; Vanilla retains text/classification; Lime retains visualization. ZeroSugar
 retains separate completeness/support review and independently reassesses actual
-corrections, including justified withdrawal or consolidation. Source/scope/privacy gates
-cannot be withdrawn by model judgment. New reviews use `review-v2`, deriving routing from
+corrections, including justified withdrawal; consolidation remains a legacy v2 mechanism.
+Source/scope/privacy gates cannot be withdrawn by model judgment. New reviews use `review-v3`, deriving routing from
 one correction list and assessing pending numeric relevance. New answers use v4; older
 answer contracts remain reproducible. See the [current workflow](WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26).
+
+After run twenty-two, Original explicitly fulfills requested content and item counts
+while keeping useful actions as additions. Each action explains how a cited finding
+motivates addressing a problem or sustaining a strength, without claiming measured
+impact. Both ZeroSugar phases distinguish team questions from action recommendations
+by meaning, not punctuation; useful extra content cannot make a real omission optional.
+Support also assesses the proposed action's connection to findings. Unjustified
+objections remain withdrawable through review-v3; no stage or checklist was added.
 
 The [workflow reliability update](WORKFLOW_RELIABILITY.md) supersedes unconditional role
 execution and all-or-nothing release described below: Original now plans required roles,
@@ -34,6 +86,31 @@ Updated 2026-10-23. Five roles share configurable model adapters; each has its o
 The 2026-10-23 update removes the mandatory per-question checklist, retains actual review
 corrections and introduces separate completeness/support calls within ZeroSugar. See the
 [current workflow](WORKFLOW_RELIABILITY.md#autonomous-synthesis-and-two-stage-review-2026-10-23). The five roles and specialist formats remain.
+
+## Semantic-review update after run sixteen (2026-10-26)
+
+After run eighteen, ZeroSugar's support tool requests numeric_reviews/correction_reviews
+only when trusted pending requests/obligations exist. Echo supplies inactive lists as
+empty without inferring judgments. Active assessments, full comment context and both
+review phases remain required. See the [contextual contract](WORKFLOW_RELIABILITY.md#contextual-support-review-fields-after-run-eighteen-2026-10-26).
+
+Following the user's run-seventeen review, Vanilla now uses shared `survey-sentiment-v3`
+with general definitions and contextual model judgment. No case-specific combination of
+praise, criticism or closing words forces a label. Stored v1/v2 definitions remain for
+historical review; classification and verification share the report's rubric identity.
+Its tool continues to supply all canonical responses in
+privacy-released groups. ZeroSugar support sees each full response, label, excerpt and
+reason with that report's rubric. Suppressed
+texts remain excluded. Coverage counts do not establish semantic accuracy or imply zero
+indeterminate comments. All labels remain unvalidated by humans.
+
+New omissions require literal request_excerpt grounding; factual repairs must name the
+claim and conflicting evidence. Original challenges unjustified changes; ZeroSugar uses
+the existing withdrawal/consolidation/reassessment lifecycle. Full sources, valid inline
+IDs and explicit denominators can satisfy a request without a prescribed format or
+examples for unrequested categories. No new role or model call stage was added. This
+update is local and untested at the user's request. See the
+[workflow](WORKFLOW_RELIABILITY.md#sentiment-and-correction-grounding-after-run-sixteen-2026-10-26).
 
 ## Original — coordination, synthesis and supervised revision
 
@@ -116,10 +193,11 @@ Lime still accepts only Cherry's SQL evidence. It therefore does not chart these
 
 ## ZeroSugar — independent answer and chart-plan review
 
-Since 2026-10-26, pending-correction coverage is enforced even if the model omits the
-entire `correction_reviews` field. Each obligation needs one resolved/unresolved/withdrawn/consolidated
-assessment; code validates this coverage, while ZeroSugar judges semantic completion.
-Legacy reviews without prior corrections remain readable.
+Pending-correction coverage is enforced. Review-v3 requires every code-provided
+correction_judgments key with explicit mandatory/addressed booleans and a reason; the
+model does not construct IDs or choose replacement relationships. Legacy v2 submissions
+retain correction_reviews coverage and consolidation checks. Both remain fallible model
+judgments about semantic completion, never source-integrity overrides.
 
 **First input:** original question, visible candidate answer and presentation labels for
 accompanying charts, with no source data. **First tool:**

@@ -1,21 +1,84 @@
 # Echo: five agents with interchangeable model connections
 
+Current update, 2026-10-27: corrected B uses review-v5, with short per-assertion assessments
+instead of literal finding reconstruction. Full private exchanges/checkpoints are saved
+under reports/logs/details/ and linked in each new artifact. `--resume <failed-artifact>`
+retries only the failed phase with retained inputs; a ZeroSugar retry never invokes
+Original/Vanilla or publishes a full Original answer. Credentials are omitted and existing
+outputs are protected. See [capture/resumption](RESUME_AND_CAPTURE.md) and
+[runs 30-32](TESTING_AND_RAG.md#next-three-model-runs-30-32-2026-10-27).
+No local tests, build or provider call validated this update, by user instruction;
+the earlier 322 checks/build below apply to v4 only.
+
+Current support review, 2026-10-27: review-v4 assesses individual assertions within each
+finding. Any contradicted or insufficiently supported assertion withholds its whole
+finding and requests repair. The technical console shows Evidence checks; both phases,
+five roles, source-facts replay and existing budgets remain. All 322 offline checks and
+the frontend build passed; live quality/provider-schema validation is pending. See the
+[contract](WORKFLOW_RELIABILITY.md#assertion-level-support-review-review-v4-2026-10-27)
+and [live-test history](LIVE_TEST_HISTORY.md).
+
+Current local review contract, 2026-10-26: support requests numeric/correction assessments
+only when corresponding pending tasks exist. Echo supplies inactive lists as empty;
+active coverage and all review/data gates remain mandatory. Tests are aligned but unrun;
+no API calls or GitHub publication. See the
+[current contract](WORKFLOW_RELIABILITY.md#contextual-support-review-fields-after-run-eighteen-2026-10-26).
+
+Current local guidance, 2026-10-26: shared sentiment rubric v3 uses general definitions
+and contextual model judgment, replacing case-specific live instructions. Historical
+v1/v2 rubric identities remain readable. Full comment context, correction traceability,
+both reviews and all source/privacy/budget controls are retained. Existing test fixtures
+are aligned but unrun; no API calls or GitHub publication. See the
+[current contract](WORKFLOW_RELIABILITY.md#general-semantic-guidance-after-run-seventeen-2026-10-26).
+
+Local update after run sixteen, 2026-10-26: Vanilla and ZeroSugar share a versioned
+sentiment rubric; omission corrections cite the original request and retain that
+fragment. Support now receives full response/label pairs for all privacy-released groups,
+with the report's rubric and count-only coverage diagnostics. Historical v1 sentiment
+reports still replay as v1. Both reviews, scope/source/privacy checks and budgets remain.
+Implemented without tests, model calls or GitHub publication; improvement in live semantic
+quality remains unverified. See the
+[current contract](WORKFLOW_RELIABILITY.md#sentiment-and-correction-grounding-after-run-sixteen-2026-10-26)
+and [pending validation](TESTING_AND_RAG.md#semantic-review-update-after-run-sixteen-2026-10-26).
+
+Current local recovery update, 2026-10-26: optional review annotations no longer consume
+review repair attempts; invalid closure of a current correction keeps it pending.
+Validated completeness repairs may reach Original after invalid support submissions,
+within a four-draft limit (initial plus three revisions), without approval or released
+findings. ZeroSugar retains three attempts per phase; shared budgets remain unchanged.
+Both phases
+remain required for acceptance. Completeness receives trusted scope/team context;
+sources remain isolated to support review. Changes are local, not pushed. See the
+[recovery contract](WORKFLOW_RELIABILITY.md#review-recovery-after-run-fifteen-2026-10-26)
+and [offline checks](TESTING_AND_RAG.md#review-recovery-checks-2026-10-26).
+
 Current diagnostic follow-up, 2026-10-26: review field mismatches now retain bounded
 expected/received/missing/additional field names and root types. The same detail reaches
 the model's repair feedback and local artifacts/logs; retry metadata distinguishes repeated
 or changed errors and eventual valid submission. Review semantics/provider settings are
 unchanged. See the [diagnostic contract](WORKFLOW_RELIABILITY.md#field-error-diagnostics-follow-up-2026-10-26).
 
-## Current review and data contracts (2026-10-26)
+## Current review and data contracts (updated 2026-10-27)
 
 New answers use `source-facts-v4`; stored v1/v2/v3 remain reproducible. Echo treats
 supplied data by content/coverage/method and does not automatically label it synthetic.
-`review-v2` derives issues/repair targets from one correction list, reassesses every
-pending obligation, and judges pending metric relevance against the question. Original
+`review-v3` derives issues/repair targets from one correction list and requests explicit
+mandatory/addressed judgments for every pending obligation; code derives lifecycle states
+without model-managed replacement graphs. Legacy review submissions remain readable.
+Pending metric relevance is still judged against the question. Original
 integrates manager action proposals without a mandatory checklist or a sixth agent.
+After run twenty-three, a complete Original analysis must include at least one concrete
+action reasoned from the findings, even when the prompt does not request one. Ideas may
+go beyond source wording; factual premises remain grounded and benefits are proposals.
+Support review assesses this Echo policy separately from user-requested completeness;
+see the [current workflow](WORKFLOW_RELIABILITY.md#reasoned-actions-and-review-simplification-after-run-twenty-three-2026-10-27).
 Partial outputs identify the reviewed source version separately from an unreviewed
 new draft. See the [current workflow](WORKFLOW_RELIABILITY.md#review-and-data-contract-update-2026-10-26)
 and [validation record](TESTING_AND_RAG.md). Provider configuration and budgets are unchanged.
+
+The [run-twenty-one follow-up](WORKFLOW_RELIABILITY.md#explicit-correction-judgments-after-run-twenty-one-2026-10-27)
+describes the new wire contract and its limits. Canonical correction lists, source-version
+identity and the two independent review phases are retained.
 
 Echo's Python code, prompts, configuration and operating documentation are in English.
 The local SQLite database is built from eleven application tables (630,339 synthetic rows
@@ -156,6 +219,14 @@ For a larger corpus, `run_agent.py` accepts an explicit `--model-call-limit` (de
 
 For every profile, edit `model` and `endpoint` directly in JSON. Azure legacy profiles also declare `api_version`; Azure v1 profiles must supply their complete API base URL, including `/openai/v1/`. Generation profiles declare `max_output_tokens`, `timeout_seconds` and `max_retries`; APInex additionally uses `request_interval_seconds` and `rate_limit_retries`, with SDK retries disabled. `key_env` names the credential variable; it never contains the key itself. The private file is ignored by Git. Real key values must never enter JSON, source code, examples or logs.
 
+Chat Completions preserves each tool's explicit strict flag. Two synthetic/minimal
+APInex Luna requests accepted strict=true on 2026-10-27; this does not establish semantic
+accuracy or compatibility with other providers. See the [transport checks](TESTING_AND_RAG.md#strict-chat-transport-follow-up-2026-10-27).
+
+For one required tool, ChatModel also requests parallel_tool_calls=false. The saved
+run-twenty completeness phase subsequently completed in one live call with a revise
+verdict; the complete analysis is still unverified. See the [single-call check](TESTING_AND_RAG.md#single-call-review-follow-up-after-run-twenty-2026-10-27).
+
 Selection precedence is explicit: `--profile` for the current run, then the role's JSON assignment, then JSON `default_profile`. Model, endpoint, API-version and role overrides from `.env` or terminal variables are no longer used. Legacy JSON fields `model_env`, `endpoint_env` and `api_version_env` are rejected with a migration message. Only API keys use environment precedence: the process environment first, then the private `.env`. The legacy `from_environment()` entry point also follows JSON profile selection.
 
 Inspect the effective non-secret configuration without reading credentials:
@@ -221,6 +292,13 @@ This file is excluded from Git and exists separately on each computer. GitHub in
 Do not put real keys in `connections.json` or `.env.example`. The private `.env` and process environment supply keys only; process keys take precedence. Model, endpoint, version and role settings come exclusively from JSON (or the explicit `--profile` selection). `--show-connections` and `--demo` do not read the private file. Unused profiles do not require keys, and offline demos need none.
 
 With the `echo-agent` environment active and `requirements.txt` installed, test one provider at a time:
+
+APInex also has selectable `apinex_deepseek_test` (`free/deepseek-v4.1-flash`)
+and `apinex_gemini_test` (`free/gemini-3.8-flash`) profiles, added from user-supplied
+examples on 2026-10-27. They reuse APINEX_API_KEY and the Luna profile's 6000-output-token,
+120-second timeout and 20-second pacing settings. Select either using `--profile`;
+`--show-connections` inspects routing without an API call. Live tool compatibility and
+analysis quality for these two models have not been verified.
 
 ```powershell
 python .\run_agent.py --check-connection --profile nvidia_test
