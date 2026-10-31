@@ -54,6 +54,40 @@ cd Echo_UI/frontend && npm run dev   # http://localhost:5173, proxies /api to 87
   and stacked sentiment percentages when Vanilla's classifier ran.
 - **Runs** — searchable history, delete, and side-by-side comparison of two runs (for example, the
   same question on two models).
+- **Your team panel (manager view)** — one slide-out panel with four tabs: *What changed* (latest survey
+  quarter compared with the one before), *Goals* (measures saved with "Track next quarter", with their latest
+  value), *Gaps* (praised cross-team work with no manager-recognition record; "Mark as thanked" is stored only
+  in the browser) and *Team pulse*. Served by `/api/managers/{id}/updates`, which runs scoped read-only SQL
+  without model calls and never reads survey comment text.
+- **Business-oriented briefs** — each answer adds a "Why it matters" box (risk to engagement,
+  retention, delivery or capacity, stated without invented numbers or causal claims), business-framed next steps, and
+  metrics to watch that also appear in the Your team panel. The same text goes into the Power BI description.
+- **Open a chart in Power BI** — clicking any answer chart (manager view or console) asks first, then downloads a
+  zipped Power BI Project (PBIP: PBIR report + TMDL model, generally available in Power BI Desktop since September
+  2026) from `/api/runs/{id}/charts/{source}/powerbi.zip`. Extract it and open the `.pbip` file: one page with the
+  chart in Echo's pastel theme, the question, findings, limitations, a data table and a privacy note. The plotted
+  columns are embedded as a DAX `DATATABLE`, so it opens offline with no data source; nothing else is exported. The
+  plain CSV is also available at `/api/runs/{id}/charts/{source}/data.csv`. Generated JSON files are validated
+  against Microsoft's published PBIR schemas; opening in Power BI Desktop itself has not been tested here.
+- **Open a chart in Tableau or Excel** — the same dialog has an "Open in" dropdown (Power BI, Tableau, Excel; the
+  last choice is remembered). Tableau: `/api/runs/{id}/charts/{source}/tableau.twbx`, a packaged workbook (TWB 26.1
+  with the chart's CSV inside) that opens on the chart, with the description in the worksheet caption; the XML is
+  validated against Tableau's published TWB 2026.1 schema, so Tableau 2026.1 or newer is needed. Excel:
+  `/api/runs/{id}/charts/{source}/excel.xlsx` (needs `openpyxl`, in `backend/requirements.txt`): a native Excel chart
+  in the pastel palette with the description on the first sheet and the numbers on a Numbers sheet. All three share
+  one description (question, findings, why it matters, what to do first, limitations). Neither file has been opened
+  in Tableau or Excel here; the Excel file was checked by rendering it in LibreOffice.
+- **Layout options** — the suggested questions can be hidden down to the first three ("Show N more" brings the rest
+  back, however many there are), and the agents box can be minimized to a one-line strip that still shows which agent
+  is working. Both choices are remembered in the browser.
+- **Investigations and Present** — a question asked while an investigation is open is added to it as a follow-up;
+  **New investigation** (sidebar or the investigation bar) starts a fresh one. Earlier results fold up under the
+  latest. **Present** opens `/present/{investigation}` in a new tab: a designed 16:9 deck (cover, agenda, per
+  question a findings + chart slide and a "what it means / what to do" slide, actions for the quarter, how it was
+  checked) with arrow-key navigation and full screen. **Save as PDF** prints one slide per page; **Download
+  PowerPoint** calls `/api/presentation.pptx?manager_id=…&runs=…` (needs `python-pptx`) for an editable deck with
+  native charts. Slides use only the results' own manager projections; the endpoint refuses runs of another manager.
+  Checked here by rendering the .pptx in LibreOffice and the PDF in headless Chromium; not opened in PowerPoint.
 - **Team dashboard** — deterministic survey trends and a favorable-% heatmap from Echo's scoped
   data layer. No model calls.
 - **Data** — the eleven tables with row counts and the schema dictionary.
@@ -64,7 +98,7 @@ cd Echo_UI/frontend && npm run dev   # http://localhost:5173, proxies /api to 87
 
 ```
 Echo_UI/
-  backend/app.py        FastAPI: /api/meta, /api/managers, /api/runs (+ SSE events), /api/quota, /api/data
+  backend/app.py        FastAPI: /api/meta, /api/managers (+ /updates, /pulse), /api/runs (+ SSE events, chart CSV and Power BI project), /api/quota, /api/data
   frontend/             React + TypeScript + Vite, Tailwind CSS v4, Recharts, lucide icons
   runs/                 one folder per console run: meta.json, artifact.json, console.txt, charts/ (git-ignored)
   start.sh              build and serve on http://127.0.0.1:8765

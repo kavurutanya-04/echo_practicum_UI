@@ -4,6 +4,7 @@ import { createBrowserRouter, Navigate, RouterProvider, useParams } from 'react-
 import './index.css'
 import Layout from './components/Layout'
 import ManagerApp from './manager/ManagerApp'
+import Present from './manager/Present'
 import Ask from './pages/Ask'
 import Compare from './pages/Compare'
 import Connections from './pages/Connections'
@@ -15,6 +16,8 @@ import Runs from './pages/Runs'
 const router = createBrowserRouter([
   // The manager-facing chat is the main screen; the technical console lives under /console.
   { path: '/', element: <ManagerApp /> },
+  // An investigation as a presentation, opened in its own tab.
+  { path: '/present/:id', element: <Present /> },
   {
     path: '/console',
     element: <Layout />,

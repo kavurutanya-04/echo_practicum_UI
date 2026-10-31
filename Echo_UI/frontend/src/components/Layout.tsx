@@ -23,7 +23,19 @@ export function useTheme() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark)
+    const root = document.documentElement
+    const apply = () => root.classList.toggle('dark', dark)
+    if (root.classList.contains('dark') === dark) apply()
+    else if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) apply()
+    else if ('startViewTransition' in document) {
+      // Cross-fade the whole page from the old colours to the new ones.
+      ;(document as Document & { startViewTransition: (update: () => void) => unknown }).startViewTransition(apply)
+    } else {
+      // Older browsers: let colours ease over instead of snapping.
+      root.classList.add('theme-fading')
+      apply()
+      window.setTimeout(() => root.classList.remove('theme-fading'), 700)
+    }
     try {
       localStorage.setItem('echo-theme', dark ? 'dark' : 'light')
     } catch {

@@ -13,4 +13,5 @@ export const AGENTS: { name: AgentName; role: string; detail: string; color: str
 export const agentByName = (name?: string) =>
   AGENTS.find((agent) => agent.name.toLowerCase() === (name ?? '').toLowerCase())
 
-export const SERIES_COLORS = ['#6366f1', '#e11d48', '#d97706', '#65a30d', '#0891b2', '#7c3aed', '#db2777', '#0d9488']
+// Pastel chart colours (deep enough for projectors), starting with the sage and mist-blue palette colours. Power BI exports use the same list. Each series (or each bar of a one-series bar chart) takes the next one.
+export const SERIES_COLORS = ['#8fa066', '#7f97b5', '#d98a99', '#e0a267', '#9c8fcb', '#6fb39a', '#d2b356', '#78a9cf']

@@ -100,6 +100,24 @@ def recognition_trend(q):
              "unit": "Score (1-5)", "denominator": "Responses"}
     limits = ["Survey scores are team averages for everyone surveyed in the team, which can include people outside your pilot roster.",
               "Quarter-to-quarter changes of a few tenths can reflect who responded, not a real change."]
+    change = latest["Mean_Score"] - first["Mean_Score"]
+    best = max(rows, key=lambda r: r["Favorable_Percent"])
+    q.extra["impact"] = [
+        (f"Recognition is {'below' if change < 0 else 'above' if change > 0 else 'level with'} where it started this period "
+         f"({_signed(change)} on the 1-5 scale). Recognition is closely tied to engagement, so a sustained decline is an early "
+         f"people risk worth acting on before it shows up in turnover." if change < 0 else
+         f"Recognition has held or improved this period ({_signed(change)} on the 1-5 scale). Protecting what works is cheaper than "
+         f"rebuilding trust after a decline."),
+        f"Your best quarter reached {best['Favorable_Percent']:.0f}% favorable ({_quarter(best['Survey_Date'])}), so the team has "
+        f"already shown what good looks like; the gap to close is {max(0, best['Favorable_Percent'] - latest['Favorable_Percent']):.0f} points.",
+    ]
+    q.extra["next_steps"] = [
+        "Make recognition a standing item: name one specific contribution in each team meeting this month.",
+        f"Ask the team what changed around {_quarter(best['Survey_Date'])}, the best quarter, and repeat the practices that worked.",
+        "Review the trend again after the next survey before investing in a larger programme.",
+    ]
+    q.extra["watch"] = [{"metric": "Recognition survey favorable", "baseline": f"{latest['Favorable_Percent']:.0f}%",
+                         "goal": f"above {min(100, round(best['Favorable_Percent']))}%"}]
     return answer, findings, [chart], limits
 
 
@@ -124,6 +142,18 @@ def recognition_eight_quarters(q):
     chart = {"source_id": cite, "kind": "line", "x": "Survey_Date", "y": "Favorable_Percent", "series": "Team",
              "title": "Recognition favorability, last eight quarters", "x_label": "Survey date",
              "y_label": "Favorable responses", "unit": "%", "denominator": "Responses"}
+    latest = rows[-1]
+    q.extra["impact"] = [
+        f"Recognition favorability has swung by {max(favorable) - min(favorable):.0f} points across these quarters. Large swings make "
+        "it hard for people to trust that good work will be noticed, which weakens discretionary effort.",
+        f"The current {latest['Favorable_Percent']:.0f}% is {'at the low end' if latest['Favorable_Percent'] <= min(favorable) + 2 else 'within the range'} "
+        "of what this team has seen, so a steady routine matters more than a one-off campaign.",
+    ]
+    q.extra["next_steps"] = [
+        "Build a light, regular recognition habit (for example, a monthly shout-out round) instead of occasional big gestures.",
+        "Check which quarters dipped and whether they lined up with deadlines or reorganisations, and plan recognition around those periods.",
+    ]
+    q.extra["watch"] = [{"metric": "Recognition survey favorable", "baseline": f"{latest['Favorable_Percent']:.0f}%", "goal": "hold steady"}]
     return answer, findings, [chart], ["Favorable % counts 4s and 5s; it is not the same metric as the mean score."]
 
 
@@ -180,6 +210,20 @@ def this_quarter_recognition(q):
              "x_label": "Measure", "y_label": "Contributions", "unit": "contributions"}
     limits = ["Recognition records cover formal feedback only; other conversations may be unrecorded.",
               "A missing record is not proof that the work went unrecognized."]
+    if total:
+        praised, recognized = w["With_Partner_Feedback"] or 0, w["With_Manager_Recognition"] or 0
+        q.extra["impact"] = [
+            f"Other teams praised {praised} of {total} contributions this quarter, but only {recognized} were recognized by a manager. "
+            "That gap means the people other teams rely on are the least likely to hear it from their own manager, a retention risk "
+            "for exactly the employees who make cross-team delivery work.",
+            "Closing the gap costs little: the praise already exists, it just has not been passed on.",
+        ]
+        q.extra["next_steps"] = [
+            "Turn this quarter's partner praise into recognition: forward it with a personal note (see Gaps in the Your team panel).",
+            "Agree with the managers whose teams you help most that partner feedback is copied to you.",
+            "Set a simple target for next quarter: recognize at least half of the praised cross-team work.",
+        ]
+        q.extra["watch"] = [{"metric": "Cross-team work recognized by a manager", "baseline": f"{100 * recognized / total:.0f}%", "goal": "above 50%"}]
     return answer, findings, [chart], limits
 
 
@@ -212,6 +256,33 @@ def over_capacity_weeks(q):
              "y_label": "People over capacity", "unit": "people"}
     limits = ["Weeks where leave or routine hours were not recorded are excluded; missing is not zero.",
               "Requested hours are current estimates, not hours actually worked."]
+    excess = q.db.execute(f"""WITH demand AS (
+            SELECT Assigned_Employee_ID AS e, Week_Start AS w, SUM(Current_Estimated_Hours) AS h FROM OP_work_requests
+            WHERE Assigned_Employee_ID IN ({q.team_filter}) AND Week_Start BETWEEN :start AND :end GROUP BY 1, 2),
+        cap AS (
+            SELECT Employee_ID AS e, Week_Start AS w, Available_Project_Hours AS a FROM OP_capacity
+            WHERE Employee_ID IN ({q.team_filter}) AND Week_Start BETWEEN :start AND :end AND Available_Project_Hours IS NOT NULL)
+        SELECT COALESCE(SUM(MAX(d.h - c.a, 0)), 0) AS over_hours, AVG(c.a) AS avg_available
+        FROM demand d JOIN cap c ON c.e = d.e AND c.w = d.w""", q.params).fetchone()
+    over_hours, per_week = excess["over_hours"] or 0, excess["avg_available"] or 0
+    impact = [f"In {len(any_over)} of {len(rows)} weeks someone was asked for more hours than they had. Repeated overload "
+              "is a delivery risk (missed dates, rework) and a burnout and retention risk for the people carrying it."]
+    if over_hours and per_week:
+        impact.append(f"Requests exceeded individual capacity by about {over_hours:,.0f} hours in total, roughly "
+                      f"{over_hours / per_week:,.0f} person-weeks of work at this team's average available hours. That is "
+                      "unplanned work being absorbed rather than scheduled.")
+    impact.append("Because the team as a whole was over capacity in only "
+                  f"{len(team_over)} week{'' if len(team_over) == 1 else 's'}, much of this could be addressed by rebalancing work before adding headcount.")
+    q.extra["impact"] = impact
+    q.extra["next_steps"] = [
+        f"Rebalance work in the busiest weeks first ({', '.join(r['Week_Start'] for r in worst[:2])}): move requests to people with spare hours.",
+        "Agree an intake rule with requesting managers: new requests above a person's available hours need your sign-off.",
+        "Use the weeks with spare capacity for the work that keeps slipping.",
+    ]
+    start, end = quarter_window(q)
+    if end:
+        weeks, over = _weeks_over(q, start, end)
+        q.extra["watch"] = [{"metric": "Weeks with someone over project hours", "baseline": str(len(over)), "goal": "fewer each quarter"}]
     return answer, findings, [chart], limits
 
 
@@ -239,6 +310,23 @@ def contributions_without_recognition(q):
              "y_label": "Contributions without a note", "unit": "contributions"}
     limits = ["An absent note is not proof that recognition never happened; it may have been given informally.",
               "Chart shows the 12 teams helped most."]
+    q.extra["impact"] = [
+        f"{100 * missing / total:.0f}% of your team's help to other teams has no recognition on record. Help that goes "
+        "unrecognized can stop being volunteered, and cross-team help is what keeps shared projects moving.",
+        f"{top[0]['Team_Helped']} relies on your team most ({top[0]['Contributions']} contributions); that relationship is "
+        "where recognition, or its absence, is most visible.",
+    ]
+    q.extra["next_steps"] = [
+        f"Start with {top[0]['Team_Helped']}: recognize the most recent help your team gave them and copy their manager.",
+        "Ask the managers of the teams you help most to send partner feedback to you as well as to the person.",
+        "Review the unrecognized list monthly in the Gaps tab of the Your team panel.",
+    ]
+    start, end = quarter_window(q)
+    if end:
+        work = _work_counts(q, start, end)
+        if work["Cross_Team"]:
+            q.extra["watch"] = [{"metric": "Cross-team work recognized by a manager",
+                                 "baseline": f"{100 * work['Recognized'] / work['Cross_Team']:.0f}%", "goal": "above 50%"}]
     return answer, findings, [chart], limits
 
 
@@ -273,6 +361,23 @@ def biggest_survey_change(q):
     chart = {"source_id": "SQL2", "kind": "bar", "x": "Dimension", "y": "Change",
              "title": "Change in mean survey score over the last year", "x_label": "Survey area",
              "y_label": "Change in mean score", "unit": "points"}
+    current = _favorable_by_dimension(q, latest)
+    impact = []
+    if down["Change"] < 0:
+        impact.append(f"{down['Dimension']} declined the most ({_signed(down['Change'])} on the 1-5 scale). A falling area is often where "
+                      "disengagement shows up first, so it is the cheapest place to intervene now.")
+    impact.append(f"{up['Dimension']} improved the most ({_signed(up['Change'])} on the 1-5 scale); whatever changed there is a practice "
+                  "worth keeping and spreading.")
+    q.extra["impact"] = impact
+    q.extra["next_steps"] = [
+        (f"Hold a short team conversation on {down['Dimension'].lower()}: what got harder this year, and one thing to change."
+         if down["Change"] < 0 else "Ask the team which recent changes they value most, and protect them."),
+        f"Keep doing what lifted {up['Dimension'].lower()}, and say so explicitly to the team.",
+        "Re-check after the next survey to see whether the change holds.",
+    ]
+    if down["Change"] < 0 and down["Dimension"] in current:
+        q.extra["watch"] = [{"metric": f"{down['Dimension']} survey favorable", "baseline": f"{current[down['Dimension']][0]:.0f}%", "goal": "back above " +
+                             f"{current[down['Dimension']][0] + 5:.0f}%"}]
     return answer, findings, [chart], ["Compares the first and last survey within the last 12 months of the period."]
 
 
@@ -352,6 +457,14 @@ def invisible_work(q):
     q.extra["examples"] = [{"contribution_id": e["Contribution_ID"], "employee_id": e["Employee_ID"], "name": e["Employee_Name"],
                             "team_helped": e["Team_Helped"], "date": e["Contribution_Date"], "outcome": e["Business_Outcome"],
                             "praise_reached_you": bool(e["Praise_Shared_With_You"])} for e in examples]
+    q.extra["impact"] = [
+        f"{w['Praised_Not_Recognized']} pieces of cross-team work were praised by the team they helped but never recognized by a "
+        "manager. The people other teams depend on are the ones going unrecognized, a retention risk for your most "
+        "collaborative employees.",
+        (f"Help given to other teams is recognized {recognized_pct:.0f}% of the time versus {own_pct:.0f}% for own-team work, so "
+         "the current signal to employees is that helping elsewhere does not count." if own_pct is not None and recognized_pct < own_pct else
+         f"Only {recognized_pct:.0f}% of help given to other teams is recognized, so most of it is invisible in reviews."),
+    ]
     q.extra["next_steps"] = [
         f"Start with the {w['Praise_Shared_With_You']} praise notes already sent to you: recognize the work specifically, naming the team it helped.",
         "Ask the managers your team helps most to copy you on partner feedback.",
@@ -375,6 +488,132 @@ def invisible_work(q):
               "The survey covers everyone surveyed in the team, which can include people outside your pilot roster.",
               "Use the examples to start a conversation, not to rate individuals."]
     return answer, findings, [chart], limits
+
+
+def _previous_window(q, start):
+    """The three months before a quarter window, clipped to the scope; None when the scope has no earlier data."""
+    end = date.fromisoformat(start) - timedelta(days=1)
+    if end.isoformat() < q.scope.start_date:
+        return None, None
+    year, month = (end.year, end.month - 2) if end.month > 2 else (end.year - 1, end.month + 10)
+    return max(date(year, month, 1).isoformat(), q.scope.start_date), end.isoformat()
+
+
+def _favorable_by_dimension(q, survey_date):
+    rows = q.db.execute(f"""SELECT Dimension, SUM(Favorable_Responses) * 100.0 / SUM(Responses) AS Favorable, SUM(Responses) AS Responses
+        FROM HR_survey_summary WHERE Team IN {q.team_in()} AND Survey_Date = :d AND Dimension <> 'eNPS'
+        AND Responses >= {SURVEY_MIN_RESPONSES} GROUP BY Dimension""", {"d": survey_date}).fetchall()
+    return {r["Dimension"]: (r["Favorable"], r["Responses"]) for r in rows if r["Favorable"] is not None}
+
+
+def _work_counts(q, start, end):
+    """Cross-team contributions, praised ones, recognized ones and praised-but-unrecognized ones in a window."""
+    row = q.db.execute(f"""WITH c AS (
+            SELECT c.Home_Team <> c.Beneficiary_Team AS cross_team,
+              EXISTS(SELECT 1 FROM HR_recognition_feedback f WHERE f.Contribution_ID = c.Contribution_ID AND f.Interaction_Type = 'Partner feedback') AS praised,
+              EXISTS(SELECT 1 FROM HR_recognition_feedback f WHERE f.Contribution_ID = c.Contribution_ID AND f.Interaction_Type = 'Manager recognition') AS recognized
+            FROM OP_contributions c WHERE c.Employee_ID IN ({q.team_filter}) AND c.Contribution_Date BETWEEN :wstart AND :wend)
+        SELECT COALESCE(SUM(cross_team), 0) AS Cross_Team, COALESCE(SUM(cross_team AND recognized), 0) AS Recognized,
+          COALESCE(SUM(cross_team AND praised AND NOT recognized), 0) AS Praised_Not_Recognized FROM c""",
+        {**q.params, "wstart": start, "wend": end}).fetchone()
+    return dict(row)
+
+
+def _weeks_over(q, start, end):
+    rows = q.db.execute(f"""WITH demand AS (
+            SELECT Assigned_Employee_ID AS e, Week_Start AS w, SUM(Current_Estimated_Hours) AS h FROM OP_work_requests
+            WHERE Assigned_Employee_ID IN ({q.team_filter}) AND Week_Start BETWEEN :wstart AND :wend GROUP BY 1, 2),
+        cap AS (
+            SELECT Employee_ID AS e, Week_Start AS w, Available_Project_Hours AS a FROM OP_capacity
+            WHERE Employee_ID IN ({q.team_filter}) AND Week_Start BETWEEN :wstart AND :wend AND Available_Project_Hours IS NOT NULL)
+        SELECT d.w AS Week_Start, SUM(d.h > c.a) AS People_Over FROM demand d JOIN cap c ON c.e = d.e AND c.w = d.w
+        GROUP BY d.w ORDER BY d.w""", {**q.params, "wstart": start, "wend": end}).fetchall()
+    return len(rows), [r["Week_Start"] for r in rows if r["People_Over"]]
+
+
+def team_updates(q):
+    """The manager's side panel: what changed in the latest survey quarter, recognition gaps, and goal measures.
+
+    Team-level counts and record-level work items only; survey comment text is never read here. No model calls.
+    """
+    start, end = quarter_window(q)
+    empty = {"quarter": None, "previous_quarter": None, "as_of": None, "updates": [], "gaps": [], "gaps_total": 0, "measures": {}}
+    if not end:
+        return empty
+    prev_start, prev_end = _previous_window(q, start)
+    updates = []
+
+    dates = [r[0] for r in q.db.execute(f"""SELECT DISTINCT Survey_Date FROM HR_survey_summary WHERE Team IN {q.team_in()}
+        AND Survey_Date BETWEEN :start AND :end ORDER BY Survey_Date DESC LIMIT 2""", q.params)]
+    if len(dates) == 2:
+        now, before = _favorable_by_dimension(q, dates[0]), _favorable_by_dimension(q, dates[1])
+        if "Recognition" in now and "Recognition" in before:
+            (n, responses), (b, _) = now["Recognition"], before["Recognition"]
+            verb = "fell" if n <= b - 1 else "rose" if n >= b + 1 else "held steady"
+            updates.append({"id": "recognition", "tone": "down" if verb == "fell" else "up" if verb == "rose" else "flat",
+                            "title": f"Recognition favorable {verb} {'at' if verb == 'held steady' else 'to'} {n:.0f}%",
+                            "detail": f"Was {b:.0f}% in {_quarter(dates[1])} · survey, {responses} responses",
+                            "question": "How is recognition trending for my team?"})
+        moves = [(d, now[d][0] - before[d][0], before[d][0], now[d][0]) for d in now if d in before and d != "Recognition"]
+        if moves:
+            dim, change, b, n = max(moves, key=lambda m: abs(m[1]))
+            if abs(change) >= 3:
+                updates.append({"id": "survey-area", "tone": "up" if change > 0 else "down",
+                                "title": f"{dim} favorable {'rose' if change > 0 else 'fell'} {abs(change):.0f} points",
+                                "detail": f"{b:.0f}% → {n:.0f}% since {_quarter(dates[1])} · survey",
+                                "question": "Which survey area changed most over the last year?"})
+
+    weeks, over = _weeks_over(q, start, end)
+    if weeks:
+        before_over = len(_weeks_over(q, prev_start, prev_end)[1]) if prev_start else None
+        updates.append({"id": "capacity", "tone": "warn" if over else "up",
+                        "title": f"{len(over)} week{'' if len(over) == 1 else 's'} had someone over project hours" if over else
+                                 "No one went over project hours",
+                        "detail": f"Out of {weeks} weeks in {_quarter(end)}" + (f" · {before_over} the quarter before" if before_over is not None else ""),
+                        "question": "Which weeks exceed available project hours?"})
+
+    work = _work_counts(q, start, end)
+    if work["Cross_Team"]:
+        before = _work_counts(q, prev_start, prev_end)["Cross_Team"] if prev_start else None
+        trend = "" if before is None else (f" · up from {before}" if work["Cross_Team"] > before else
+                                           f" · down from {before}" if work["Cross_Team"] < before else " · same as")
+        updates.append({"id": "cross-team", "tone": "up" if before is not None and work["Cross_Team"] > before else "flat",
+                        "title": f"{work['Cross_Team']} pieces of cross-team work in {_quarter(end)}",
+                        "detail": f"Work records{trend}{' the quarter before' if before is not None else ''}",
+                        "question": "Is my team's cross-team work being recognized?"})
+
+    gaps = [dict(r) for r in q.db.execute(f"""SELECT c.Contribution_ID, c.Employee_ID, c.Employee_Name, c.Beneficiary_Team AS Team_Helped,
+          c.Contribution_Date, c.Business_Outcome, MAX(f.Shared_With_Home_Manager = 'Yes') AS Praise_Shared_With_You
+        FROM OP_contributions c JOIN HR_recognition_feedback f ON f.Contribution_ID = c.Contribution_ID AND f.Interaction_Type = 'Partner feedback'
+        WHERE c.Employee_ID IN ({q.team_filter}) AND c.Home_Team <> c.Beneficiary_Team AND c.Contribution_Date BETWEEN :qstart AND :qend
+          AND NOT EXISTS(SELECT 1 FROM HR_recognition_feedback r WHERE r.Contribution_ID = c.Contribution_ID AND r.Interaction_Type = 'Manager recognition')
+        GROUP BY c.Contribution_ID ORDER BY c.Contribution_Date LIMIT 50""", {**q.params, "qstart": start, "qend": end})]
+    as_of = date.fromisoformat(end)
+    gap_items = [{"contribution_id": g["Contribution_ID"], "employee_id": g["Employee_ID"], "name": g["Employee_Name"],
+                  "team_helped": g["Team_Helped"], "date": g["Contribution_Date"], "outcome": g["Business_Outcome"],
+                  "praise_reached_you": bool(g["Praise_Shared_With_You"]),
+                  "age_days": (as_of - date.fromisoformat(g["Contribution_Date"])).days} for g in gaps]
+    if work["Praised_Not_Recognized"]:
+        updates.append({"id": "gaps", "tone": "todo",
+                        "title": f"{work['Praised_Not_Recognized']} praised contribution{'' if work['Praised_Not_Recognized'] == 1 else 's'} not yet recognized",
+                        "detail": f"Oldest from {gap_items[0]['date']} · see Gaps" if gap_items else "See Gaps",
+                        "action": "gaps"})
+
+    # Same definitions as the "How you'll know it helped" measures in the recognition brief, so saved goals can be compared.
+    survey = q.db.execute(f"""SELECT Favorable_Percent FROM HR_survey_summary WHERE Dimension = 'Recognition' AND Team IN {q.team_in()}
+        AND Survey_Date = :qend AND Responses >= {SURVEY_MIN_RESPONSES}""", {"qend": end}).fetchone()
+    measures = {"Praised cross-team work left unrecognized": str(work["Praised_Not_Recognized"]),
+                "Weeks with someone over project hours": str(len(over)) if weeks else None}
+    if dates:
+        for dim, (fav, _) in _favorable_by_dimension(q, dates[0]).items():
+            measures[f"{dim} survey favorable"] = f"{fav:.0f}%"
+    measures = {k: v for k, v in measures.items() if v is not None}
+    if work["Cross_Team"]:
+        measures["Cross-team work recognized by a manager"] = f"{100 * work['Recognized'] / work['Cross_Team']:.0f}%"
+    if survey:
+        measures["Recognition survey favorable"] = f"{survey['Favorable_Percent']:.0f}%"
+    return {"quarter": _quarter(end), "previous_quarter": _quarter(prev_end) if prev_end else None, "as_of": end,
+            "updates": updates, "gaps": gap_items, "gaps_total": work["Praised_Not_Recognized"], "measures": measures}
 
 
 GUARDRAIL = re.compile(r"\b(who (said|wrote|complained|posted|is unhappy|feels|thinks|answered)|which (employee|person|people|colleague)s? "

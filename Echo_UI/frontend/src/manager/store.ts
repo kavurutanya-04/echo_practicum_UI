@@ -58,3 +58,41 @@ export function saveWatch(manager: string, items: Watched[]) {
     /* storage unavailable */
   }
 }
+
+// Recognition gaps the manager has marked as thanked (contribution ID -> when). Only stored in this browser.
+const thankedKey = (manager: string) => `echo-thanked-${manager.toUpperCase()}`
+
+export function loadThanked(manager: string): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(thankedKey(manager)) ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
+export function saveThanked(manager: string, thanked: Record<string, string>) {
+  try {
+    localStorage.setItem(thankedKey(manager), JSON.stringify(thanked))
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+// Which quarter's updates the manager has already opened, so the badge only counts unseen ones.
+const seenKey = (manager: string) => `echo-updates-seen-${manager.toUpperCase()}`
+
+export function loadSeen(manager: string): string {
+  try {
+    return localStorage.getItem(seenKey(manager)) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export function saveSeen(manager: string, value: string) {
+  try {
+    localStorage.setItem(seenKey(manager), value)
+  } catch {
+    /* storage unavailable */
+  }
+}

@@ -1,17 +1,102 @@
 @import "tailwindcss";
+/* Scan every source file for classes, including pages added later (such as the presentation). */
+@source "./";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  /* Agent identity colors (each Echo agent is named after a soda flavor). */
-  --color-original: #7c3aed;
-  --color-cherry: #e11d48;
-  --color-vanilla: #d97706;
-  --color-lime: #65a30d;
-  --color-zerosugar: #0891b2;
+  /* Echo palette: sage #A8B58A and mist blue #A9B7C6, with deeper action and text shades for projectors.
+     Tailwind's indigo (the accent) becomes a sage scale and slate (greys) a mist-blue scale,
+     so every existing class picks up the palette without renaming anything. */
+  --color-indigo-50: #f4f6ef;
+  --color-indigo-100: #e8ecdd;
+  --color-indigo-200: #d3dabf;
+  --color-indigo-300: #bdc7a2;
+  --color-indigo-400: #a8b58a;
+  --color-indigo-500: #7d8c52;
+  --color-indigo-600: #63703c;
+  --color-indigo-700: #515c30;
+  --color-indigo-800: #414a28;
+  --color-indigo-900: #3a412d;
+  --color-indigo-950: #20241a;
+
+  --color-slate-50: #f6f8fa;
+  --color-slate-100: #e8edf3;
+  --color-slate-200: #c9d2de;
+  --color-slate-300: #a9b7c6;
+  --color-slate-400: #6f8095;
+  --color-slate-500: #556477;
+  --color-slate-600: #435163;
+  --color-slate-700: #334050;
+  --color-slate-800: #2b3542;
+  --color-slate-900: #1e2630;
+  --color-slate-950: #141a21;
+
+  /* Agent identity colors (each Echo agent is named after a soda flavor), soft tones that sit with the palette. */
+  --color-original: #6a84aa;
+  --color-cherry: #c76f82;
+  --color-vanilla: #c58e45;
+  --color-lime: #7b934b;
+  --color-zerosugar: #8676c1;
+}
+
+/* A soft wash of an agent's colour behind its icon (set --agent on the element). */
+.agent-tint { background: color-mix(in srgb, var(--agent) 16%, white); color: color-mix(in srgb, var(--agent) 82%, black); }
+.dark .agent-tint { background: color-mix(in srgb, var(--agent) 24%, var(--color-slate-900)); color: color-mix(in srgb, var(--agent) 75%, white); }
+
+/* Page background: a faint sage and mist wash in opposite corners, so the page isn't flat grey. */
+.echo-wash {
+  background:
+    radial-gradient(60rem 30rem at 0% 0%, color-mix(in srgb, #a8b58a 16%, transparent), transparent 70%),
+    radial-gradient(50rem 30rem at 100% 100%, color-mix(in srgb, #a9b7c6 22%, transparent), transparent 70%),
+    radial-gradient(40rem 24rem at 100% 0%, color-mix(in srgb, #c3b5e3 10%, transparent), transparent 70%),
+    var(--color-slate-50);
+}
+.dark .echo-wash {
+  background:
+    radial-gradient(60rem 30rem at 0% 0%, color-mix(in srgb, #a8b58a 9%, transparent), transparent 70%),
+    radial-gradient(50rem 30rem at 100% 100%, color-mix(in srgb, #a9b7c6 8%, transparent), transparent 70%),
+    var(--color-slate-950);
+}
+
+/* A card whose top fades in from its agent's colour (set --agent on the element). */
+.agent-wash { background-image: linear-gradient(180deg, color-mix(in srgb, var(--agent) 13%, white) 0, white 88px); }
+.dark .agent-wash { background-image: linear-gradient(180deg, color-mix(in srgb, var(--agent) 12%, var(--color-slate-900)) 0, var(--color-slate-900) 88px); }
+
+/* Charts focus their own SVG when clicked; the clickable wrapper shows a soft ring instead of the browser's black box. */
+.recharts-wrapper:focus, .recharts-wrapper *:focus, .recharts-surface:focus { outline: none; }
+
+/* Sign-in brand panel: deep sage into ink, with soft palette glows. */
+.echo-entry-panel {
+  background:
+    radial-gradient(46rem 32rem at 12% 85%, color-mix(in srgb, #a8b58a 30%, transparent), transparent 70%),
+    radial-gradient(40rem 30rem at 95% 10%, color-mix(in srgb, #a9b7c6 26%, transparent), transparent 70%),
+    linear-gradient(150deg, #2c3a27 0%, #263330 45%, #1f2834 100%);
+}
+
+/* The ripples spread out once when the page opens. */
+@keyframes echo-ripple { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
+.echo-ripple { transform-origin: 300px 300px; animation: echo-ripple 1.4s cubic-bezier(.2,.7,.2,1) both; }
+
+/* Welcome screen lines rise in one after another. */
+@keyframes echo-welcome-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.echo-welcome-rise { animation: echo-welcome-rise 0.9s cubic-bezier(.2,.7,.2,1) both; }
+
+/* Light/dark switch: a slow cross-fade instead of a snap. */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.7s; animation-timing-function: cubic-bezier(.4,0,.2,1); }
+html.theme-fading *, html.theme-fading *::before, html.theme-fading *::after {
+  transition: background-color .6s ease, border-color .6s ease, color .6s ease, fill .6s ease, stroke .6s ease, box-shadow .6s ease !important;
+}
+
+/* Thin palette ribbon under the header. */
+.echo-ribbon { background: linear-gradient(90deg, #a8b58a, #a9b7c6 45%, #c3b5e3 75%, #e8b4bc); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
 html, body, #root { height: 100%; }
@@ -20,7 +105,7 @@ body {
   @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
 }
 
-::selection { @apply bg-indigo-500/25; }
+::selection { @apply bg-indigo-400/30; }
 
 /* Thin, theme-aware scrollbars for panels. */
 * { scrollbar-width: thin; scrollbar-color: rgb(148 163 184 / 0.4) transparent; }
@@ -52,3 +137,15 @@ body {
 /* Marching dashes along an active agent link on the stage. */
 @keyframes flow-dash { to { stroke-dashoffset: -28; } }
 .flow-dash { animation: flow-dash 0.9s linear infinite; }
+
+/* Presentation tab: "Save as PDF" prints one 16:9 slide per page, without the controls. */
+@media print {
+  @page { size: 1280px 720px; margin: 0; }
+  html, body, #root { height: auto !important; background: #fff !important; }
+  .present-chrome { display: none !important; }
+  .present-shell, .present-stage { display: block !important; height: auto !important; padding: 0 !important; overflow: visible !important; background: none !important; }
+  .present-page { width: 1280px; height: 720px; overflow: hidden; break-after: page; page-break-after: always; }
+  .present-page:last-child { break-after: auto; page-break-after: auto; }
+  .present-scale { box-shadow: none !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

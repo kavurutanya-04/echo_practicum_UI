@@ -159,6 +159,8 @@ export type Artifact = {
   examples?: Example[]
   watch?: WatchItem[]
   voice?: { topic: string; responses: number; positive: number; negative: number }
+  /** Business meaning of the result (offline demo answers): impact and risk, team-level, no causal claims. */
+  impact?: string[]
   guardrail?: { rule: string; checked_by: string; detail: string }
 }
 
@@ -188,6 +190,18 @@ export type Pulse = {
   generated_at: string | null
   model: string | null
   error: string | null
+}
+
+export type TeamUpdate = { id: string; tone: 'up' | 'down' | 'flat' | 'warn' | 'todo'; title: string; detail: string; question?: string; action?: 'gaps' }
+export type GapItem = Example & { age_days: number }
+export type TeamUpdates = {
+  quarter: string | null
+  previous_quarter: string | null
+  as_of: string | null
+  updates: TeamUpdate[]
+  gaps: GapItem[]
+  gaps_total: number
+  measures: Record<string, string>
 }
 
 export type RunDetail = { meta: RunMeta; artifact: Artifact | null; console: string }
@@ -246,6 +260,8 @@ export const api = {
   managerRun: (id: string) => request<RunDetail>(`/api/runs/${id}?view=manager`),
   pulse: (id: string, start: string, end: string, generate = false) =>
     request<Pulse>(`/api/managers/${encodeURIComponent(id)}/pulse?start=${start}&end=${end}${generate ? '&generate=true' : ''}`),
+  teamUpdates: (id: string, start: string, end: string) =>
+    request<TeamUpdates>(`/api/managers/${encodeURIComponent(id)}/updates?start=${start}&end=${end}`),
   savedAnswers: (id: string, start: string, end: string) =>
     request<{ question: string; recorded_at: string | null }[]>(`/api/recordings?manager_id=${encodeURIComponent(id)}&start=${start}&end=${end}`),
   lookupManager: (code: string) => request<Manager>(`/api/manager/${encodeURIComponent(code)}`),
@@ -253,6 +269,11 @@ export const api = {
   cancelRun: (id: string) => request<unknown>(`/api/runs/${id}/cancel`, { method: 'POST' }),
   deleteRun: (id: string) => request<unknown>(`/api/runs/${id}`, { method: 'DELETE' }),
   fileUrl: (id: string, path: string) => `/api/runs/${id}/files/${path.split('/').pop()}`,
+  chartCsvUrl: (id: string, source: string) => `/api/runs/${id}/charts/${encodeURIComponent(source)}/data.csv`,
+  chartPowerBiUrl: (id: string, source: string) => `/api/runs/${id}/charts/${encodeURIComponent(source)}/powerbi.zip`,
+  chartTableauUrl: (id: string, source: string) => `/api/runs/${id}/charts/${encodeURIComponent(source)}/tableau.twbx`,
+  chartExcelUrl: (id: string, source: string) => `/api/runs/${id}/charts/${encodeURIComponent(source)}/excel.xlsx`,
+  presentationUrl: (manager: string, runs: string[]) => `/api/presentation.pptx?manager_id=${encodeURIComponent(manager)}&runs=${runs.map(encodeURIComponent).join(',')}`,
 }
 
 export function isSql(evidence: Evidence): evidence is SqlEvidence {

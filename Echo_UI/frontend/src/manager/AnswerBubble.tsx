@@ -141,7 +141,7 @@ export default function AnswerBubble({ meta, artifact, onOpenPulse }: { meta: Ru
             {chart.y_label}
             {chart.unit ? ` (${chart.unit})` : ''} by {chart.x_label}
           </div>
-          <EvidenceChart spec={chart} evidence={chartSource} height={240} />
+          <EvidenceChart spec={chart} evidence={chartSource} height={240} runId={meta.id} />
         </div>
       )}
 
